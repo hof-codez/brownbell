@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,7 +31,7 @@
             border-radius: 12px;
             padding: 20px;
             margin-bottom: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             text-align: center;
         }
 
@@ -62,7 +63,7 @@
             background: white;
             border-radius: 12px;
             margin: 20px 0;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
         .error {
@@ -79,7 +80,7 @@
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -112,14 +113,14 @@
             color: #666;
             font-weight: 600;
             cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             transition: all 0.2s;
         }
 
         .award-toggle button.active {
             color: white;
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
         .award-toggle .main-award.active {
@@ -145,7 +146,7 @@
             color: #666;
             font-weight: 600;
             cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             transition: all 0.2s;
         }
 
@@ -153,7 +154,7 @@
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
         .card {
@@ -161,7 +162,7 @@
             border-radius: 12px;
             padding: 20px;
             margin-bottom: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
         .card h2 {
@@ -218,9 +219,20 @@
             margin-right: 5px;
         }
 
-        .pos-QB { background: #e3f2fd; color: #1976d2; }
-        .pos-RB { background: #f3e5f5; color: #7b1fa2; }
-        .pos-WR { background: #e8f5e9; color: #388e3c; }
+        .pos-QB {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .pos-RB {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .pos-WR {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
 
         .sub-badge {
             background: #fff3cd;
@@ -329,7 +341,7 @@
 
         .refresh-btn:hover {
             transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
         }
 
         @media (max-width: 768px) {
@@ -378,6 +390,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -415,7 +428,8 @@
 
             <!-- Award Toggle -->
             <div class="award-toggle">
-                <button id="mainAwardBtn" class="main-award active" onclick="toggleAward('main')">Brown Bell Award</button>
+                <button id="mainAwardBtn" class="main-award active" onclick="toggleAward('main')">Brown Bell
+                    Award</button>
                 <button id="nextUpAwardBtn" class="next-up-award" onclick="toggleAward('nextup')">Next Up Award</button>
             </div>
 
@@ -439,7 +453,7 @@
         let selectedWeek = 'current';
         let currentAward = 'main';
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             loadData();
         });
 
@@ -454,7 +468,7 @@
 
             try {
                 const response = await fetch('./brown-bell-data.json?' + new Date().getTime());
-                
+
                 if (!response.ok) {
                     throw new Error(`Failed to load data: ${response.status} ${response.statusText}`);
                 }
@@ -499,10 +513,12 @@
         function updateDisplay() {
             if (!appData) return;
 
-            toggleAward(currentAward);
+            // Set award toggle buttons without calling toggleAward
+            document.getElementById('mainAwardBtn').classList.toggle('active', currentAward === 'main');
+            document.getElementById('nextUpAwardBtn').classList.toggle('active', currentAward === 'nextup');
 
             document.getElementById('currentWeek').textContent = appData.currentWeek || 1;
-            
+
             if (appData.timestamp) {
                 const date = new Date(appData.timestamp);
                 document.getElementById('lastUpdated').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
@@ -528,10 +544,10 @@
 
         function updateActiveSubstitutions() {
             const currentWeek = appData.currentWeek || 1;
-            const activeSubs = (appData.substitutions || []).filter(s => 
-                s.active && 
+            const activeSubs = (appData.substitutions || []).filter(s =>
+                s.active &&
                 s.awardType === currentAward &&
-                s.startWeek <= currentWeek && 
+                s.startWeek <= currentWeek &&
                 (!s.endWeek || s.endWeek >= currentWeek)
             );
 
@@ -547,15 +563,15 @@
             subsList.innerHTML = '';
 
             const awardLabel = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
-            
+
             activeSubs.forEach(sub => {
                 const div = document.createElement('div');
                 div.className = 'sub-item';
-                
+
                 const subBadgeClass = sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge';
                 const subBadgeText = sub.autoGenerated ? 'AUTO-SUB' : 'SUB';
                 const reasonText = sub.reason ? ` (${sub.reason})` : '';
-                
+
                 div.innerHTML = `
                     <strong>${sub.teamName}</strong> <small>(${awardLabel})</small>: 
                     <span class="position-badge pos-${sub.originalPosition}">${sub.originalPosition}</span>
@@ -569,10 +585,10 @@
 
         function showView(view) {
             currentView = view;
-            
+
             document.getElementById('weeklyBtn').classList.toggle('active', view === 'weekly');
             document.getElementById('seasonBtn').classList.toggle('active', view === 'season');
-            
+
             document.getElementById('weekSelector').style.display = view === 'weekly' ? 'flex' : 'none';
 
             if (view === 'weekly') {
@@ -602,7 +618,7 @@
             teams.forEach(team => {
                 const teamKey = currentAward === 'main' ? team.name : team.mainTeamName;
                 const weekScores = scoresData?.[teamKey]?.[week] || {};
-                
+
                 const p1Score = weekScores[0] || 0;
                 const p2Score = weekScores[1] || 0;
                 const total = p1Score + p2Score;
@@ -701,7 +717,7 @@
                 html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong></td>`;
 
                 for (let w = 1; w <= 18; w++) {
-                    const score = data.weeklyTotals[w-1].p1;
+                    const score = data.weeklyTotals[w - 1].p1;
                     html += `<td class="player-cell">${score > 0 ? score.toFixed(1) : '-'}</td>`;
                 }
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${data.seasonTotal.toFixed(1)}</strong></td>`;
@@ -709,7 +725,7 @@
 
                 html += `<tr class="${rankClass}">`;
                 for (let w = 1; w <= 18; w++) {
-                    const score = data.weeklyTotals[w-1].p2;
+                    const score = data.weeklyTotals[w - 1].p2;
                     html += `<td class="player-cell">${score > 0 ? score.toFixed(1) : '-'}</td>`;
                 }
                 html += '</tr>';
@@ -722,12 +738,12 @@
         function getPlayerDisplayName(team, playerIndex, week) {
             const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
             const substitutions = appData.substitutions || [];
-            const sub = substitutions.find(s => 
-                s.teamName === teamName && 
-                s.playerIndex === playerIndex && 
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
                 s.awardType === currentAward &&
                 s.active &&
-                s.startWeek <= week && 
+                s.startWeek <= week &&
                 (!s.endWeek || s.endWeek >= week)
             );
             return sub ? sub.substituteName : team.players[playerIndex].name;
@@ -736,21 +752,22 @@
         function getSubBadge(team, playerIndex, week) {
             const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
             const substitutions = appData.substitutions || [];
-            const sub = substitutions.find(s => 
-                s.teamName === teamName && 
-                s.playerIndex === playerIndex && 
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
                 s.awardType === currentAward &&
                 s.active &&
-                s.startWeek <= week && 
+                s.startWeek <= week &&
                 (!s.endWeek || s.endWeek >= week)
             );
-            
+
             if (!sub) return '';
-            
+
             const badgeClass = sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge';
             const badgeText = sub.autoGenerated ? 'AUTO-SUB' : 'SUB';
             return `<span class="${badgeClass}">${badgeText}</span>`;
         }
     </script>
 </body>
+
 </html>
