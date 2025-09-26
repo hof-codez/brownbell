@@ -97,6 +97,39 @@
             color: #666;
         }
 
+        .award-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .award-toggle button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #666;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+
+        .award-toggle button.active {
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .award-toggle .main-award.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .award-toggle .next-up-award.active {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+
         .view-toggle {
             display: flex;
             gap: 10px;
@@ -283,6 +316,22 @@
             overflow-x: auto;
         }
 
+        .refresh-btn {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 5px;
@@ -327,35 +376,6 @@
                 text-align: center;
             }
         }
-
-        @media (max-width: 480px) {
-            .standings-table th,
-            .standings-table td {
-                padding: 6px 3px;
-                font-size: 0.75em;
-            }
-
-            .view-toggle button {
-                padding: 10px;
-                font-size: 0.9em;
-            }
-        }
-
-        .refresh-btn {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            font-weight: 600;
-        }
-
-        .refresh-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-        }
     </style>
 </head>
 <body>
@@ -393,6 +413,12 @@
                 </select>
             </div>
 
+            <!-- Award Toggle -->
+            <div class="award-toggle">
+                <button id="mainAwardBtn" class="main-award active" onclick="toggleAward('main')">Brown Bell Award</button>
+                <button id="nextUpAwardBtn" class="next-up-award" onclick="toggleAward('nextup')">Next Up Award</button>
+            </div>
+
             <div class="view-toggle">
                 <button id="weeklyBtn" class="active" onclick="showView('weekly')">Weekly Standings</button>
                 <button id="seasonBtn" onclick="showView('season')">Season Overview</button>
@@ -411,8 +437,8 @@
         let appData = null;
         let currentView = 'weekly';
         let selectedWeek = 'current';
+        let currentAward = 'main';
 
-        // Load data on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadData();
         });
@@ -427,7 +453,6 @@
             content.style.display = 'none';
 
             try {
-                // Load from GitHub Pages or current directory
                 const response = await fetch('./brown-bell-data.json?' + new Date().getTime());
                 
                 if (!response.ok) {
@@ -437,7 +462,10 @@
                 const data = await response.json();
                 appData = data;
 
-                // Show automation status if available
+                if (data.currentAward) {
+                    currentAward = data.currentAward;
+                }
+
                 if (data.lastAutomationRun) {
                     const statusDiv = document.getElementById('automationStatus');
                     const lastRun = new Date(data.lastAutomationRun);
@@ -461,10 +489,18 @@
             }
         }
 
+        function toggleAward(awardType) {
+            currentAward = awardType;
+            document.getElementById('mainAwardBtn').classList.toggle('active', awardType === 'main');
+            document.getElementById('nextUpAwardBtn').classList.toggle('active', awardType === 'nextup');
+            updateDisplay();
+        }
+
         function updateDisplay() {
             if (!appData) return;
 
-            // Update info bar
+            toggleAward(currentAward);
+
             document.getElementById('currentWeek').textContent = appData.currentWeek || 1;
             
             if (appData.timestamp) {
@@ -472,7 +508,6 @@
                 document.getElementById('lastUpdated').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
             }
 
-            // Update week selector
             const weekSelect = document.getElementById('weekSelect');
             weekSelect.innerHTML = '<option value="current">Current Week</option>';
             for (let i = 1; i <= 18; i++) {
@@ -482,10 +517,8 @@
                 weekSelect.appendChild(option);
             }
 
-            // Show active substitutions
             updateActiveSubstitutions();
 
-            // Update current view
             if (currentView === 'weekly') {
                 showWeeklyStandings();
             } else {
@@ -497,6 +530,7 @@
             const currentWeek = appData.currentWeek || 1;
             const activeSubs = (appData.substitutions || []).filter(s => 
                 s.active && 
+                s.awardType === currentAward &&
                 s.startWeek <= currentWeek && 
                 (!s.endWeek || s.endWeek >= currentWeek)
             );
@@ -512,11 +546,12 @@
             subsCard.style.display = 'block';
             subsList.innerHTML = '';
 
+            const awardLabel = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+            
             activeSubs.forEach(sub => {
                 const div = document.createElement('div');
                 div.className = 'sub-item';
                 
-                const awardLabel = sub.awardType === 'nextup' ? 'Next Up Award' : 'Main Award';
                 const subBadgeClass = sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge';
                 const subBadgeText = sub.autoGenerated ? 'AUTO-SUB' : 'SUB';
                 const reasonText = sub.reason ? ` (${sub.reason})` : '';
@@ -557,12 +592,17 @@
             const title = document.getElementById('standingsTitle');
             const content = document.getElementById('standingsContent');
 
-            title.textContent = `Week ${week} Standings`;
+            const awardName = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+            title.textContent = `Week ${week} Standings - ${awardName}`;
 
-            // Calculate weekly scores for main award
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+
             const weeklyScores = [];
-            (appData.teams || []).forEach(team => {
-                const weekScores = appData.scores?.[team.name]?.[week] || {};
+            teams.forEach(team => {
+                const teamKey = currentAward === 'main' ? team.name : team.mainTeamName;
+                const weekScores = scoresData?.[teamKey]?.[week] || {};
+                
                 const p1Score = weekScores[0] || 0;
                 const p2Score = weekScores[1] || 0;
                 const total = p1Score + p2Score;
@@ -572,35 +612,15 @@
                     p1Score,
                     p2Score,
                     total,
-                    week,
-                    awardType: 'main'
+                    week
                 });
             });
 
-            // Add Next Up teams
-            (appData.nextUpTeams || []).forEach(team => {
-                const weekScores = appData.nextUpScores?.[team.mainTeamName]?.[week] || {};
-                const p1Score = weekScores[0] || 0;
-                const p2Score = weekScores[1] || 0;
-                const total = p1Score + p2Score;
-
-                weeklyScores.push({
-                    team: team,
-                    p1Score,
-                    p2Score,
-                    total,
-                    week,
-                    awardType: 'nextup'
-                });
-            });
-
-            // Sort by total
             weeklyScores.sort((a, b) => b.total - a.total);
 
-            // Create table
             let html = '<table class="standings-table">';
             html += '<thead><tr>';
-            html += '<th>Rank</th><th>Team</th><th>Award</th><th>Player 1</th><th>Player 2</th><th>Total</th>';
+            html += '<th>Rank</th><th>Team</th><th>Player 1</th><th>Player 2</th><th>Total</th>';
             html += '</tr></thead><tbody>';
 
             weeklyScores.forEach((score, idx) => {
@@ -610,19 +630,14 @@
                 else if (rank === 2) rankClass = 'rank-silver';
                 else if (rank === 3) rankClass = 'rank-bronze';
 
-                const p1Display = getPlayerDisplayName(score.team, 0, week, score.awardType);
-                const p2Display = getPlayerDisplayName(score.team, 1, week, score.awardType);
-                
-                const awardBadge = score.awardType === 'nextup' ? 
-                    '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em;">NEXT UP</span>' : 
-                    '<span style="background: #764ba2; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em;">MAIN</span>';
+                const p1Display = getPlayerDisplayName(score.team, 0, week);
+                const p2Display = getPlayerDisplayName(score.team, 1, week);
 
                 html += `<tr class="${rankClass}">`;
                 html += `<td><strong>${rank}</strong></td>`;
                 html += `<td><strong>${score.team.name}</strong></td>`;
-                html += `<td>${awardBadge}</td>`;
-                html += `<td><span class="position-badge pos-${score.team.players[0].position}">${score.team.players[0].position}</span> ${p1Display} ${p1Display !== score.team.players[0].name ? getSubBadge(score.team, 0, week, score.awardType) : ''}<br><small>${score.p1Score.toFixed(1)} pts</small></td>`;
-                html += `<td><span class="position-badge pos-${score.team.players[1].position}">${score.team.players[1].position}</span> ${p2Display} ${p2Display !== score.team.players[1].name ? getSubBadge(score.team, 1, week, score.awardType) : ''}<br><small>${score.p2Score.toFixed(1)} pts</small></td>`;
+                html += `<td><span class="position-badge pos-${score.team.players[0].position}">${score.team.players[0].position}</span> ${p1Display} ${p1Display !== score.team.players[0].name ? getSubBadge(score.team, 0, week) : ''}<br><small>${score.p1Score.toFixed(1)} pts</small></td>`;
+                html += `<td><span class="position-badge pos-${score.team.players[1].position}">${score.team.players[1].position}</span> ${p2Display} ${p2Display !== score.team.players[1].name ? getSubBadge(score.team, 1, week) : ''}<br><small>${score.p2Score.toFixed(1)} pts</small></td>`;
                 html += `<td><strong>${score.total.toFixed(1)}</strong></td>`;
                 html += '</tr>';
             });
@@ -635,16 +650,20 @@
             const title = document.getElementById('standingsTitle');
             const content = document.getElementById('standingsContent');
 
-            title.textContent = 'Season Overview';
+            const awardName = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+            title.textContent = `Season Overview - ${awardName}`;
 
-            // Calculate season totals for main teams
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+
             const seasonTotals = [];
-            (appData.teams || []).forEach(team => {
+            teams.forEach(team => {
+                const teamKey = currentAward === 'main' ? team.name : team.mainTeamName;
                 const weeklyTotals = [];
                 let seasonTotal = 0;
 
                 for (let week = 1; week <= 18; week++) {
-                    const weekScores = appData.scores?.[team.name]?.[week] || {};
+                    const weekScores = scoresData?.[teamKey]?.[week] || {};
                     const p1Score = weekScores[0] || 0;
                     const p2Score = weekScores[1] || 0;
                     const total = p1Score + p2Score;
@@ -655,40 +674,15 @@
                 seasonTotals.push({
                     team,
                     weeklyTotals,
-                    seasonTotal,
-                    awardType: 'main'
+                    seasonTotal
                 });
             });
 
-            // Add Next Up teams
-            (appData.nextUpTeams || []).forEach(team => {
-                const weeklyTotals = [];
-                let seasonTotal = 0;
-
-                for (let week = 1; week <= 18; week++) {
-                    const weekScores = appData.nextUpScores?.[team.mainTeamName]?.[week] || {};
-                    const p1Score = weekScores[0] || 0;
-                    const p2Score = weekScores[1] || 0;
-                    const total = p1Score + p2Score;
-                    weeklyTotals.push({ p1: p1Score, p2: p2Score, total });
-                    seasonTotal += total;
-                }
-
-                seasonTotals.push({
-                    team,
-                    weeklyTotals,
-                    seasonTotal,
-                    awardType: 'nextup'
-                });
-            });
-
-            // Sort by season total
             seasonTotals.sort((a, b) => b.seasonTotal - a.seasonTotal);
 
-            // Create table
             let html = '<table class="season-overview-table">';
             html += '<thead><tr>';
-            html += '<th>Rank</th><th>Team</th><th>Award</th>';
+            html += '<th>Rank</th><th>Team</th>';
             for (let w = 1; w <= 18; w++) {
                 html += `<th>W${w}</th>`;
             }
@@ -702,16 +696,10 @@
                 else if (rank === 2) rankClass = 'rank-silver';
                 else if (rank === 3) rankClass = 'rank-bronze';
 
-                const awardBadge = data.awardType === 'nextup' ? 
-                    '<span style="background: #28a745; color: white; padding: 1px 4px; border-radius: 3px; font-size: 0.7em;">NEXT UP</span>' : 
-                    '<span style="background: #764ba2; color: white; padding: 1px 4px; border-radius: 3px; font-size: 0.7em;">MAIN</span>';
-
-                // Team row
                 html += `<tr class="${rankClass}">`;
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
-                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong><br>${awardBadge}</td>`;
+                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong></td>`;
 
-                // Player 1 scores
                 for (let w = 1; w <= 18; w++) {
                     const score = data.weeklyTotals[w-1].p1;
                     html += `<td class="player-cell">${score > 0 ? score.toFixed(1) : '-'}</td>`;
@@ -719,7 +707,6 @@
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${data.seasonTotal.toFixed(1)}</strong></td>`;
                 html += '</tr>';
 
-                // Player 2 row
                 html += `<tr class="${rankClass}">`;
                 for (let w = 1; w <= 18; w++) {
                     const score = data.weeklyTotals[w-1].p2;
@@ -732,13 +719,13 @@
             content.innerHTML = html;
         }
 
-        function getPlayerDisplayName(team, playerIndex, week, awardType = 'main') {
-            const teamName = awardType === 'main' ? team.name : team.mainTeamName;
+        function getPlayerDisplayName(team, playerIndex, week) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
             const substitutions = appData.substitutions || [];
             const sub = substitutions.find(s => 
                 s.teamName === teamName && 
                 s.playerIndex === playerIndex && 
-                s.awardType === awardType &&
+                s.awardType === currentAward &&
                 s.active &&
                 s.startWeek <= week && 
                 (!s.endWeek || s.endWeek >= week)
@@ -746,13 +733,13 @@
             return sub ? sub.substituteName : team.players[playerIndex].name;
         }
 
-        function getSubBadge(team, playerIndex, week, awardType = 'main') {
-            const teamName = awardType === 'main' ? team.name : team.mainTeamName;
+        function getSubBadge(team, playerIndex, week) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
             const substitutions = appData.substitutions || [];
             const sub = substitutions.find(s => 
                 s.teamName === teamName && 
                 s.playerIndex === playerIndex && 
-                s.awardType === awardType &&
+                s.awardType === currentAward &&
                 s.active &&
                 s.startWeek <= week && 
                 (!s.endWeek || s.endWeek >= week)
