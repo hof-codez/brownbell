@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brown Bell Award - Season Standings</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 10px;
+            padding-bottom: 120px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #764ba2;
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 1em;
+        }
+
+        .automation-status {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .info-bar {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .week-info {
+            font-weight: bold;
+            color: #764ba2;
+        }
+
+        .last-updated {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .view-toggle button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #666;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #444;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .standings-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .standings-table th {
+            background: #f0f0f0;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            color: #444;
+            font-size: 0.9em;
+        }
+
+        .standings-table td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 0.9em;
+        }
+
+        .standings-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .rank-gold {
+            background: linear-gradient(90deg, #ffd700, #ffed4e) !important;
+            font-weight: bold;
+        }
+
+        .rank-silver {
+            background: linear-gradient(90deg, #c0c0c0, #e0e0e0) !important;
+            font-weight: bold;
+        }
+
+        .rank-bronze {
+            background: linear-gradient(90deg, #cd7f32, #daa520) !important;
+            font-weight: bold;
+        }
+
+        .position-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.75em;
+            margin-right: 5px;
+        }
+
+        .pos-QB { background: #e3f2fd; color: #1976d2; }
+        .pos-RB { background: #f3e5f5; color: #7b1fa2; }
+        .pos-WR { background: #e8f5e9; color: #388e3c; }
+
+        .sub-badge {
+            background: #fff3cd;
+            color: #856404;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+        }
+
+        .auto-sub-badge {
+            background: #17a2b8;
+            color: white;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+        }
+
+        .season-overview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8em;
+            overflow-x: auto;
+        }
+
+        .season-overview-table th {
+            background: #f0f0f0;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 0.75em;
+            min-width: 35px;
+        }
+
+        .season-overview-table td {
+            padding: 6px 4px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+            font-size: 0.75em;
+        }
+
+        .season-overview-table .team-cell {
+            text-align: left;
+            font-weight: bold;
+            background: #f8f9fa;
+            min-width: 120px;
+            font-size: 0.8em;
+        }
+
+        .player-cell {
+            white-space: nowrap;
+        }
+
+        .week-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .week-selector select {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-size: 1em;
+            background: white;
+        }
+
+        .active-subs {
+            background: #fff8dc;
+            border: 1px solid #ffd700;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .active-subs h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .sub-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+                padding-bottom: 120px;
+            }
+
+            .header {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            .standings-table th,
+            .standings-table td {
+                padding: 8px 4px;
+                font-size: 0.8em;
+            }
+
+            .position-badge {
+                font-size: 0.7em;
+                padding: 1px 4px;
+            }
+
+            .season-overview-table {
+                font-size: 0.7em;
+            }
+
+            .season-overview-table th,
+            .season-overview-table td {
+                padding: 4px 2px;
+                font-size: 0.7em;
+            }
+
+            .info-bar {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .standings-table th,
+            .standings-table td {
+                padding: 6px 3px;
+                font-size: 0.75em;
+            }
+
+            .view-toggle button {
+                padding: 10px;
+                font-size: 0.9em;
+            }
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Brown Bell Award</h1>
+            <div class="subtitle">Season Standings - Auto-Updated Daily</div>
+        </div>
+
+        <div class="automation-status" id="automationStatus" style="display: none;">
+            Automatically updated via GitHub Actions
+        </div>
+
+        <div id="loading" class="loading">
+            <div>Loading league data...</div>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="content" style="display: none;">
+            <div class="info-bar">
+                <div class="week-info">Current Week: <span id="currentWeek">-</span></div>
+                <div class="last-updated">Last Updated: <span id="lastUpdated">-</span></div>
+                <button class="refresh-btn" onclick="loadData()">Refresh</button>
+            </div>
+
+            <div id="activeSubs" class="active-subs" style="display: none;">
+                <h3>Active Substitutions</h3>
+                <div id="activeSubsList"></div>
+            </div>
+
+            <div class="week-selector" id="weekSelector" style="display: none;">
+                <select id="weekSelect" onchange="updateWeeklyView()">
+                    <option value="current">Current Week</option>
+                </select>
+            </div>
+
+            <div class="view-toggle">
+                <button id="weeklyBtn" class="active" onclick="showView('weekly')">Weekly Standings</button>
+                <button id="seasonBtn" onclick="showView('season')">Season Overview</button>
+            </div>
+
+            <div class="card" id="standingsCard">
+                <h2 id="standingsTitle">Weekly Standings</h2>
+                <div class="table-container">
+                    <div id="standingsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let appData = null;
+        let currentView = 'weekly';
+        let selectedWeek = 'current';
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+        });
+
+        async function loadData() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const content = document.getElementById('content');
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            content.style.display = 'none';
+
+            try {
+                // Load from GitHub Pages or current directory
+                const response = await fetch('./brown-bell-data.json?' + new Date().getTime());
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load data: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                appData = data;
+
+                // Show automation status if available
+                if (data.lastAutomationRun) {
+                    const statusDiv = document.getElementById('automationStatus');
+                    const lastRun = new Date(data.lastAutomationRun);
+                    statusDiv.innerHTML = `Automatically updated via GitHub Actions - Last run: ${lastRun.toLocaleDateString()} ${lastRun.toLocaleTimeString()}`;
+                    statusDiv.style.display = 'block';
+                }
+
+                updateDisplay();
+                loading.style.display = 'none';
+                content.style.display = 'block';
+
+            } catch (err) {
+                console.error('Error loading data:', err);
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.innerHTML = `
+                    <strong>Unable to load league data.</strong><br>
+                    Error: ${err.message}<br>
+                    <small>If you're viewing this locally, make sure the brown-bell-data.json file is in the same directory.</small>
+                `;
+            }
+        }
+
+        function updateDisplay() {
+            if (!appData) return;
+
+            // Update info bar
+            document.getElementById('currentWeek').textContent = appData.currentWeek || 1;
+            
+            if (appData.timestamp) {
+                const date = new Date(appData.timestamp);
+                document.getElementById('lastUpdated').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            }
+
+            // Update week selector
+            const weekSelect = document.getElementById('weekSelect');
+            weekSelect.innerHTML = '<option value="current">Current Week</option>';
+            for (let i = 1; i <= 18; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `Week ${i}`;
+                weekSelect.appendChild(option);
+            }
+
+            // Show active substitutions
+            updateActiveSubstitutions();
+
+            // Update current view
+            if (currentView === 'weekly') {
+                showWeeklyStandings();
+            } else {
+                showSeasonOverview();
+            }
+        }
+
+        function updateActiveSubstitutions() {
+            const currentWeek = appData.currentWeek || 1;
+            const activeSubs = (appData.substitutions || []).filter(s => 
+                s.active && 
+                s.startWeek <= currentWeek && 
+                (!s.endWeek || s.endWeek >= currentWeek)
+            );
+
+            const subsCard = document.getElementById('activeSubs');
+            const subsList = document.getElementById('activeSubsList');
+
+            if (activeSubs.length === 0) {
+                subsCard.style.display = 'none';
+                return;
+            }
+
+            subsCard.style.display = 'block';
+            subsList.innerHTML = '';
+
+            activeSubs.forEach(sub => {
+                const div = document.createElement('div');
+                div.className = 'sub-item';
+                
+                const awardLabel = sub.awardType === 'nextup' ? 'Next Up Award' : 'Main Award';
+                const subBadgeClass = sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge';
+                const subBadgeText = sub.autoGenerated ? 'AUTO-SUB' : 'SUB';
+                const reasonText = sub.reason ? ` (${sub.reason})` : '';
+                
+                div.innerHTML = `
+                    <strong>${sub.teamName}</strong> <small>(${awardLabel})</small>: 
+                    <span class="position-badge pos-${sub.originalPosition}">${sub.originalPosition}</span>
+                    ${sub.substituteName} 
+                    <span class="${subBadgeClass}">${subBadgeText} for ${sub.originalName}</span>
+                    <br><small>Week ${sub.startWeek}-${sub.endWeek || 'Indefinite'}${reasonText}</small>
+                `;
+                subsList.appendChild(div);
+            });
+        }
+
+        function showView(view) {
+            currentView = view;
+            
+            document.getElementById('weeklyBtn').classList.toggle('active', view === 'weekly');
+            document.getElementById('seasonBtn').classList.toggle('active', view === 'season');
+            
+            document.getElementById('weekSelector').style.display = view === 'weekly' ? 'flex' : 'none';
+
+            if (view === 'weekly') {
+                showWeeklyStandings();
+            } else {
+                showSeasonOverview();
+            }
+        }
+
+        function updateWeeklyView() {
+            selectedWeek = document.getElementById('weekSelect').value;
+            showWeeklyStandings();
+        }
+
+        function showWeeklyStandings() {
+            const week = selectedWeek === 'current' ? (appData.currentWeek || 1) : parseInt(selectedWeek);
+            const title = document.getElementById('standingsTitle');
+            const content = document.getElementById('standingsContent');
+
+            title.textContent = `Week ${week} Standings`;
+
+            // Calculate weekly scores for main award
+            const weeklyScores = [];
+            (appData.teams || []).forEach(team => {
+                const weekScores = appData.scores?.[team.name]?.[week] || {};
+                const p1Score = weekScores[0] || 0;
+                const p2Score = weekScores[1] || 0;
+                const total = p1Score + p2Score;
+
+                weeklyScores.push({
+                    team: team,
+                    p1Score,
+                    p2Score,
+                    total,
+                    week,
+                    awardType: 'main'
+                });
+            });
+
+            // Add Next Up teams
+            (appData.nextUpTeams || []).forEach(team => {
+                const weekScores = appData.nextUpScores?.[team.mainTeamName]?.[week] || {};
+                const p1Score = weekScores[0] || 0;
+                const p2Score = weekScores[1] || 0;
+                const total = p1Score + p2Score;
+
+                weeklyScores.push({
+                    team: team,
+                    p1Score,
+                    p2Score,
+                    total,
+                    week,
+                    awardType: 'nextup'
+                });
+            });
+
+            // Sort by total
+            weeklyScores.sort((a, b) => b.total - a.total);
+
+            // Create table
+            let html = '<table class="standings-table">';
+            html += '<thead><tr>';
+            html += '<th>Rank</th><th>Team</th><th>Award</th><th>Player 1</th><th>Player 2</th><th>Total</th>';
+            html += '</tr></thead><tbody>';
+
+            weeklyScores.forEach((score, idx) => {
+                const rank = idx + 1;
+                let rankClass = '';
+                if (rank === 1) rankClass = 'rank-gold';
+                else if (rank === 2) rankClass = 'rank-silver';
+                else if (rank === 3) rankClass = 'rank-bronze';
+
+                const p1Display = getPlayerDisplayName(score.team, 0, week, score.awardType);
+                const p2Display = getPlayerDisplayName(score.team, 1, week, score.awardType);
+                
+                const awardBadge = score.awardType === 'nextup' ? 
+                    '<span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em;">NEXT UP</span>' : 
+                    '<span style="background: #764ba2; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em;">MAIN</span>';
+
+                html += `<tr class="${rankClass}">`;
+                html += `<td><strong>${rank}</strong></td>`;
+                html += `<td><strong>${score.team.name}</strong></td>`;
+                html += `<td>${awardBadge}</td>`;
+                html += `<td><span class="position-badge pos-${score.team.players[0].position}">${score.team.players[0].position}</span> ${p1Display} ${p1Display !== score.team.players[0].name ? getSubBadge(score.team, 0, week, score.awardType) : ''}<br><small>${score.p1Score.toFixed(1)} pts</small></td>`;
+                html += `<td><span class="position-badge pos-${score.team.players[1].position}">${score.team.players[1].position}</span> ${p2Display} ${p2Display !== score.team.players[1].name ? getSubBadge(score.team, 1, week, score.awardType) : ''}<br><small>${score.p2Score.toFixed(1)} pts</small></td>`;
+                html += `<td><strong>${score.total.toFixed(1)}</strong></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+        }
+
+        function showSeasonOverview() {
+            const title = document.getElementById('standingsTitle');
+            const content = document.getElementById('standingsContent');
+
+            title.textContent = 'Season Overview';
+
+            // Calculate season totals for main teams
+            const seasonTotals = [];
+            (appData.teams || []).forEach(team => {
+                const weeklyTotals = [];
+                let seasonTotal = 0;
+
+                for (let week = 1; week <= 18; week++) {
+                    const weekScores = appData.scores?.[team.name]?.[week] || {};
+                    const p1Score = weekScores[0] || 0;
+                    const p2Score = weekScores[1] || 0;
+                    const total = p1Score + p2Score;
+                    weeklyTotals.push({ p1: p1Score, p2: p2Score, total });
+                    seasonTotal += total;
+                }
+
+                seasonTotals.push({
+                    team,
+                    weeklyTotals,
+                    seasonTotal,
+                    awardType: 'main'
+                });
+            });
+
+            // Add Next Up teams
+            (appData.nextUpTeams || []).forEach(team => {
+                const weeklyTotals = [];
+                let seasonTotal = 0;
+
+                for (let week = 1; week <= 18; week++) {
+                    const weekScores = appData.nextUpScores?.[team.mainTeamName]?.[week] || {};
+                    const p1Score = weekScores[0] || 0;
+                    const p2Score = weekScores[1] || 0;
+                    const total = p1Score + p2Score;
+                    weeklyTotals.push({ p1: p1Score, p2: p2Score, total });
+                    seasonTotal += total;
+                }
+
+                seasonTotals.push({
+                    team,
+                    weeklyTotals,
+                    seasonTotal,
+                    awardType: 'nextup'
+                });
+            });
+
+            // Sort by season total
+            seasonTotals.sort((a, b) => b.seasonTotal - a.seasonTotal);
+
+            // Create table
+            let html = '<table class="season-overview-table">';
+            html += '<thead><tr>';
+            html += '<th>Rank</th><th>Team</th><th>Award</th>';
+            for (let w = 1; w <= 18; w++) {
+                html += `<th>W${w}</th>`;
+            }
+            html += '<th>Total</th>';
+            html += '</tr></thead><tbody>';
+
+            seasonTotals.forEach((data, idx) => {
+                const rank = idx + 1;
+                let rankClass = '';
+                if (rank === 1) rankClass = 'rank-gold';
+                else if (rank === 2) rankClass = 'rank-silver';
+                else if (rank === 3) rankClass = 'rank-bronze';
+
+                const awardBadge = data.awardType === 'nextup' ? 
+                    '<span style="background: #28a745; color: white; padding: 1px 4px; border-radius: 3px; font-size: 0.7em;">NEXT UP</span>' : 
+                    '<span style="background: #764ba2; color: white; padding: 1px 4px; border-radius: 3px; font-size: 0.7em;">MAIN</span>';
+
+                // Team row
+                html += `<tr class="${rankClass}">`;
+                html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
+                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong><br>${awardBadge}</td>`;
+
+                // Player 1 scores
+                for (let w = 1; w <= 18; w++) {
+                    const score = data.weeklyTotals[w-1].p1;
+                    html += `<td class="player-cell">${score > 0 ? score.toFixed(1) : '-'}</td>`;
+                }
+                html += `<td rowspan="2" style="vertical-align: middle;"><strong>${data.seasonTotal.toFixed(1)}</strong></td>`;
+                html += '</tr>';
+
+                // Player 2 row
+                html += `<tr class="${rankClass}">`;
+                for (let w = 1; w <= 18; w++) {
+                    const score = data.weeklyTotals[w-1].p2;
+                    html += `<td class="player-cell">${score > 0 ? score.toFixed(1) : '-'}</td>`;
+                }
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+        }
+
+        function getPlayerDisplayName(team, playerIndex, week, awardType = 'main') {
+            const teamName = awardType === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+            const sub = substitutions.find(s => 
+                s.teamName === teamName && 
+                s.playerIndex === playerIndex && 
+                s.awardType === awardType &&
+                s.active &&
+                s.startWeek <= week && 
+                (!s.endWeek || s.endWeek >= week)
+            );
+            return sub ? sub.substituteName : team.players[playerIndex].name;
+        }
+
+        function getSubBadge(team, playerIndex, week, awardType = 'main') {
+            const teamName = awardType === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+            const sub = substitutions.find(s => 
+                s.teamName === teamName && 
+                s.playerIndex === playerIndex && 
+                s.awardType === awardType &&
+                s.active &&
+                s.startWeek <= week && 
+                (!s.endWeek || s.endWeek >= week)
+            );
+            
+            if (!sub) return '';
+            
+            const badgeClass = sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge';
+            const badgeText = sub.autoGenerated ? 'AUTO-SUB' : 'SUB';
+            return `<span class="${badgeClass}">${badgeText}</span>`;
+        }
+    </script>
+</body>
+</html>
