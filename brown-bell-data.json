@@ -1,0 +1,10 @@
+echo {
+  "version": "2.0",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "currentWeek": 1,
+  "teams": [],
+  "nextUpTeams": [],
+  "scores": {},
+  "nextUpScores": {},
+  "substitutions": []
+} > brown-bell-data.json
