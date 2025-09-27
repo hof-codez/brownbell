@@ -905,10 +905,20 @@ class BrownBellAutomator {
             nextUpTeams.push({
                 mainTeamName: teamName,
                 name: `${teamName} (Next Up)`,
-                players: duo.map(player => ({
-                    ...player,
-                    sleeperId: this.findPlayerInRoster(player, roster)
-                })),
+                players: duo.map(player => {
+                    let sleeperId = this.findPlayerInRoster(player, roster);
+
+                    // Manual override for DeVaughn Vele
+                    if (player.name === 'DeVaughn Vele' && teamName === 'Kenyatta93') {
+                        sleeperId = '11834';
+                        console.log(`Manual override: Setting DeVaughn Vele sleeperId to 11834`);
+                    }
+
+                    return {
+                        ...player,
+                        sleeperId: sleeperId
+                    };
+                }),
                 sleeper_roster_id: roster ? roster.roster_id : null
             });
         });
