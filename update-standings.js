@@ -87,7 +87,7 @@ class BrownBellAutomator {
                 ],
                 'Kenyatta93': [
                     { name: 'Kaleb Johnson', position: 'RB', experience: 'rookie' },
-                    { name: 'Devaughn Vele', position: 'WR', experience: 'second_year' }
+                    { name: 'DeVaughn Vele', position: 'WR', experience: 'second_year' }  // Note the capital V
                 ],
                 'FelixR08': [
                     { name: 'Elic Ayomanor', position: 'WR', experience: 'rookie' },
