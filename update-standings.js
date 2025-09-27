@@ -391,7 +391,8 @@ class BrownBellAutomator {
 
             // Skip if this player is in the Next Up duo (for Main Award)
             if (awardType === 'main' && this.isPlayerInNextUpDuo(playerId, teamName)) {
-                console.log(`Skipping ${player.first_name} ${player.last_name} - reserved for Next Up Award`);
+                const playerName = `${player.first_name} ${player.last_name}`.trim();
+                console.log(`🚫 SKIPPING ${playerName} (${playerId}) - reserved for Next Up Award for team ${teamName}`);
                 continue;
             }
 
@@ -547,18 +548,31 @@ class BrownBellAutomator {
 
     isPlayerInNextUpDuo(playerId, teamName) {
         const nextUpDuo = this.knownDuos.nextup[teamName];
-        if (!nextUpDuo) return false;
+        if (!nextUpDuo) {
+            console.log(`No Next Up duo found for team: ${teamName}`);
+            return false;
+        }
 
         const roster = this.leagueData.rosters.find(r =>
             this.leagueData.userMap[r.owner_id] === teamName
         );
-        if (!roster) return false;
+        if (!roster) {
+            console.log(`No roster found for team: ${teamName}`);
+            return false;
+        }
+
+        console.log(`Checking if player ${playerId} is in Next Up duo for ${teamName}`);
+        console.log(`Next Up duo: ${nextUpDuo.map(p => p.name).join(', ')}`);
 
         // Check if this player is in the Next Up duo
-        return nextUpDuo.some(nextUpPlayer => {
+        const isInDuo = nextUpDuo.some(nextUpPlayer => {
             const nextUpPlayerId = this.findPlayerInRoster(nextUpPlayer, roster);
+            console.log(`  Checking ${nextUpPlayer.name}: Sleeper ID ${nextUpPlayerId} vs ${playerId}`);
             return nextUpPlayerId === playerId;
         });
+
+        console.log(`Player ${playerId} in Next Up duo: ${isInDuo}`);
+        return isInDuo;
     }
 
     async checkGameTimeInjuries() {
