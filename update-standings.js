@@ -486,6 +486,17 @@ class BrownBellAutomator {
         const currentWeek = await this.getCurrentWeek();
         const scores = { main: {}, nextup: {} };
 
+        // Load existing substitutions
+        let existingSubstitutions = [];
+        try {
+            if (require('fs').existsSync('brown-bell-data.json')) {
+                const existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
+                existingSubstitutions = existingData.substitutions || [];
+            }
+        } catch (error) {
+            console.log('No existing substitutions found');
+        }
+
         // Process each award type
         for (const awardType of ['main', 'nextup']) {
             const duos = this.knownDuos[awardType];
@@ -504,17 +515,21 @@ class BrownBellAutomator {
                     const weekScores = await this.getWeeklyScores(week);
                     scores[awardType][teamName][week] = {};
 
-                    // Check for active substitutions in this week
-                    const weekSubstitutions = this.getActiveSubstitutionsForWeek(teamName, week, awardType);
-
                     originalDuo.forEach((originalPlayer, index) => {
-                        // Check if this player has an active substitution
-                        const activeSub = weekSubstitutions.find(sub => sub.playerIndex === index);
+                        // Check for active substitution in this week
+                        const activeSub = existingSubstitutions.find(sub =>
+                            sub.teamName === teamName &&
+                            sub.playerIndex === index &&
+                            sub.awardType === awardType &&
+                            sub.startWeek <= week &&
+                            (!sub.endWeek || sub.endWeek >= week)
+                        );
 
                         let playerId;
                         if (activeSub) {
                             // Use substitute's Sleeper ID
                             playerId = activeSub.substitutePlayerId;
+                            console.log(`Week ${week}: Using substitute ${activeSub.substituteName} (${playerId}) for ${teamName}`);
                         } else {
                             // Use original player's Sleeper ID
                             playerId = this.findPlayerInRoster(originalPlayer, roster);
@@ -522,8 +537,14 @@ class BrownBellAutomator {
 
                         if (playerId && weekScores[playerId] !== undefined) {
                             scores[awardType][teamName][week][index] = weekScores[playerId];
+                            if (activeSub) {
+                                console.log(`Substitute score: ${activeSub.substituteName} = ${weekScores[playerId]} points`);
+                            }
                         } else {
                             scores[awardType][teamName][week][index] = 0;
+                            if (activeSub) {
+                                console.log(`No score found for substitute ${activeSub.substituteName} (${playerId})`);
+                            }
                         }
                     });
                 }
