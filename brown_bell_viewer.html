@@ -267,6 +267,9 @@
             text-align: center;
             font-size: 0.75em;
             min-width: 35px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
 
         .season-overview-table td {
@@ -282,6 +285,76 @@
             background: #f8f9fa;
             min-width: 120px;
             font-size: 0.8em;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+        }
+
+        /* Alternating team row colors */
+        .season-overview-table .team-row-1 td {
+            background-color: #f8f9fa;
+        }
+
+        .season-overview-table .team-row-2 td {
+            background-color: #e3f2fd;
+        }
+
+        .season-overview-table .team-row-3 td {
+            background-color: #f3e5f5;
+        }
+
+        .season-overview-table .team-row-4 td {
+            background-color: #e8f5e8;
+        }
+
+        .season-overview-table .team-row-5 td {
+            background-color: #fff3e0;
+        }
+
+        .season-overview-table .team-row-6 td {
+            background-color: #fce4ec;
+        }
+
+        .season-overview-table .team-row-7 td {
+            background-color: #e0f2f1;
+        }
+
+        .season-overview-table .team-row-8 td {
+            background-color: #f1f8e9;
+        }
+
+        .season-overview-table .team-row-9 td {
+            background-color: #ede7f6;
+        }
+
+        .season-overview-table .team-row-10 td {
+            background-color: #e8eaf6;
+        }
+
+        .season-overview-table .team-row-11 td {
+            background-color: #e1f5fe;
+        }
+
+        .season-overview-table .team-row-12 td {
+            background-color: #f9fbe7;
+        }
+
+        /* Hover effect for better tracking */
+        .season-overview-table tr:hover td {
+            background-color: #ffeb3b !important;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        /* Keep team cells distinct on hover */
+        .season-overview-table tr:hover .team-cell {
+            background-color: #ffc107 !important;
+            font-weight: bold;
+        }
+
+        /* Enhanced borders for better separation */
+        .season-overview-table .team-row-border {
+            border-bottom: 2px solid #666 !important;
         }
 
         .player-cell {
@@ -715,7 +788,18 @@
                 else if (rank === 2) rankClass = 'rank-silver';
                 else if (rank === 3) rankClass = 'rank-bronze';
 
-                html += `<tr class="${rankClass}">`;
+                const teamRowClass = `team-row-${((idx % 12) + 1)}`;
+
+                html += `<tr class="${rankClass} ${teamRowClass}">`;
+                // ... rest of first row
+
+                html += `<tr class="${rankClass} ${teamRowClass}">`;
+                // ... rest of second row
+
+                // Add separator after each team (every 2 rows)
+                if (idx < seasonTotals.length - 1) {
+                    html += `<tr class="team-row-border"><td colspan="20" style="height: 1px; padding: 0; border: none;"></td></tr>`;
+                }
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
                 html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong></td>`;
 
