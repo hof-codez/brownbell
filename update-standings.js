@@ -140,29 +140,22 @@ class BrownBellAutomator {
     }
 
     async getCurrentWeek() {
-    // NFL 2024 season started Thursday, September 5, 2024
-    const seasonStart = new Date('2024-09-05T00:00:00Z'); // Thursday of Week 1
-    const now = new Date();
+    // NFL 2024 season started Thursday, September 5, 2024 (Week 1)
+    // We're currently in late September 2024, so we should be around Week 4
     
-    // Calculate days since season start
-    const daysSinceStart = Math.floor((now.getTime() - seasonStart.getTime()) / (24 * 60 * 60 * 1000));
+    // For now, let's hardcode the current week until we fix the calculation
+    const manualCurrentWeek = 4; // Update this manually each week
     
-    // Each NFL week starts on Thursday and runs 7 days
-    // Week transitions happen every Thursday
-    let calculatedWeek = Math.floor(daysSinceStart / 7) + 1;
-    
-    // Cap between 1 and 18 (NFL regular season)
-    calculatedWeek = Math.max(1, Math.min(18, calculatedWeek));
-    
-    // Use Sleeper's league.leg if available and reasonable, otherwise use calculation
+    // Optionally try to use Sleeper's league data if available and reasonable
     const sleeperWeek = this.leagueData?.league?.leg;
-    if (sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18) {
-        console.log(`Using Sleeper week: ${sleeperWeek}, Calculated week: ${calculatedWeek}`);
+    if (sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18 && sleeperWeek <= 6) {
+        // Only trust Sleeper if it's a reasonable week (1-6 for current date)
+        console.log(`Using Sleeper week: ${sleeperWeek}`);
         return sleeperWeek;
     }
     
-    console.log(`Using calculated week: ${calculatedWeek} (days since start: ${daysSinceStart})`);
-    return calculatedWeek;
+    console.log(`Using manual current week: ${manualCurrentWeek}`);
+    return manualCurrentWeek;
 }
 
     async getWeeklyScores(week) {
