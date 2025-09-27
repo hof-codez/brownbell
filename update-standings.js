@@ -140,33 +140,28 @@ class BrownBellAutomator {
     }
 
     async getCurrentWeek() {
-        // NFL 2024 season Week 1 started Thursday, September 5, 2024
-        const seasonStartDate = new Date('2024-09-05T00:00:00Z');
+        // NFL 2025 season starts Thursday, September 4, 2025
+        const seasonStart = new Date('2025-09-04T00:00:00Z'); // Thursday of Week 1
         const now = new Date();
 
-        // Calculate milliseconds since season start
-        const timeDiff = now.getTime() - seasonStartDate.getTime();
-        const daysSinceStart = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+        // Calculate days since season start
+        const daysSinceStart = Math.floor((now.getTime() - seasonStart.getTime()) / (24 * 60 * 60 * 1000));
 
-        // NFL weeks run Thursday to Wednesday (7 days each)
-        // Week 1: Sep 5-11, Week 2: Sep 12-18, Week 3: Sep 19-25, Week 4: Sep 26-Oct 2, etc.
+        // Each NFL week starts on Thursday and runs 7 days
+        // Week transitions happen every Thursday
         let calculatedWeek = Math.floor(daysSinceStart / 7) + 1;
 
-        // Clamp between 1 and 18 (regular season)
+        // Cap between 1 and 18 (NFL regular season)
         calculatedWeek = Math.max(1, Math.min(18, calculatedWeek));
 
-        // Try Sleeper's week first if it's reasonable
+        // Use Sleeper's league.leg if available and reasonable, otherwise use calculation
         const sleeperWeek = this.leagueData?.league?.leg;
         if (sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18) {
-            // Sleeper sometimes updates before Thursday, so prefer calculation if it differs significantly
-            const weekDiff = Math.abs(sleeperWeek - calculatedWeek);
-            if (weekDiff <= 1) {
-                console.log(`Using Sleeper week: ${sleeperWeek} (calculated: ${calculatedWeek})`);
-                return sleeperWeek;
-            }
+            console.log(`Using Sleeper week: ${sleeperWeek}, Calculated week: ${calculatedWeek}`);
+            return sleeperWeek;
         }
 
-        console.log(`Using calculated week: ${calculatedWeek} (${daysSinceStart} days since season start)`);
+        console.log(`Using calculated week: ${calculatedWeek} (days since start: ${daysSinceStart})`);
         return calculatedWeek;
     }
 
