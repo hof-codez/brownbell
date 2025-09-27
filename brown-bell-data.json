@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-09-27T18:17:02.520Z",
+  "timestamp": "2025-09-27T18:32:46.945Z",
   "currentWeek": 4,
   "currentAward": "main",
   "teams": [
@@ -325,8 +325,7 @@
         {
           "name": "DeVaughn Vele",
           "position": "WR",
-          "experience": "second_year",
-          "sleeperId": "11834"
+          "experience": "second_year"
         }
       ],
       "sleeper_roster_id": 7
@@ -700,11 +699,11 @@
     "Kenyatta93": {
       "1": {
         "0": -0.2,
-        "1": 0
+        "1": 2.3
       },
       "2": {
         "0": 0.1,
-        "1": 0
+        "1": 7.3
       },
       "3": {
         "0": 0,
@@ -897,7 +896,7 @@
     }
   ],
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-09-27T18:17:02.520Z",
+  "lastAutomationRun": "2025-09-27T18:32:46.945Z",
   "lastCheckpointType": "SATURDAY_INTERNATIONAL_PREP",
   "automationStats": {
     "scoresUpdated": 21,
