@@ -431,6 +431,21 @@ class BrownBellAutomator {
         // Sort by total score and randomly select from top 5
         eligibleSubs.sort((a, b) => b.score - a.score);
         const topPerformers = eligibleSubs.slice(0, Math.min(5, eligibleSubs.length));
+
+        // Manual override for specific Week 4 Ch3r0k33zY substitution
+        if (teamName === 'Ch3r0k33zY' && week === 4 && awardType === 'main') {
+            const zayFlowers = topPerformers.find(sub =>
+                sub.name.toLowerCase().includes('zay flowers') ||
+                sub.name.toLowerCase().includes('flowers')
+            );
+
+            if (zayFlowers) {
+                console.log(`Manual preference: Selected Zay Flowers for ${teamName} Week ${week} instead of random selection`);
+                return zayFlowers;
+            }
+        }
+
+        // Default random selection for all other cases
         const randomIndex = Math.floor(Math.random() * topPerformers.length);
         const selectedSub = topPerformers[randomIndex];
 
@@ -778,9 +793,23 @@ class BrownBellAutomator {
                                 console.log(`Substitute score: ${activeSub.substituteName} = ${weekScores[playerId]} points`);
                             }
                         } else {
-                            scores[awardType][teamName][week][index] = 0;
-                            if (activeSub) {
-                                console.log(`No score found for substitute ${activeSub.substituteName} (${playerId})`);
+                            // Manual override for DeVaughn Vele's historical scores
+                            if (teamName === 'Kenyatta93' && awardType === 'nextup' &&
+                                originalPlayer.name === 'DeVaughn Vele') {
+                                if (week === 1) {
+                                    scores[awardType][teamName][week][index] = 2.3;
+                                    console.log(`Manual override: DeVaughn Vele Week 1 = 2.3 points`);
+                                } else if (week === 2) {
+                                    scores[awardType][teamName][week][index] = 7.3;
+                                    console.log(`Manual override: DeVaughn Vele Week 2 = 7.3 points`);
+                                } else {
+                                    scores[awardType][teamName][week][index] = 0;
+                                }
+                            } else {
+                                scores[awardType][teamName][week][index] = 0;
+                                if (activeSub) {
+                                    console.log(`No score found for substitute ${activeSub.substituteName} (${playerId})`);
+                                }
                             }
                         }
                     });
@@ -905,20 +934,10 @@ class BrownBellAutomator {
             nextUpTeams.push({
                 mainTeamName: teamName,
                 name: `${teamName} (Next Up)`,
-                players: duo.map(player => {
-                    let sleeperId = this.findPlayerInRoster(player, roster);
-
-                    // Manual override for DeVaughn Vele
-                    if (player.name === 'DeVaughn Vele' && teamName === 'Kenyatta93') {
-                        sleeperId = '11834';
-                        console.log(`Manual override: Setting DeVaughn Vele sleeperId to 11834`);
-                    }
-
-                    return {
-                        ...player,
-                        sleeperId: sleeperId
-                    };
-                }),
+                players: duo.map(player => ({
+                    ...player,
+                    sleeperId: this.findPlayerInRoster(player, roster)
+                })),
                 sleeper_roster_id: roster ? roster.roster_id : null
             });
         });
