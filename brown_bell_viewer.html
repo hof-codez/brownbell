@@ -544,12 +544,13 @@
         }
 
         function updateActiveSubstitutions() {
-            const currentWeek = appData.currentWeek || 1;
+            const selectedWeekNum = selectedWeek === 'current' ? (appData.currentWeek || 1) : parseInt(selectedWeek);
+
+            // Find substitutions active for the selected week
             const activeSubs = (appData.substitutions || []).filter(s =>
-                s.active &&
                 s.awardType === currentAward &&
-                s.startWeek <= currentWeek &&
-                (!s.endWeek || s.endWeek >= currentWeek)
+                s.startWeek <= selectedWeekNum &&
+                (!s.endWeek || s.endWeek >= selectedWeekNum)
             );
 
             const subsCard = document.getElementById('activeSubs');
@@ -574,12 +575,12 @@
                 const reasonText = sub.reason ? ` (${sub.reason})` : '';
 
                 div.innerHTML = `
-                    <strong>${sub.teamName}</strong> <small>(${awardLabel})</small>: 
-                    <span class="position-badge pos-${sub.originalPosition}">${sub.originalPosition}</span>
-                    ${sub.substituteName} 
-                    <span class="${subBadgeClass}">${subBadgeText} for ${sub.originalName}</span>
-                    <br><small>Week ${sub.startWeek}-${sub.endWeek || 'Indefinite'}${reasonText}</small>
-                `;
+            <strong>${sub.teamName}</strong> <small>(${awardLabel})</small>: 
+            <span class="position-badge pos-${sub.substitutePosition}">${sub.substitutePosition}</span>
+            ${sub.substituteName} 
+            <span class="${subBadgeClass}">${subBadgeText} for ${sub.originalName}</span>
+            <br><small>Week ${sub.startWeek}-${sub.endWeek || 'Indefinite'}${reasonText}</small>
+        `;
                 subsList.appendChild(div);
             });
         }
@@ -743,7 +744,6 @@
                 s.teamName === teamName &&
                 s.playerIndex === playerIndex &&
                 s.awardType === currentAward &&
-                s.active &&
                 s.startWeek <= week &&
                 (!s.endWeek || s.endWeek >= week)
             );
@@ -757,7 +757,6 @@
                 s.teamName === teamName &&
                 s.playerIndex === playerIndex &&
                 s.awardType === currentAward &&
-                s.active &&
                 s.startWeek <= week &&
                 (!s.endWeek || s.endWeek >= week)
             );
