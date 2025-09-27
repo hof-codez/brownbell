@@ -504,8 +504,22 @@ class BrownBellAutomator {
                     const weekScores = await this.getWeeklyScores(week);
                     scores[awardType][teamName][week] = {};
 
+                    // Check for active substitutions in this week
+                    const weekSubstitutions = this.getActiveSubstitutionsForWeek(teamName, week, awardType);
+
                     originalDuo.forEach((originalPlayer, index) => {
-                        const playerId = this.findPlayerInRoster(originalPlayer, roster);
+                        // Check if this player has an active substitution
+                        const activeSub = weekSubstitutions.find(sub => sub.playerIndex === index);
+
+                        let playerId;
+                        if (activeSub) {
+                            // Use substitute's Sleeper ID
+                            playerId = activeSub.substitutePlayerId;
+                        } else {
+                            // Use original player's Sleeper ID
+                            playerId = this.findPlayerInRoster(originalPlayer, roster);
+                        }
+
                         if (playerId && weekScores[playerId] !== undefined) {
                             scores[awardType][teamName][week][index] = weekScores[playerId];
                         } else {
@@ -517,6 +531,14 @@ class BrownBellAutomator {
         }
 
         return scores;
+    }
+
+    // Add this helper method
+    getActiveSubstitutionsForWeek(teamName, week, awardType) {
+        // This would use the existing substitutions from your data
+        // For now, return empty array since substitutions are handled elsewhere
+        // You'll need to load existing substitutions here
+        return [];
     }
 
     async generateCompleteData() {
