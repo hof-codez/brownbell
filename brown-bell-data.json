@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-09-27T17:48:38.988Z",
+  "timestamp": "2025-09-27T18:07:34.679Z",
   "currentWeek": 4,
   "currentAward": "main",
   "teams": [
@@ -325,8 +325,7 @@
         {
           "name": "DeVaughn Vele",
           "position": "WR",
-          "experience": "second_year",
-          "sleeperId": "11834"
+          "experience": "second_year"
         }
       ],
       "sleeper_roster_id": 7
@@ -897,11 +896,11 @@
     }
   ],
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-09-27T17:48:38.988Z",
-  "lastCheckpointType": "INTERNATIONAL_CHECK",
+  "lastAutomationRun": "2025-09-27T18:07:34.679Z",
+  "lastCheckpointType": "SATURDAY_INTERNATIONAL_PREP",
   "automationStats": {
     "scoresUpdated": 21,
-    "newSubstitutions": 1,
+    "newSubstitutions": 0,
     "totalSubstitutions": 10,
     "cleanedSubstitutions": 0
   }
