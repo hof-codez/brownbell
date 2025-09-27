@@ -202,6 +202,15 @@ class BrownBellAutomator {
             // Exact match first
             if (playerFullName === originalName) return true;
 
+            // Handle common name variations
+            const nameVariations = [
+                originalName,
+                originalName.replace('devaughn', 'devaughn'),
+                originalName.replace('vele', 'vele')
+            ];
+
+            if (nameVariations.some(variation => playerFullName === variation)) return true;
+
             // Name similarity check
             const playerParts = playerFullName.split(' ');
             const originalParts = originalName.split(' ');
@@ -368,24 +377,27 @@ class BrownBellAutomator {
 
         if (!roster) return null;
 
-        const currentWeekScores = await this.getWeeklyScores(week);
-        const previousWeekScores = week > 1 ? await this.getWeeklyScores(week - 1) : {};
         const originalDuo = this.knownDuos[awardType][teamName];
-
         if (!originalDuo || !roster.players) return null;
 
         const eligibleSubs = [];
 
-        roster.players.forEach(playerId => {
+        for (const playerId of roster.players) {
             const player = this.playersData[playerId];
-            if (!player || !['QB', 'RB', 'WR'].includes(player.position)) return;
+            if (!player || !['QB', 'RB', 'WR'].includes(player.position)) continue;
 
             // Skip if this is the injured player
-            if (playerId === injuredPlayer.playerId) return;
+            if (playerId === injuredPlayer.playerId) continue;
+
+            // Skip if this player is in the Next Up duo (for Main Award)
+            if (awardType === 'main' && this.isPlayerInNextUpDuo(playerId, teamName)) {
+                console.log(`Skipping ${player.first_name} ${player.last_name} - reserved for Next Up Award`);
+                continue;
+            }
 
             // Skip if injured
             if (player.injury_status && ['out', 'doubtful', 'ir'].includes(player.injury_status.toLowerCase())) {
-                return;
+                continue;
             }
 
             const substitute = {
@@ -395,20 +407,35 @@ class BrownBellAutomator {
                 yearsExp: player.years_exp || 0
             };
 
-            // USE ENHANCED VALIDATION HERE
+            // Validate substitution
             if (!this.validateSubstitution(teamName, originalDuo, injuredPlayer.index, substitute, awardType)) {
-                return; // Skip invalid substitutions
+                continue;
             }
 
-            const combinedScore = (currentWeekScores[playerId] || 0) + (previousWeekScores[playerId] || 0);
-            substitute.score = combinedScore;
+            // Calculate 3-week total score
+            let totalScore = 0;
+            for (let w = Math.max(1, week - 2); w <= week; w++) {
+                const weekScores = await this.getWeeklyScores(w);
+                if (weekScores[playerId] !== undefined) {
+                    totalScore += weekScores[playerId];
+                }
+            }
 
+            substitute.score = totalScore;
             eligibleSubs.push(substitute);
-        });
+        }
 
-        // Return best scoring eligible substitute
+        if (eligibleSubs.length === 0) return null;
+
+        // Sort by total score and randomly select from top 5
         eligibleSubs.sort((a, b) => b.score - a.score);
-        return eligibleSubs.length > 0 ? eligibleSubs[0] : null;
+        const topPerformers = eligibleSubs.slice(0, Math.min(5, eligibleSubs.length));
+        const randomIndex = Math.floor(Math.random() * topPerformers.length);
+        const selectedSub = topPerformers[randomIndex];
+
+        console.log(`Selected ${selectedSub.name} (${selectedSub.score.toFixed(1)} pts over 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
+
+        return selectedSub;
     }
 
     hasActiveSubstitution(teamName, playerIndex, week, awardType, existingSubstitutions) {
@@ -416,7 +443,6 @@ class BrownBellAutomator {
             sub.teamName === teamName &&
             sub.playerIndex === playerIndex &&
             sub.awardType === awardType &&
-            sub.active &&
             sub.startWeek <= week &&
             (!sub.endWeek || sub.endWeek >= week)
         );
@@ -431,36 +457,39 @@ class BrownBellAutomator {
         for (const awardType of ['main', 'nextup']) {
             for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
                 for (const injury of teamInjuries) {
-                    // For main award: always generate new weekly sub if injured
-                    // For nextup: only if no existing active sub (static substitutions)
+                    // Check if we already have an active substitution for this exact scenario
                     const hasActiveSub = this.hasActiveSubstitution(
                         teamName, injury.index, week, awardType, existingSubstitutions
                     );
 
-                    const shouldCreateSub = awardType === 'main' || !hasActiveSub;
+                    if (hasActiveSub) {
+                        console.log(`Substitution already exists: ${teamName} ${awardType} player ${injury.index} week ${week}`);
+                        continue; // Skip - already have a sub for this player this week
+                    }
 
-                    if (shouldCreateSub) {
-                        const substitute = await this.findSubstitute(teamName, injury, week, awardType);
+                    // Only create new substitution if none exists
+                    const substitute = await this.findSubstitute(teamName, injury, week, awardType);
 
-                        if (substitute) {
-                            weeklySubstitutions.push({
-                                teamName,
-                                playerIndex: injury.index,
-                                awardType,
-                                originalName: injury.originalPlayer.name,
-                                originalPosition: injury.originalPlayer.position,
-                                substituteName: substitute.name,
-                                substitutePlayerId: substitute.id,
-                                substitutePosition: substitute.position,
-                                startWeek: week,
-                                endWeek: awardType === 'main' ? week : null, // Weekly for main, ongoing for nextup
-                                active: true,
-                                autoGenerated: true,
-                                reason: `${awardType === 'main' ? 'Weekly' : 'Permanent'} injury substitution (${injury.status})`
-                            });
+                    if (substitute) {
+                        weeklySubstitutions.push({
+                            teamName,
+                            playerIndex: injury.index,
+                            awardType,
+                            originalName: injury.originalPlayer.name,
+                            originalPosition: injury.originalPlayer.position,
+                            substituteName: substitute.name,
+                            substitutePlayerId: substitute.id,
+                            substitutePosition: substitute.position,
+                            startWeek: week,
+                            endWeek: awardType === 'main' ? week : null,
+                            active: true,
+                            autoGenerated: true,
+                            reason: `${awardType === 'main' ? 'Weekly' : 'Permanent'} injury substitution (${injury.status})`
+                        });
 
-                            console.log(`Auto-sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name} (Week ${week})`);
-                        }
+                        console.log(`New auto-sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name} (Week ${week})`);
+                    } else {
+                        console.log(`No suitable substitute found: ${teamName} ${awardType} for ${injury.originalPlayer.name}`);
                     }
                 }
             }
@@ -514,6 +543,22 @@ class BrownBellAutomator {
         });
 
         return cleaned;
+    }
+
+    isPlayerInNextUpDuo(playerId, teamName) {
+        const nextUpDuo = this.knownDuos.nextup[teamName];
+        if (!nextUpDuo) return false;
+
+        const roster = this.leagueData.rosters.find(r =>
+            this.leagueData.userMap[r.owner_id] === teamName
+        );
+        if (!roster) return false;
+
+        // Check if this player is in the Next Up duo
+        return nextUpDuo.some(nextUpPlayer => {
+            const nextUpPlayerId = this.findPlayerInRoster(nextUpPlayer, roster);
+            return nextUpPlayerId === playerId;
+        });
     }
 
     async checkGameTimeInjuries() {
