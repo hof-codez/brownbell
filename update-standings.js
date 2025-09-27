@@ -7,7 +7,7 @@ class BrownBellAutomator {
         this.leagueId = leagueId;
         this.playersData = null;
         this.leagueData = null;
-        
+
         // Known duos from your tracker
         this.knownDuos = {
             main: {
@@ -119,7 +119,7 @@ class BrownBellAutomator {
 
     async initializeLeagueData() {
         console.log('Fetching league data...');
-        
+
         const [league, rosters, users, players] = await Promise.all([
             this.fetchJson(`https://api.sleeper.app/v1/league/${this.leagueId}`),
             this.fetchJson(`https://api.sleeper.app/v1/league/${this.leagueId}/rosters`),
@@ -135,32 +135,44 @@ class BrownBellAutomator {
 
         this.leagueData = { league, rosters, users, userMap };
         this.playersData = players;
-        
+
         console.log(`Connected to league: ${league.name}`);
     }
 
     async getCurrentWeek() {
-    // NFL 2024 season started Thursday, September 5, 2024 (Week 1)
-    // We're currently in late September 2024, so we should be around Week 4
-    
-    // For now, let's hardcode the current week until we fix the calculation
-    const manualCurrentWeek = 4; // Update this manually each week
-    
-    // Optionally try to use Sleeper's league data if available and reasonable
-    const sleeperWeek = this.leagueData?.league?.leg;
-    if (sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18 && sleeperWeek <= 6) {
-        // Only trust Sleeper if it's a reasonable week (1-6 for current date)
-        console.log(`Using Sleeper week: ${sleeperWeek}`);
-        return sleeperWeek;
+        // NFL 2024 season Week 1 started Thursday, September 5, 2024
+        const seasonStartDate = new Date('2024-09-05T00:00:00Z');
+        const now = new Date();
+
+        // Calculate milliseconds since season start
+        const timeDiff = now.getTime() - seasonStartDate.getTime();
+        const daysSinceStart = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+
+        // NFL weeks run Thursday to Wednesday (7 days each)
+        // Week 1: Sep 5-11, Week 2: Sep 12-18, Week 3: Sep 19-25, Week 4: Sep 26-Oct 2, etc.
+        let calculatedWeek = Math.floor(daysSinceStart / 7) + 1;
+
+        // Clamp between 1 and 18 (regular season)
+        calculatedWeek = Math.max(1, Math.min(18, calculatedWeek));
+
+        // Try Sleeper's week first if it's reasonable
+        const sleeperWeek = this.leagueData?.league?.leg;
+        if (sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18) {
+            // Sleeper sometimes updates before Thursday, so prefer calculation if it differs significantly
+            const weekDiff = Math.abs(sleeperWeek - calculatedWeek);
+            if (weekDiff <= 1) {
+                console.log(`Using Sleeper week: ${sleeperWeek} (calculated: ${calculatedWeek})`);
+                return sleeperWeek;
+            }
+        }
+
+        console.log(`Using calculated week: ${calculatedWeek} (${daysSinceStart} days since season start)`);
+        return calculatedWeek;
     }
-    
-    console.log(`Using manual current week: ${manualCurrentWeek}`);
-    return manualCurrentWeek;
-}
 
     async getWeeklyScores(week) {
         console.log(`Fetching scores for week ${week}...`);
-        
+
         try {
             const matchups = await this.fetchJson(
                 `https://api.sleeper.app/v1/league/${this.leagueId}/matchups/${week}`
@@ -207,7 +219,7 @@ class BrownBellAutomator {
 
                 return playerLastName === originalLastName &&
                     (playerFirstName.startsWith(originalFirstName.charAt(0)) ||
-                     originalFirstName.startsWith(playerFirstName.charAt(0)));
+                        originalFirstName.startsWith(playerFirstName.charAt(0)));
             }
 
             return false;
@@ -216,10 +228,10 @@ class BrownBellAutomator {
 
     async detectInjuries(week) {
         console.log('Detecting player injuries...');
-        
+
         const weekScores = await this.getWeeklyScores(week);
         const previousWeekScores = week > 1 ? await this.getWeeklyScores(week - 1) : {};
-        
+
         const injuries = {
             main: {},
             nextup: {}
@@ -228,27 +240,27 @@ class BrownBellAutomator {
         // Check both award types
         for (const awardType of ['main', 'nextup']) {
             const duos = this.knownDuos[awardType];
-            
+
             for (const [teamName, originalDuo] of Object.entries(duos)) {
-                const roster = this.leagueData.rosters.find(r => 
+                const roster = this.leagueData.rosters.find(r =>
                     this.leagueData.userMap[r.owner_id] === teamName
                 );
-                
+
                 if (!roster) continue;
 
                 const teamInjuries = [];
 
                 originalDuo.forEach((originalPlayer, index) => {
                     const playerId = this.findPlayerInRoster(originalPlayer, roster);
-                    
+
                     if (playerId) {
                         const player = this.playersData[playerId];
                         const currentScore = weekScores[playerId] || 0;
                         const previousScore = previousWeekScores[playerId] || 0;
-                        
+
                         // Injury detection heuristics
                         let injuryStatus = 'healthy';
-                        
+
                         if (player.injury_status) {
                             const status = player.injury_status.toLowerCase();
                             if (['out', 'doubtful', 'ir', 'pup'].includes(status)) {
@@ -287,16 +299,16 @@ class BrownBellAutomator {
     }
 
     async findSubstitute(teamName, injuredPlayer, week, awardType) {
-        const roster = this.leagueData.rosters.find(r => 
+        const roster = this.leagueData.rosters.find(r =>
             this.leagueData.userMap[r.owner_id] === teamName
         );
-        
+
         if (!roster) return null;
 
         // Get recent scoring data
         const currentWeekScores = await this.getWeeklyScores(week);
         const previousWeekScores = week > 1 ? await this.getWeeklyScores(week - 1) : {};
-        
+
         const eligibleSubs = [];
         const originalDuo = this.knownDuos[awardType][teamName];
         const healthyPartner = originalDuo.find((_, i) => i !== injuredPlayer.index);
@@ -306,10 +318,10 @@ class BrownBellAutomator {
         roster.players.forEach(playerId => {
             const player = this.playersData[playerId];
             if (!player || !['QB', 'RB', 'WR'].includes(player.position)) return;
-            
+
             // Skip if this is the injured player
             if (playerId === injuredPlayer.playerId) return;
-            
+
             // Skip if injured
             if (player.injury_status && ['out', 'doubtful', 'ir'].includes(player.injury_status.toLowerCase())) {
                 return;
@@ -327,7 +339,7 @@ class BrownBellAutomator {
             }
 
             const combinedScore = (currentWeekScores[playerId] || 0) + (previousWeekScores[playerId] || 0);
-            
+
             eligibleSubs.push({
                 id: playerId,
                 name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
@@ -355,7 +367,7 @@ class BrownBellAutomator {
 
     async generateWeeklySubstitutions(week, existingSubstitutions) {
         console.log(`Generating weekly substitutions for week ${week}...`);
-        
+
         const injuries = await this.detectInjuries(week);
         const weeklySubstitutions = [];
 
@@ -372,7 +384,7 @@ class BrownBellAutomator {
 
                     if (shouldCreateSub) {
                         const substitute = await this.findSubstitute(teamName, injury, week, awardType);
-                        
+
                         if (substitute) {
                             weeklySubstitutions.push({
                                 teamName,
@@ -389,7 +401,7 @@ class BrownBellAutomator {
                                 autoGenerated: true,
                                 reason: `${awardType === 'main' ? 'Weekly' : 'Permanent'} injury substitution (${injury.status})`
                             });
-                            
+
                             console.log(`Auto-sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name} (Week ${week})`);
                         }
                     }
@@ -407,12 +419,12 @@ class BrownBellAutomator {
             if (sub.endWeek && sub.endWeek < sub.startWeek) {
                 sub.endWeek = null;
             }
-            
+
             // Remove future substitutions
             if (sub.startWeek > currentWeek) {
                 return false;
             }
-            
+
             return true;
         });
 
@@ -428,7 +440,7 @@ class BrownBellAutomator {
         Object.values(grouped).forEach(group => {
             // Sort by start week descending
             group.sort((a, b) => b.startWeek - a.startWeek);
-            
+
             // For each week, only keep one active substitution
             const weeklyActive = {};
             group.forEach(sub => {
@@ -438,7 +450,7 @@ class BrownBellAutomator {
                     }
                 }
             });
-            
+
             // Add unique substitutions
             const unique = [...new Set(Object.values(weeklyActive))];
             cleaned.push(...unique);
@@ -449,21 +461,21 @@ class BrownBellAutomator {
 
     async updateAllScores() {
         console.log('Updating all weekly scores...');
-        
+
         const currentWeek = await this.getCurrentWeek();
         const scores = { main: {}, nextup: {} };
 
         // Process each award type
         for (const awardType of ['main', 'nextup']) {
             const duos = this.knownDuos[awardType];
-            
+
             for (const [teamName, originalDuo] of Object.entries(duos)) {
                 scores[awardType][teamName] = {};
-                
-                const roster = this.leagueData.rosters.find(r => 
+
+                const roster = this.leagueData.rosters.find(r =>
                     this.leagueData.userMap[r.owner_id] === teamName
                 );
-                
+
                 if (!roster) continue;
 
                 // Get scores for each week up to current
@@ -488,10 +500,10 @@ class BrownBellAutomator {
 
     async generateCompleteData() {
         await this.initializeLeagueData();
-        
+
         const currentWeek = await this.getCurrentWeek();
         const isWeeklySubDay = new Date().getDay() === 2; // Tuesday
-        
+
         console.log(`Current week: ${currentWeek}, Weekly sub day: ${isWeeklySubDay}`);
 
         // Load existing data if available
@@ -502,7 +514,7 @@ class BrownBellAutomator {
             nextUpScores: {},
             substitutions: []
         };
-        
+
         try {
             if (fs.existsSync('brown-bell-data.json')) {
                 existingData = JSON.parse(fs.readFileSync('brown-bell-data.json', 'utf8'));
@@ -516,7 +528,7 @@ class BrownBellAutomator {
 
         // Update scores
         const allScores = await this.updateAllScores();
-        
+
         // Generate weekly substitutions (only on Tuesdays or manual trigger)
         let newSubstitutions = [];
         if (isWeeklySubDay || process.env.FORCE_SUBSTITUTIONS === 'true') {
@@ -528,10 +540,10 @@ class BrownBellAutomator {
         const nextUpTeams = [];
 
         Object.entries(this.knownDuos.main).forEach(([teamName, duo]) => {
-            const roster = this.leagueData.rosters.find(r => 
+            const roster = this.leagueData.rosters.find(r =>
                 this.leagueData.userMap[r.owner_id] === teamName
             );
-            
+
             teams.push({
                 name: teamName,
                 players: duo.map(player => ({
@@ -543,10 +555,10 @@ class BrownBellAutomator {
         });
 
         Object.entries(this.knownDuos.nextup).forEach(([teamName, duo]) => {
-            const roster = this.leagueData.rosters.find(r => 
+            const roster = this.leagueData.rosters.find(r =>
                 this.leagueData.userMap[r.owner_id] === teamName
             );
-            
+
             nextUpTeams.push({
                 mainTeamName: teamName,
                 name: `${teamName} (Next Up)`,
@@ -584,20 +596,20 @@ class BrownBellAutomator {
     async run() {
         try {
             console.log('🏈 Starting Brown Bell automation...');
-            
+
             const data = await this.generateCompleteData();
-            
+
             // Write to file
             fs.writeFileSync('brown-bell-data.json', JSON.stringify(data, null, 2));
-            
+
             console.log('✅ Automation complete!');
             console.log(`📊 Updated ${data.automationStats.scoresUpdated} team scores`);
             console.log(`🔄 Generated ${data.automationStats.newSubstitutions} new substitutions`);
             console.log(`🧹 Cleaned up ${data.automationStats.cleanedSubstitutions} invalid substitutions`);
             console.log(`📅 Current week: ${data.currentWeek}`);
-            
+
             return data;
-            
+
         } catch (error) {
             console.error('❌ Automation failed:', error);
             throw error;
