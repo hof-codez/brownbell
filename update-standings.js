@@ -278,6 +278,8 @@ class BrownBellAutomator {
         return injuries;
     }
 
+
+
     async runAutomationCheckpoint(checkpointType) {
         console.log(`Running ${checkpointType} injury checkpoint...`);
 
@@ -307,6 +309,18 @@ class BrownBellAutomator {
             console.log(`${checkpointType}: No new substitutions needed`);
             return [];
         }
+    }
+
+    validateDuoCombination(healthyPlayerPosition, substitutePosition) {
+        const validCombos = ['QB+RB', 'QB+WR', 'RB+WR'];
+        const newCombo = [healthyPlayerPosition, substitutePosition].sort().join('+');
+        const isValid = validCombos.includes(newCombo);
+
+        if (!isValid) {
+            console.warn(`Invalid duo combination: ${healthyPlayerPosition} + ${substitutePosition}`);
+        }
+
+        return isValid;
     }
 
     // NEW: Enhanced validation with detailed logging
