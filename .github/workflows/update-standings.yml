@@ -3,16 +3,36 @@ name: Update Brown Bell Standings
 
 on:
   schedule:
-    # Daily at 6 AM EST (11 AM UTC)
-    - cron: '0 11 * * *'
-    # Weekly on Tuesdays at 6 PM EST (11 PM UTC) for substitutions
-    - cron: '0 23 * * 2'
+    # Tuesday at 10 AM ET (injury reports) - 2 PM UTC
+    - cron: '0 14 * * 2'  
+    # Thursday at 10 AM ET (updated injury reports) - 2 PM UTC
+    - cron: '0 14 * * 4'
+    # Saturday at 7 AM ET (international game prep) - 11 AM UTC
+    - cron: '0 11 * * 6'
+    # Sunday at 7 AM ET (international + early game check) - 11 AM UTC  
+    - cron: '0 11 * * 0'
+    # Sunday at 11 AM ET (regular pre-game check) - 3 PM UTC
+    - cron: '0 15 * * 0'
+    # Monday at 11 AM ET (post-game update) - 3 PM UTC
+    - cron: '0 15 * * 1'
+    # Daily score updates at 6 AM ET - 10 AM UTC
+    - cron: '0 10 * * *'
   
   # Allow manual triggering
   workflow_dispatch:
     inputs:
       force_substitutions:
-        description: 'Force generate substitutions (ignore day check)'
+        description: 'Force generate substitutions'
+        required: false
+        default: false
+        type: boolean
+      pregame_check:
+        description: 'Run pre-game injury check'
+        required: false
+        default: false
+        type: boolean
+      international_check:
+        description: 'Run international game injury check'
         required: false
         default: false
         type: boolean
@@ -41,6 +61,8 @@ jobs:
       env:
         SLEEPER_LEAGUE_ID: ${{ secrets.SLEEPER_LEAGUE_ID }}
         FORCE_SUBSTITUTIONS: ${{ inputs.force_substitutions }}
+        PREGAME_CHECK: ${{ inputs.pregame_check }}
+        INTERNATIONAL_CHECK: ${{ inputs.international_check }}
       run: node update-standings.js
 
     - name: Check for changes
@@ -85,6 +107,7 @@ jobs:
           if command -v jq >/dev/null 2>&1; then
             echo "Last update time: $(jq -r '.timestamp' brown-bell-data.json)"
             echo "Current week: $(jq -r '.currentWeek' brown-bell-data.json)"
+            echo "Checkpoint type: $(jq -r '.lastCheckpointType // "ROUTINE_UPDATE"' brown-bell-data.json)"
             echo "New substitutions: $(jq -r '.automationStats.newSubstitutions' brown-bell-data.json)"
           else
             echo "JSON data updated successfully"

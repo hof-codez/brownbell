@@ -225,14 +225,8 @@ class BrownBellAutomator {
         console.log('Detecting player injuries...');
 
         const weekScores = await this.getWeeklyScores(week);
-        const previousWeekScores = week > 1 ? await this.getWeeklyScores(week - 1) : {};
+        const injuries = { main: {}, nextup: {} };
 
-        const injuries = {
-            main: {},
-            nextup: {}
-        };
-
-        // Check both award types
         for (const awardType of ['main', 'nextup']) {
             const duos = this.knownDuos[awardType];
 
@@ -250,21 +244,18 @@ class BrownBellAutomator {
 
                     if (playerId) {
                         const player = this.playersData[playerId];
-                        const currentScore = weekScores[playerId] || 0;
-                        const previousScore = previousWeekScores[playerId] || 0;
-
-                        // Injury detection heuristics
                         let injuryStatus = 'healthy';
 
                         if (player.injury_status) {
                             const status = player.injury_status.toLowerCase();
-                            if (['out', 'doubtful', 'ir', 'pup'].includes(status)) {
-                                injuryStatus = 'out';
-                            } else if (status === 'questionable') {
-                                injuryStatus = 'questionable';
+                            // Only substitute for OUT or DOUBTFUL - not questionable
+                            if (['out', 'doubtful'].includes(status)) {
+                                injuryStatus = status;
                             }
-                        } else if (currentScore === 0 && previousScore === 0) {
-                            injuryStatus = 'questionable'; // Suspicious low scoring
+                            // IR and PUP are season-ending
+                            else if (['ir', 'pup'].includes(status)) {
+                                injuryStatus = 'season_ending';
+                            }
                         }
 
                         if (injuryStatus !== 'healthy') {
@@ -285,6 +276,37 @@ class BrownBellAutomator {
         }
 
         return injuries;
+    }
+
+    async runAutomationCheckpoint(checkpointType) {
+        console.log(`Running ${checkpointType} injury checkpoint...`);
+
+        const currentWeek = await this.getCurrentWeek();
+        let existingData = { substitutions: [] };
+
+        try {
+            if (require('fs').existsSync('brown-bell-data.json')) {
+                existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
+            }
+        } catch (error) {
+            console.log('No existing data found');
+        }
+
+        const cleanedSubstitutions = this.cleanupSubstitutions(existingData.substitutions, currentWeek);
+        const newSubstitutions = await this.generateWeeklySubstitutions(currentWeek, cleanedSubstitutions);
+
+        if (newSubstitutions.length > 0) {
+            console.log(`${checkpointType}: Generated ${newSubstitutions.length} new substitutions`);
+
+            // Update the data file with new substitutions
+            const updatedData = await this.generateCompleteData();
+            require('fs').writeFileSync('brown-bell-data.json', JSON.stringify(updatedData, null, 2));
+
+            return newSubstitutions;
+        } else {
+            console.log(`${checkpointType}: No new substitutions needed`);
+            return [];
+        }
     }
 
     // NEW: Enhanced validation with detailed logging
@@ -480,6 +502,148 @@ class BrownBellAutomator {
         return cleaned;
     }
 
+    async checkGameTimeInjuries() {
+        console.log('Checking for last-minute injury updates...');
+
+        // Get current time info
+        const now = new Date();
+        const currentWeek = await this.getCurrentWeek();
+
+        // For now, we'll do a general pre-game check
+        // Future enhancement: integrate with NFL schedule API for specific game times
+
+        const injuries = await this.detectInjuries(currentWeek);
+        const newSubstitutions = [];
+
+        // Load existing substitutions
+        let existingSubstitutions = [];
+        try {
+            if (require('fs').existsSync('brown-bell-data.json')) {
+                const existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
+                existingSubstitutions = existingData.substitutions || [];
+            }
+        } catch (error) {
+            console.log('No existing substitutions found');
+        }
+
+        for (const awardType of ['main', 'nextup']) {
+            for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
+                for (const injury of teamInjuries) {
+                    // Check if we already have a substitution for this week
+                    const hasActiveSub = this.hasActiveSubstitution(
+                        teamName, injury.index, currentWeek, awardType, existingSubstitutions
+                    );
+
+                    if (!hasActiveSub && ['out', 'doubtful', 'season_ending'].includes(injury.status)) {
+                        const substitute = await this.findSubstitute(teamName, injury, currentWeek, awardType);
+
+                        if (substitute) {
+                            newSubstitutions.push({
+                                teamName,
+                                playerIndex: injury.index,
+                                awardType,
+                                originalName: injury.originalPlayer.name,
+                                originalPosition: injury.originalPlayer.position,
+                                substituteName: substitute.name,
+                                substitutePlayerId: substitute.id,
+                                substitutePosition: substitute.position,
+                                startWeek: currentWeek,
+                                endWeek: awardType === 'main' ? currentWeek : null,
+                                active: true,
+                                autoGenerated: true,
+                                reason: `Pre-game injury substitution (${injury.status}) - ${now.toISOString()}`
+                            });
+
+                            console.log(`Pre-game sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name}`);
+                        }
+                    }
+                }
+            }
+        }
+
+        return newSubstitutions;
+    }
+
+    async checkInternationalGameInjuries() {
+        console.log('Checking for international game injury updates...');
+
+        const now = new Date();
+        const currentWeek = await this.getCurrentWeek();
+
+        // International game weeks for 2025 (you'll need to update these annually)
+        const internationalWeeks = {
+            1: ['Chiefs', 'Chargers'], // Brazil - Friday night
+            4: ['Steelers', 'Vikings'], // Dublin - Sunday 9:30 AM ET
+            5: ['Vikings', 'Browns'], // London - Sunday 9:30 AM ET  
+            6: ['Broncos', 'Jets'], // London - Sunday 9:30 AM ET
+            7: ['Rams', 'Jaguars'], // London - Sunday 9:30 AM ET
+            10: ['Falcons', 'Colts'], // Berlin - Sunday 9:30 AM ET
+            11: ['Dolphins', 'Commanders'] // Madrid - Sunday 9:30 AM ET
+        };
+
+        // Check if current week has international games
+        const teamsInInternationalGames = internationalWeeks[currentWeek] || [];
+
+        if (teamsInInternationalGames.length === 0) {
+            console.log(`No international games in Week ${currentWeek}`);
+            return [];
+        }
+
+        console.log(`International games this week: ${teamsInInternationalGames.join(' vs ')}`);
+
+        // Enhanced injury detection for international game teams
+        const injuries = await this.detectInjuries(currentWeek);
+        const newSubstitutions = [];
+
+        // Load existing substitutions
+        let existingSubstitutions = [];
+        try {
+            if (require('fs').existsSync('brown-bell-data.json')) {
+                const existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
+                existingSubstitutions = existingData.substitutions || [];
+            }
+        } catch (error) {
+            console.log('No existing substitutions found');
+        }
+
+        for (const awardType of ['main', 'nextup']) {
+            for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
+                for (const injury of teamInjuries) {
+                    // Check if we already have a substitution for this week
+                    const hasActiveSub = this.hasActiveSubstitution(
+                        teamName, injury.index, currentWeek, awardType, existingSubstitutions
+                    );
+
+                    if (!hasActiveSub && ['out', 'doubtful', 'season_ending'].includes(injury.status)) {
+                        const substitute = await this.findSubstitute(teamName, injury, currentWeek, awardType);
+
+                        if (substitute) {
+                            newSubstitutions.push({
+                                teamName,
+                                playerIndex: injury.index,
+                                awardType,
+                                originalName: injury.originalPlayer.name,
+                                originalPosition: injury.originalPlayer.position,
+                                substituteName: substitute.name,
+                                substitutePlayerId: substitute.id,
+                                substitutePosition: substitute.position,
+                                startWeek: currentWeek,
+                                endWeek: awardType === 'main' ? currentWeek : null,
+                                active: true,
+                                autoGenerated: true,
+                                reason: `International game substitution (${injury.status}) - ${now.toISOString()}`
+                            });
+
+                            console.log(`International game sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name}`);
+                        }
+                    }
+                }
+            }
+        }
+
+        return newSubstitutions;
+    }
+
     async updateAllScores() {
         console.log('Updating all weekly scores...');
 
@@ -566,11 +730,42 @@ class BrownBellAutomator {
         await this.initializeLeagueData();
 
         const currentWeek = await this.getCurrentWeek();
-        const isWeeklySubDay = new Date().getDay() === 2; // Tuesday
+        const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday
+        const currentHour = new Date().getHours();
 
-        console.log(`Current week: ${currentWeek}, Weekly sub day: ${isWeeklySubDay}`);
+        // Determine checkpoint type - REPLACE THIS ENTIRE SECTION
+        let checkpointType = null;
+        let shouldRunSubstitutions = false;
 
-        // Load existing data if available
+        if (process.env.FORCE_SUBSTITUTIONS === 'true') {
+            checkpointType = 'MANUAL_TRIGGER';
+            shouldRunSubstitutions = true;
+        } else if (process.env.INTERNATIONAL_CHECK === 'true') {
+            checkpointType = 'INTERNATIONAL_CHECK';
+            shouldRunSubstitutions = true;
+        } else if (process.env.PREGAME_CHECK === 'true') {
+            checkpointType = 'PREGAME_CHECK';
+            shouldRunSubstitutions = true;
+        } else if (currentDay === 2) { // Tuesday
+            checkpointType = 'TUESDAY_CHECK';
+            shouldRunSubstitutions = true;
+        } else if (currentDay === 4) { // Thursday
+            checkpointType = 'THURSDAY_CHECK';
+            shouldRunSubstitutions = true;
+        } else if (currentDay === 6 && currentHour >= 7) { // Saturday 7 AM - International prep
+            checkpointType = 'SATURDAY_INTERNATIONAL_PREP';
+            shouldRunSubstitutions = true;
+        } else if (currentDay === 0 && currentHour >= 7 && currentHour < 11) { // Sunday 7-11 AM - International games
+            checkpointType = 'SUNDAY_INTERNATIONAL_CHECK';
+            shouldRunSubstitutions = true;
+        } else if (currentDay === 0 && currentHour >= 11) { // Sunday after 11 AM - Regular games
+            checkpointType = 'SUNDAY_PREGAME_CHECK';
+            shouldRunSubstitutions = true;
+        }
+
+        console.log(`Current week: ${currentWeek}, Checkpoint: ${checkpointType || 'ROUTINE_UPDATE'}`);
+
+        // Load existing data - KEEP THIS SECTION AS IS
         let existingData = {
             teams: [],
             nextUpTeams: [],
@@ -580,28 +775,39 @@ class BrownBellAutomator {
         };
 
         try {
-            if (fs.existsSync('brown-bell-data.json')) {
-                existingData = JSON.parse(fs.readFileSync('brown-bell-data.json', 'utf8'));
+            if (require('fs').existsSync('brown-bell-data.json')) {
+                existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
             }
         } catch (error) {
             console.log('No existing data found, creating fresh dataset');
         }
 
-        // Clean up existing substitutions
+        // Clean up existing substitutions - KEEP THIS SECTION AS IS
         const cleanedSubstitutions = this.cleanupSubstitutions(existingData.substitutions, currentWeek);
 
-        // Update scores
+        // Update scores (always do this) - KEEP THIS SECTION AS IS
         const allScores = await this.updateAllScores();
 
-        // Generate weekly substitutions (only on Tuesdays or manual trigger)
+        // Generate new substitutions - REPLACE THIS SECTION
         let newSubstitutions = [];
-        if (isWeeklySubDay || process.env.FORCE_SUBSTITUTIONS === 'true') {
-            newSubstitutions = await this.generateWeeklySubstitutions(currentWeek, cleanedSubstitutions);
+        if (shouldRunSubstitutions) {
+            if (checkpointType === 'INTERNATIONAL_CHECK' || checkpointType === 'SATURDAY_INTERNATIONAL_PREP' || checkpointType === 'SUNDAY_INTERNATIONAL_CHECK') {
+                // Use the international game check
+                newSubstitutions = await this.checkInternationalGameInjuries();
+            } else if (checkpointType === 'PREGAME_CHECK' || checkpointType === 'SUNDAY_PREGAME_CHECK') {
+                // Use the enhanced pre-game check
+                newSubstitutions = await this.checkGameTimeInjuries();
+            } else {
+                // Use regular weekly substitution logic
+                newSubstitutions = await this.generateWeeklySubstitutions(currentWeek, cleanedSubstitutions);
+            }
+            console.log(`${checkpointType}: Generated ${newSubstitutions.length} new substitutions`);
         }
 
-        // Build teams data structure
+        // Build teams data structure - KEEP THE REST OF THE METHOD AS IS
         const teams = [];
         const nextUpTeams = [];
+
 
         Object.entries(this.knownDuos.main).forEach(([teamName, duo]) => {
             const roster = this.leagueData.rosters.find(r =>
@@ -638,7 +844,7 @@ class BrownBellAutomator {
             version: '2.0',
             timestamp: new Date().toISOString(),
             currentWeek,
-            currentAward: 'main', // Default to main award
+            currentAward: 'main',
             teams,
             nextUpTeams,
             scores: allScores.main,
@@ -646,6 +852,7 @@ class BrownBellAutomator {
             substitutions: [...cleanedSubstitutions, ...newSubstitutions],
             sleeperLeagueId: this.leagueId,
             lastAutomationRun: new Date().toISOString(),
+            lastCheckpointType: checkpointType || 'ROUTINE_UPDATE',
             automationStats: {
                 scoresUpdated: Object.keys(allScores.main).length + Object.keys(allScores.nextup).length,
                 newSubstitutions: newSubstitutions.length,
