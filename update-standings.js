@@ -293,6 +293,44 @@ class BrownBellAutomator {
         return validCombos.includes(newCombo);
     }
 
+    // NEW: Enhanced validation with detailed logging
+    validateSubstitution(teamName, originalDuo, injuredPlayerIndex, substitute, awardType) {
+        const healthyPlayer = originalDuo.find((_, i) => i !== injuredPlayerIndex);
+        const injuredPlayer = originalDuo[injuredPlayerIndex];
+
+        // Check if substitute creates valid duo combination
+        const isValidCombo = this.validateDuoCombination(healthyPlayer.position, substitute.position);
+
+        if (!isValidCombo) {
+            console.warn(`❌ INVALID SUBSTITUTION BLOCKED:
+            Team: ${teamName} (${awardType})
+            Trying to substitute: ${substitute.name} (${substitute.position})
+            For injured: ${injuredPlayer.name} (${injuredPlayer.position})
+            Healthy partner: ${healthyPlayer.name} (${healthyPlayer.position})
+            Would create: ${healthyPlayer.position}+${substitute.position} (INVALID)
+            Valid combos: QB+RB, QB+WR, RB+WR`);
+            return false;
+        }
+
+        // Additional validation for Next Up Award
+        if (awardType === 'nextup') {
+            const yearsExp = substitute.yearsExp || 0;
+            if (yearsExp > 1) {
+                console.warn(`❌ NEXT UP ELIGIBILITY VIOLATION:
+                Player: ${substitute.name} (${yearsExp} years experience)
+                Only rookies (0 years) and 2nd year (1 year) players eligible`);
+                return false;
+            }
+        }
+
+        console.log(`✅ VALID SUBSTITUTION:
+        Team: ${teamName} (${awardType})
+        ${substitute.name} (${substitute.position}) → ${injuredPlayer.name} (${injuredPlayer.position})
+        New duo: ${healthyPlayer.position}+${substitute.position}`);
+
+        return true;
+    }
+
     async findSubstitute(teamName, injuredPlayer, week, awardType) {
         const roster = this.leagueData.rosters.find(r =>
             this.leagueData.userMap[r.owner_id] === teamName
@@ -300,15 +338,13 @@ class BrownBellAutomator {
 
         if (!roster) return null;
 
-        // Get recent scoring data
         const currentWeekScores = await this.getWeeklyScores(week);
         const previousWeekScores = week > 1 ? await this.getWeeklyScores(week - 1) : {};
+        const originalDuo = this.knownDuos[awardType][teamName];
+
+        if (!originalDuo || !roster.players) return null;
 
         const eligibleSubs = [];
-        const originalDuo = this.knownDuos[awardType][teamName];
-        const healthyPartner = originalDuo.find((_, i) => i !== injuredPlayer.index);
-
-        if (!roster.players || !healthyPartner) return null;
 
         roster.players.forEach(playerId => {
             const player = this.playersData[playerId];
@@ -322,26 +358,22 @@ class BrownBellAutomator {
                 return;
             }
 
-            // Validate duo combination
-            if (!this.validateDuoCombination(healthyPartner.position, player.position)) {
-                return;
-            }
-
-            // Award type eligibility
-            if (awardType === 'nextup') {
-                const yearsExp = player.years_exp || 0;
-                if (yearsExp > 1) return; // Only rookies (0) and 2nd year (1) eligible
-            }
-
-            const combinedScore = (currentWeekScores[playerId] || 0) + (previousWeekScores[playerId] || 0);
-
-            eligibleSubs.push({
+            const substitute = {
                 id: playerId,
                 name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
                 position: player.position,
-                score: combinedScore,
                 yearsExp: player.years_exp || 0
-            });
+            };
+
+            // USE ENHANCED VALIDATION HERE
+            if (!this.validateSubstitution(teamName, originalDuo, injuredPlayer.index, substitute, awardType)) {
+                return; // Skip invalid substitutions
+            }
+
+            const combinedScore = (currentWeekScores[playerId] || 0) + (previousWeekScores[playerId] || 0);
+            substitute.score = combinedScore;
+
+            eligibleSubs.push(substitute);
         });
 
         // Return best scoring eligible substitute
@@ -610,6 +642,42 @@ class BrownBellAutomator {
             throw error;
         }
     }
+}
+
+// NEW: Manual substitution with override capability
+createManualSubstitution(teamName, playerIndex, substituteName, substitutePosition, startWeek, endWeek, awardType, forceOverride = false); {
+    const originalDuo = this.knownDuos[awardType][teamName];
+    if (!originalDuo) {
+        throw new Error(`Team ${teamName} not found for ${awardType} award`);
+    }
+
+    const originalPlayer = originalDuo[playerIndex];
+    const substitute = {
+        name: substituteName,
+        position: substitutePosition,
+        yearsExp: awardType === 'nextup' ? 1 : 5 // Assume eligible unless specified
+    };
+
+    // Validate unless force override
+    if (!forceOverride && !this.validateSubstitution(teamName, originalDuo, playerIndex, substitute, awardType)) {
+        throw new Error(`Invalid substitution: ${substituteName} (${substitutePosition}) cannot replace ${originalPlayer.name} (${originalPlayer.position})`);
+    }
+
+    return {
+        teamName,
+        playerIndex,
+        awardType,
+        originalName: originalPlayer.name,
+        originalPosition: originalPlayer.position,
+        substituteName,
+        substitutePlayerId: 'manual', // Would need to look up actual ID
+        substitutePosition,
+        startWeek,
+        endWeek,
+        active: true,
+        autoGenerated: false,
+        reason: forceOverride ? 'Manual override substitution' : 'Manual substitution'
+    };
 }
 
 // Run automation
