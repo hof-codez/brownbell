@@ -11,12 +11,17 @@ on:
     - cron: '0 3 * * 5'
     # Saturday at 7 AM ET (international game prep) - 11 AM UTC
     - cron: '0 11 * * 6'
-    # Sunday at 7 AM ET (pre-international games) - 11 AM UTC
+    # Sunday schedule (5 runs)
+    # Sunday at 4 AM AZ (11 AM UTC) - Pre-international games
     - cron: '0 11 * * 0'
-    # Sunday at 5 PM ET (post-afternoon games) - 9 PM UTC
-    - cron: '0 21 * * 0'
-    # Sunday at 11 PM ET (post-SNF) - 3 AM UTC Monday
-    - cron: '0 3 * * 1'
+    # Sunday at 9 AM AZ (4 PM UTC) - Pre-AM games  
+    - cron: '0 16 * * 0'
+    # Sunday at 12:05 PM AZ (7:05 PM UTC) - Post-AM games
+    - cron: '5 19 * * 0'
+    # Sunday at 4 PM AZ (11 PM UTC) - Post-evening games
+    - cron: '0 23 * * 0'
+    # Sunday at 9 PM AZ (4 AM UTC Monday) - Post-SNF
+    - cron: '0 4 * * 1'
     # Monday at 11 AM ET (post-game update) - 3 PM UTC
     - cron: '0 15 * * 1'
     # Monday at 11 PM ET (post-MNF scores) - 3 AM UTC Tuesday

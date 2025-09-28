@@ -253,6 +253,14 @@ class BrownBellAutomator {
 
                     if (playerId) {
                         const player = this.playersData[playerId];
+                        const playerScore = weekScores[playerId] || 0;
+
+                        // CRITICAL RULE: If player has scored points this week, they started and cannot be substituted
+                        if (playerScore > 0) {
+                            console.log(`${originalPlayer.name} scored ${playerScore} points - CANNOT substitute (started the game)`);
+                            return; // Skip this player - they started the game
+                        }
+
                         let injuryStatus = 'healthy';
 
                         if (player.injury_status) {
