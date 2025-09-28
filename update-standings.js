@@ -390,6 +390,23 @@ class BrownBellAutomator {
 
         const eligibleSubs = [];
 
+        // For Next Up Award, determine what experience level is needed
+        let requiredExperience = null;
+        if (awardType === 'nextup') {
+            const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
+            const healthyPlayer = originalDuo[healthyPlayerIndex];
+            const healthyExperience = healthyPlayer.experience === 'second_year' ? 'sophomore' : healthyPlayer.experience;
+
+            // Determine required experience to maintain rookie+sophomore rule
+            if (healthyExperience === 'rookie') {
+                requiredExperience = 'sophomore';
+            } else if (healthyExperience === 'sophomore') {
+                requiredExperience = 'rookie';
+            }
+
+            console.log(`Next Up substitution: Healthy player is ${healthyExperience}, need ${requiredExperience} substitute`);
+        }
+
         for (const playerId of roster.players) {
             const player = this.playersData[playerId];
             if (!player || !['QB', 'RB', 'WR'].includes(player.position)) continue;
@@ -399,8 +416,7 @@ class BrownBellAutomator {
 
             // Skip if this player is in the Next Up duo (for Main Award)
             if (awardType === 'main' && this.isPlayerInNextUpDuo(playerId, teamName)) {
-                const playerName = `${player.first_name} ${player.last_name}`.trim();
-                console.log(`🚫 SKIPPING ${playerName} (${playerId}) - reserved for Next Up Award for team ${teamName}`);
+                console.log(`Skipping ${player.first_name} ${player.last_name} - reserved for Next Up Award`);
                 continue;
             }
 
@@ -416,8 +432,24 @@ class BrownBellAutomator {
                 yearsExp: player.years_exp || 0
             };
 
-            // Validate substitution
-            if (!this.validateSubstitution(teamName, originalDuo, injuredPlayer.index, substitute, awardType)) {
+            // Next Up Award smart eligibility
+            if (awardType === 'nextup') {
+                const playerExperience = substitute.yearsExp <= 0 ? 'rookie' : 'sophomore';
+
+                // Only include players that match the required experience level
+                if (requiredExperience && playerExperience !== requiredExperience) {
+                    console.log(`Skipping ${substitute.name} (${playerExperience}) - need ${requiredExperience}`);
+                    continue;
+                }
+
+                // Fallback: if no required experience determined, use standard filter
+                if (!requiredExperience && substitute.yearsExp > 1) {
+                    continue;
+                }
+            }
+
+            // Validate substitution (for Main Award)
+            if (awardType === 'main' && !this.validateSubstitution(teamName, originalDuo, injuredPlayer.index, substitute, awardType)) {
                 continue;
             }
 
@@ -434,30 +466,21 @@ class BrownBellAutomator {
             eligibleSubs.push(substitute);
         }
 
-        if (eligibleSubs.length === 0) return null;
+        if (eligibleSubs.length === 0) {
+            if (awardType === 'nextup' && requiredExperience) {
+                console.log(`No ${requiredExperience} players available for Next Up substitution`);
+            }
+            return null;
+        }
 
         // Sort by total score and randomly select from top 5
         eligibleSubs.sort((a, b) => b.score - a.score);
         const topPerformers = eligibleSubs.slice(0, Math.min(5, eligibleSubs.length));
-
-        // Manual override for specific Week 4 Ch3r0k33zY substitution
-        if (teamName === 'Ch3r0k33zY' && week === 4 && awardType === 'main') {
-            const zayFlowers = topPerformers.find(sub =>
-                sub.name.toLowerCase().includes('zay flowers') ||
-                sub.name.toLowerCase().includes('flowers')
-            );
-
-            if (zayFlowers) {
-                console.log(`Manual preference: Selected Zay Flowers for ${teamName} Week ${week} instead of random selection`);
-                return zayFlowers;
-            }
-        }
-
-        // Default random selection for all other cases
         const randomIndex = Math.floor(Math.random() * topPerformers.length);
         const selectedSub = topPerformers[randomIndex];
 
-        console.log(`Selected ${selectedSub.name} (${selectedSub.score.toFixed(1)} pts over 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
+        const experienceNote = awardType === 'nextup' ? ` (${selectedSub.yearsExp <= 0 ? 'rookie' : 'sophomore'})` : '';
+        console.log(`Selected ${selectedSub.name}${experienceNote} (${selectedSub.score.toFixed(1)} pts over 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
 
         return selectedSub;
     }
