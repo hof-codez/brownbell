@@ -855,9 +855,27 @@ class BrownBellAutomator {
                         if ((player1Experience === 'rookie' && player2Experience === 'rookie') ||
                             (player1Experience === 'sophomore' && player2Experience === 'sophomore')) {
 
-                            console.log(`Invalid Next Up combination for ${teamName} Week ${week}: ${player1Experience} + ${player2Experience} - zeroing scores`);
-                            scores[awardType][teamName][week][0] = 0;
-                            scores[awardType][teamName][week][1] = 0;
+                            console.log(`Invalid Next Up combination for ${teamName} Week ${week}: ${player1Experience} + ${player2Experience}`);
+
+                            // Only zero the substitute's score, not the original player's score
+                            const player1Sub = existingSubstitutions.find(sub =>
+                                sub.teamName === teamName && sub.playerIndex === 0 && sub.awardType === 'nextup' &&
+                                sub.startWeek <= week && (!sub.endWeek || sub.endWeek >= week)
+                            );
+                            const player2Sub = existingSubstitutions.find(sub =>
+                                sub.teamName === teamName && sub.playerIndex === 1 && sub.awardType === 'nextup' &&
+                                sub.startWeek <= week && (!sub.endWeek || sub.endWeek >= week)
+                            );
+
+                            // Zero only the substitute player's score
+                            if (player1Sub) {
+                                scores[awardType][teamName][week][0] = 0;
+                                console.log(`Zeroing substitute ${player1Sub.substituteName} score`);
+                            }
+                            if (player2Sub) {
+                                scores[awardType][teamName][week][1] = 0;
+                                console.log(`Zeroing substitute ${player2Sub.substituteName} score`);
+                            }
                         }
                     }
                 }
