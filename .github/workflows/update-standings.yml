@@ -3,28 +3,27 @@ name: Update Brown Bell Standings
 
 on:
   schedule:
-    # Tuesday at 10 AM ET (injury reports) - 2 PM UTC
+    # Tuesday at 10 AM ET (7 AM AZ) - 2 PM UTC
     - cron: '0 14 * * 2'  
-    # Thursday at 10 AM ET (updated injury reports) - 2 PM UTC
-    - cron: '0 14 * * 4'
-    # Thursday at 11 PM ET (post-TNF scores) - 3 AM UTC Friday
+    # Thursday at 4 PM AZ (11 PM UTC) - injury checkpoint + scores
+    - cron: '0 23 * * 4'
+    # Thursday at 8 PM AZ (3 AM UTC Friday) - post-TNF scores
     - cron: '0 3 * * 5'
-    # Saturday at 7 AM ET (international game prep) - 11 AM UTC
+    # Saturday at 4 AM AZ (11 AM UTC) - international game prep
     - cron: '0 11 * * 6'
-    # Sunday schedule (5 runs)
-    # Sunday at 4 AM AZ (11 AM UTC) - Pre-international games
+    # Sunday at 4 AM AZ (11 AM UTC) - pre-international games
     - cron: '0 11 * * 0'
-    # Sunday at 9 AM AZ (4 PM UTC) - Pre-AM games  
+    # Sunday at 9 AM AZ (4 PM UTC) - pre-AM games  
     - cron: '0 16 * * 0'
-    # Sunday at 12:05 PM AZ (7:05 PM UTC) - Post-AM games
+    # Sunday at 12:05 PM AZ (7:05 PM UTC) - post-AM games
     - cron: '5 19 * * 0'
-    # Sunday at 4 PM AZ (11 PM UTC) - Post-evening games
+    # Sunday at 4 PM AZ (11 PM UTC) - post-evening games
     - cron: '0 23 * * 0'
-    # Sunday at 9 PM AZ (4 AM UTC Monday) - Post-SNF
+    # Sunday at 9 PM AZ (4 AM UTC Monday) - post-SNF
     - cron: '0 4 * * 1'
-    # Monday at 11 AM ET (post-game update) - 3 PM UTC
-    - cron: '0 15 * * 1'
-    # Monday at 11 PM ET (post-MNF scores) - 3 AM UTC Tuesday
+    # Monday at 4 PM AZ (11 PM UTC) - post-game cleanup
+    - cron: '0 23 * * 1'
+    # Monday at 8 PM AZ (3 AM UTC Tuesday) - post-MNF scores
     - cron: '0 3 * * 2'
   
   # Allow manual triggering
