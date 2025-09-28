@@ -821,11 +821,98 @@ class BrownBellAutomator {
                             }
                         }
                     });
+
+                    // Validate Next Up Award combinations after scores are set
+                    if (awardType === 'nextup') {
+                        // Get both players' experience levels for this week
+                        const player1Experience = this.getPlayerExperienceForWeek(teamName, 0, week, existingSubstitutions);
+                        const player2Experience = this.getPlayerExperienceForWeek(teamName, 1, week, existingSubstitutions);
+
+                        // Check if combination violates rookie+sophomore rule
+                        if ((player1Experience === 'rookie' && player2Experience === 'rookie') ||
+                            (player1Experience === 'sophomore' && player2Experience === 'sophomore')) {
+
+                            console.log(`Invalid Next Up combination for ${teamName} Week ${week}: ${player1Experience} + ${player2Experience} - zeroing scores`);
+                            scores[awardType][teamName][week][0] = 0;
+                            scores[awardType][teamName][week][1] = 0;
+                        }
+                    }
                 }
             }
         }
 
         return scores;
+    }
+
+    getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions) {
+        const originalDuo = this.knownDuos.nextup[teamName];
+        if (!originalDuo) return 'unknown';
+
+        // Check for active substitution
+        const activeSub = existingSubstitutions.find(sub =>
+            sub.teamName === teamName &&
+            sub.playerIndex === playerIndex &&
+            sub.awardType === 'nextup' &&
+            sub.startWeek <= week &&
+            (!sub.endWeek || sub.endWeek >= week)
+        );
+
+        if (activeSub) {
+            // Map substitute to experience level
+            const substituteExperience = this.getSubstituteExperience(activeSub.substituteName);
+            console.log(`Substitute ${activeSub.substituteName} experience: ${substituteExperience}`);
+            return substituteExperience;
+        } else {
+            // Use original player's experience
+            return originalDuo[playerIndex].experience === 'second_year' ? 'sophomore' : originalDuo[playerIndex].experience;
+        }
+    }
+
+    getSubstituteExperience(playerName) {
+        // Map known substitutes to their experience levels
+        const substituteMap = {
+            'Michael Penix': 'rookie',
+            'Ollie Gordon': 'rookie',
+            // Add other substitutes as needed
+        };
+
+        return substituteMap[playerName] || 'unknown';
+    }
+
+    getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions) {
+        const originalDuo = this.knownDuos.nextup[teamName];
+        if (!originalDuo) return 'unknown';
+
+        // Check for active substitution
+        const activeSub = existingSubstitutions.find(sub =>
+            sub.teamName === teamName &&
+            sub.playerIndex === playerIndex &&
+            sub.awardType === 'nextup' &&
+            sub.startWeek <= week &&
+            (!sub.endWeek || sub.endWeek >= week)
+        );
+
+        if (activeSub) {
+            // Map substitute to experience level
+            // Ollie Gordon = rookie, J.J. McCarthy = sophomore, etc.
+            const substituteExperience = this.getSubstituteExperience(activeSub.substituteName);
+            console.log(`Substitute ${activeSub.substituteName} experience: ${substituteExperience}`);
+            return substituteExperience;
+        } else {
+            // Use original player's experience
+            return originalDuo[playerIndex].experience;
+        }
+    }
+
+    getSubstituteExperience(playerName) {
+        // Map known substitutes to their experience levels
+        const substituteMap = {
+            'Michael Penix': 'rookie',
+            'Ollie Gordon': 'rookie',
+            // Add other substitutes as needed
+        };
+
+        return substituteMap[playerName] || 'unknown';
     }
 
     // Add this helper method
