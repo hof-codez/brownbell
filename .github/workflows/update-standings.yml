@@ -5,8 +5,8 @@ on:
   schedule:
     # Tuesday at 10 AM ET (7 AM AZ) - 2 PM UTC
     - cron: '0 14 * * 2'  
-    # Thursday at 4 PM AZ (11 PM UTC) - injury checkpoint + scores
-    - cron: '0 23 * * 4'
+    # Thursday at 2:30 PM AZ (9:30 PM UTC) - injury checkpoint + scores
+    - cron: '30 14 * * 4'
     # Thursday at 8 PM AZ (3 AM UTC Friday) - post-TNF scores
     - cron: '0 3 * * 5'
     # Saturday at 4 AM AZ (11 AM UTC) - international game prep
@@ -21,8 +21,8 @@ on:
     - cron: '0 23 * * 0'
     # Sunday at 9 PM AZ (4 AM UTC Monday) - post-SNF
     - cron: '0 4 * * 1'
-    # Monday at 4 PM AZ (11 PM UTC) - post-game cleanup
-    - cron: '0 23 * * 1'
+    # Monday at 2:30 PM AZ (9:30 PM UTC) - post-game cleanup
+    - cron: '30 14 * * 1'
     # Monday at 8 PM AZ (3 AM UTC Tuesday) - post-MNF scores
     - cron: '0 3 * * 2'
   
