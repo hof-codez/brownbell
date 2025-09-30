@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-09-29T23:37:26.248Z",
+  "timestamp": "2025-09-30T03:46:37.374Z",
   "currentWeek": 4,
   "currentAward": "main",
   "teams": [
@@ -511,7 +511,7 @@
       },
       "4": {
         "0": 19.4,
-        "1": 0
+        "1": 7.3
       }
     },
     "Kenyatta93": {
@@ -583,7 +583,7 @@
       },
       "4": {
         "0": 30.96,
-        "1": 0
+        "1": 11.5
       }
     }
   },
@@ -621,7 +621,7 @@
       },
       "4": {
         "0": 9.4,
-        "1": 0
+        "1": 26.74
       }
     },
     "Ch3r0k33zY": {
@@ -896,8 +896,8 @@
     }
   ],
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-09-29T23:37:26.249Z",
-  "lastCheckpointType": "ROUTINE_UPDATE",
+  "lastAutomationRun": "2025-09-30T03:46:37.374Z",
+  "lastCheckpointType": "TUESDAY_CHECK",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
