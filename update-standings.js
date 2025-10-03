@@ -433,19 +433,41 @@ class BrownBellAutomator {
             };
 
             // Next Up Award smart eligibility
+            // Next Up Award smart eligibility - CHECK THIS FIRST
             if (awardType === 'nextup') {
-                const playerExperience = substitute.yearsExp <= 0 ? 'rookie' : 'sophomore';
+                const yearsExp = substitute.yearsExp || 0;
+
+                // Hard filter: Must be 0 or 1 years experience
+                if (yearsExp > 1) {
+                    continue; // Skip veterans immediately
+                }
+
+                const playerExperience = yearsExp === 0 ? 'rookie' : 'sophomore';
+
+                // Determine required experience level
+                const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
+                const healthyPlayer = originalDuo[healthyPlayerIndex];
+                const healthyExperience = healthyPlayer.experience === 'second_year' ? 'sophomore' : healthyPlayer.experience;
+
+                let requiredExperience = null;
+                if (healthyExperience === 'rookie') {
+                    requiredExperience = 'sophomore';
+                } else if (healthyExperience === 'sophomore') {
+                    requiredExperience = 'rookie';
+                }
 
                 // Only include players that match the required experience level
                 if (requiredExperience && playerExperience !== requiredExperience) {
-                    console.log(`Skipping ${substitute.name} (${playerExperience}) - need ${requiredExperience}`);
+                    console.log(`Skipping ${substitute.name} (${playerExperience}, ${yearsExp} years) - need ${requiredExperience} to pair with ${healthyPlayer.name}`);
                     continue;
                 }
 
-                // Fallback: if no required experience determined, use standard filter
-                if (!requiredExperience && substitute.yearsExp > 1) {
-                    continue;
-                }
+                console.log(`${substitute.name} is eligible: ${playerExperience} (${yearsExp} years) pairs with ${healthyPlayer.name} (${healthyExperience})`);
+            }
+
+            // Validate substitution for Main Award only
+            if (awardType === 'main' && !this.validateSubstitution(teamName, originalDuo, injuredPlayer.index, substitute, awardType)) {
+                continue;
             }
 
             // Validate substitution (for Main Award)
@@ -467,8 +489,12 @@ class BrownBellAutomator {
         }
 
         if (eligibleSubs.length === 0) {
-            if (awardType === 'nextup' && requiredExperience) {
-                console.log(`No ${requiredExperience} players available for Next Up substitution`);
+            if (awardType === 'nextup') {
+                const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
+                const healthyPlayer = originalDuo[healthyPlayerIndex];
+                const healthyExperience = healthyPlayer.experience === 'second_year' ? 'sophomore' : healthyPlayer.experience;
+                const needed = healthyExperience === 'rookie' ? 'sophomore' : 'rookie';
+                console.log(`❌ NO ELIGIBLE SUBSTITUTES: Need ${needed} player to pair with ${healthyPlayer.name} (${healthyExperience}). No valid candidates available on roster.`);
             }
             return null;
         }
