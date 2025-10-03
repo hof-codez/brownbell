@@ -8,6 +8,11 @@ class BrownBellAutomator {
         this.playersData = null;
         this.leagueData = null;
 
+        // Exclusion list: prevent auto-substitutions for specific scenarios
+        this.substitutionExclusions = [
+            { teamName: 'HofDimez', awardType: 'nextup', playerIndex: 1, reason: 'No eligible substitutes available' }
+        ];
+
         // Known duos from your tracker
         this.knownDuos = {
             main: {
@@ -463,6 +468,13 @@ class BrownBellAutomator {
                 }
 
                 console.log(`${substitute.name} is eligible: ${playerExperience} (${yearsExp} years) pairs with ${healthyPlayer.name} (${healthyExperience})`);
+
+                // ADD THIS NEW SECTION HERE
+                // NEXT UP SPECIFIC POSITION RULE: No QB+QB combinations allowed
+                if (substitute.position === 'QB' && healthyPlayer.position === 'QB') {
+                    console.log(`Skipping ${substitute.name} (QB) - cannot have QB+QB duo in Next Up Award`);
+                    continue;
+                }
             }
 
             // Validate substitution for Main Award only
@@ -530,6 +542,18 @@ class BrownBellAutomator {
         for (const awardType of ['main', 'nextup']) {
             for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
                 for (const injury of teamInjuries) {
+                    // Check exclusion list first
+                    const isExcluded = this.substitutionExclusions.some(excl =>
+                        excl.teamName === teamName &&
+                        excl.awardType === awardType &&
+                        excl.playerIndex === injury.index
+                    );
+
+                    if (isExcluded) {
+                        console.log(`Substitution excluded: ${teamName} ${awardType} player ${injury.index} - no eligible substitutes`);
+                        continue;
+                    }
+
                     // Check if we already have an active substitution for this exact scenario
                     const hasActiveSub = this.hasActiveSubstitution(
                         teamName, injury.index, week, awardType, existingSubstitutions

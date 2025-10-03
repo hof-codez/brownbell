@@ -980,20 +980,6 @@
       "reason": "Weekly injury substitution"
     },
     {
-      "teamName": "HofDimez",
-      "playerIndex": 1,
-      "awardType": "nextup",
-      "originalName": "J.J. McCarthy",
-      "originalPosition": "QB",
-      "substituteName": "Ollie Gordon",
-      "substitutePlayerId": "12495",
-      "substitutePosition": "RB",
-      "startWeek": 4,
-      "endWeek": null,
-      "active": false,
-      "reason": "Weekly injury substitution"
-    },
-    {
       "teamName": "Ch3r0k33zY",
       "playerIndex": 1,
       "awardType": "main",
