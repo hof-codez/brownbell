@@ -10,7 +10,7 @@ class BrownBellAutomator {
 
         // Exclusion list: prevent auto-substitutions for specific scenarios
         this.substitutionExclusions = [
-            { teamName: 'HofDimez', awardType: 'nextup', playerIndex: 1, reason: 'No eligible substitutes available' }
+           
         ];
 
         // Known duos from your tracker
