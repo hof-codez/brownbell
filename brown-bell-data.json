@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-10-05T11:21:57.470Z",
+  "timestamp": "2025-10-05T16:37:42.663Z",
   "currentWeek": 5,
   "currentAward": "main",
   "teams": [
@@ -433,7 +433,7 @@
       },
       "5": {
         "0": 27.9,
-        "1": 0
+        "1": 19.3
       }
     },
     "fsmrubix": {
@@ -564,7 +564,7 @@
         "1": 17.4
       },
       "5": {
-        "0": 0,
+        "0": 10.02,
         "1": 0
       }
     },
@@ -720,7 +720,7 @@
         "1": 0
       },
       "5": {
-        "0": 0,
+        "0": 13.8,
         "1": 0
       }
     },
@@ -1116,7 +1116,7 @@
     }
   ],
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-10-05T11:21:57.470Z",
+  "lastAutomationRun": "2025-10-05T16:37:42.663Z",
   "lastCheckpointType": "SUNDAY_PREGAME_CHECK",
   "automationStats": {
     "scoresUpdated": 21,
