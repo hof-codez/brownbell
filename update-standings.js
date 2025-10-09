@@ -8,9 +8,22 @@ class BrownBellAutomator {
         this.playersData = null;
         this.leagueData = null;
 
+        // ADD THIS ENTIRE SECTION HERE
+        // NFL 2025 Bye Weeks by team
+        this.byeWeeks = {
+            5: ['DET', 'LAC', 'PHI', 'TEN'],
+            6: ['KC', 'LAR', 'MIA', 'MIN'],
+            7: ['CHI', 'DAL'],
+            9: ['CLE', 'GB', 'LV', 'PIT', 'SF', 'SEA'],
+            10: ['ARI', 'CAR', 'NYG', 'TB'],
+            11: ['ATL', 'BUF', 'CIN', 'JAX', 'NO', 'NYJ'],
+            12: ['BAL', 'DEN', 'HOU', 'IND', 'NE', 'WAS'],
+            14: []  // No byes in Week 14
+        };
+
         // Exclusion list: prevent auto-substitutions for specific scenarios
         this.substitutionExclusions = [
-           
+
         ];
 
         // Known duos from your tracker
@@ -430,6 +443,12 @@ class BrownBellAutomator {
                 continue;
             }
 
+            // Skip if substitute is on bye this week
+            if (this.isPlayerOnBye(playerId, week)) {
+                console.log(`Skipping ${player.first_name} ${player.last_name} - on bye week ${week}`);
+                continue;
+            }
+
             const substitute = {
                 id: playerId,
                 name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
@@ -554,6 +573,12 @@ class BrownBellAutomator {
                         continue;
                     }
 
+                    // Check if injured player is on bye week
+                    if (this.isPlayerOnBye(injury.playerId, week)) {
+                        console.log(`🚫 Substitution blocked: ${injury.originalPlayer.name} is on bye week ${week} - no advantage given`);
+                        continue;
+                    }
+
                     // Check if we already have an active substitution for this exact scenario
                     const hasActiveSub = this.hasActiveSubstitution(
                         teamName, injury.index, week, awardType, existingSubstitutions
@@ -669,6 +694,21 @@ class BrownBellAutomator {
 
         console.log(`Player ${playerId} in Next Up duo: ${isInDuo}`);
         return isInDuo;
+    }
+
+    isPlayerOnBye(playerId, week) {
+        const player = this.playersData[playerId];
+        if (!player || !player.team) return false;
+
+        const teamByeWeek = Object.entries(this.byeWeeks).find(([byeWeek, teams]) =>
+            teams.includes(player.team) && parseInt(byeWeek) === week
+        );
+
+        if (teamByeWeek) {
+            console.log(`${player.first_name} ${player.last_name} (${player.team}) is on bye week ${week}`);
+        }
+
+        return !!teamByeWeek;
     }
 
     async checkGameTimeInjuries() {
@@ -869,9 +909,16 @@ class BrownBellAutomator {
                         }
 
                         if (playerId && weekScores[playerId] !== undefined) {
-                            scores[awardType][teamName][week][index] = weekScores[playerId];
-                            if (activeSub) {
-                                console.log(`Substitute score: ${activeSub.substituteName} = ${weekScores[playerId]} points`);
+                            // Check if this player is on bye this week
+                            if (this.isPlayerOnBye(playerId, week)) {
+                                scores[awardType][teamName][week][index] = 0;
+                                const playerName = activeSub ? activeSub.substituteName : originalPlayer.name;
+                                console.log(`${playerName} on bye week ${week} - 0 points`);
+                            } else {
+                                scores[awardType][teamName][week][index] = weekScores[playerId];
+                                if (activeSub) {
+                                    console.log(`Substitute score: ${activeSub.substituteName} = ${weekScores[playerId]} points`);
+                                }
                             }
                         } else {
                             // Manual override for DeVaughn Vele's historical scores
