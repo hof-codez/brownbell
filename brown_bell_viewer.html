@@ -763,10 +763,7 @@
             const awardName = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
             title.textContent = `Week ${week} Standings - ${awardName}`;
 
-            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
-            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
-
-            // Add bye week explanation if any byes this week
+             // Add bye week explanation if any byes this week
             const byeTeams = byeWeeks[week] || [];
             if (byeTeams.length > 0) {
                 const byeNote = document.createElement('div');
@@ -774,6 +771,10 @@
                 byeNote.innerHTML = `<strong>ℹ️ Bye Week Notice:</strong> Players with <span class="bye-badge">BYE</span> badge cannot score points this week. Substitute points do not count if original player is on bye.`;
                 content.insertBefore(byeNote, content.firstChild);
             }
+
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+
 
             const weeklyScores = [];
             teams.forEach(team => {
