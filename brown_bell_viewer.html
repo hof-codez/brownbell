@@ -830,15 +830,6 @@
             const awardName = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
             title.textContent = `Season Overview - ${awardName}`;
 
-            // Add bye week explanation if any byes this week
-            const byeTeams = byeWeeks[week] || [];
-            if (byeTeams.length > 0) {
-                const byeNote = document.createElement('div');
-                byeNote.style.cssText = 'background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em;';
-                byeNote.innerHTML = `<strong>ℹ️ Bye Week Notice:</strong> Players with <span class="bye-badge">BYE</span> badge cannot score points this week. Substitute points do not count if original player is on bye.`;
-                content.insertBefore(byeNote, content.firstChild);
-            }
-
             const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
             const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
 
@@ -885,37 +876,37 @@
                 const teamRowClass = `team-row-${((idx % 12) + 1)}`;
 
                 html += `<tr class="${rankClass} ${teamRowClass}">`;
-                // ... rest of first row
-
-                html += `<tr class="${rankClass} ${teamRowClass}">`;
-                // ... rest of second row
-
-                // Add separator after each team (every 2 rows)
-                if (idx < seasonTotals.length - 1) {
-                    html += `<tr class="team-row-border"><td colspan="20" style="height: 1px; padding: 0; border: none;"></td></tr>`;
-                }
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
                 html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong></td>`;
 
+                // Player 1 scores
                 for (let w = 1; w <= 18; w++) {
                     const score = data.weeklyTotals[w - 1].p1;
-                    const isBye = isPlayerOnBye(data.team.players[0].name, w);
+                    const player1Name = data.team.players[0].name;
+                    const isBye = isPlayerOnBye(player1Name, w);
                     const displayScore = isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-');
-                    const cellClass = isBye ? 'style="background-color: #e9ecef; font-weight: bold;"' : '';
+                    const cellClass = isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '';
                     html += `<td class="player-cell" ${cellClass}>${displayScore}</td>`;
                 }
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${data.seasonTotal.toFixed(1)}</strong></td>`;
                 html += '</tr>';
 
-                html += `<tr class="${rankClass}">`;
+                // Player 2 scores
+                html += `<tr class="${rankClass} ${teamRowClass}">`;
                 for (let w = 1; w <= 18; w++) {
                     const score = data.weeklyTotals[w - 1].p2;
-                    const isBye = isPlayerOnBye(data.team.players[1].name, w);
+                    const player2Name = data.team.players[1].name;
+                    const isBye = isPlayerOnBye(player2Name, w);
                     const displayScore = isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-');
-                    const cellClass = isBye ? 'style="background-color: #e9ecef; font-weight: bold;"' : '';
+                    const cellClass = isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '';
                     html += `<td class="player-cell" ${cellClass}>${displayScore}</td>`;
                 }
                 html += '</tr>';
+
+                // Add separator after each team
+                if (idx < seasonTotals.length - 1) {
+                    html += `<tr class="team-row-border"><td colspan="21" style="height: 1px; padding: 0; border: none;"></td></tr>`;
+                }
             });
 
             html += '</tbody></table>';
