@@ -574,8 +574,32 @@
             'Jared Goff': 'DET',
             'Mike Evans': 'TB',
             'Dak Prescott': 'DAL',
-            'Terry McLaurin': 'WAS'
+            'Terry McLaurin': 'WAS',
             // Add more players as needed
+
+            // Next Up Award Players
+            'Jaxson Dart': 'NYG',
+            'Malik Nabers': 'NYG',
+            'Jayden Higgins': 'HOU',
+            'Bo Nix': 'DEN',
+            'Tetairoa McMillan': 'CAR',
+            'Bucky Irving': 'TB',
+            'Quinshon Judkins': 'CLE',
+            'Jalen Coker': 'CAR',
+            'Emeka Egbuka': 'TB',
+            'J.J. McCarthy': 'MIN',
+            'Ashton Jeanty': 'LV',
+            'Brian Thomas': 'JAX',
+            'Kaleb Johnson': 'PIT',
+            'DeVaughn Vele': 'DEN',
+            'Xavier Legette': 'CAR',
+            'Elic Ayomanor': 'TEN',
+            'Rome Odunze': 'CHI',
+            'Tory Horton': 'SEA',
+            'Trey Benson': 'ARI',
+            'Michael Penix': 'ATL',
+            'Ollie Gordon': 'MIA'
+
         };
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -776,15 +800,21 @@
 
                 const p1Display = getPlayerDisplayName(score.team, 0, week);
                 const p2Display = getPlayerDisplayName(score.team, 1, week);
+                const p1ByeBadge = getByeBadge(score.team, 0, week, p1Display);
+                const p2ByeBadge = getByeBadge(score.team, 1, week, p2Display);
+
+                // Check if original players are on bye (for score styling)
+                const p1OnBye = isPlayerOnBye(score.team.players[0].name, week);
+                const p2OnBye = isPlayerOnBye(score.team.players[1].name, week);
+
+                const p1ScoreStyle = p1OnBye ? 'style="color: #999; text-decoration: line-through;"' : '';
+                const p2ScoreStyle = p2OnBye ? 'style="color: #999; text-decoration: line-through;"' : '';
 
                 html += `<tr class="${rankClass}">`;
                 html += `<td><strong>${rank}</strong></td>`;
                 html += `<td><strong>${score.team.name}</strong></td>`;
-                const p1ByeBadge = getByeBadge(score.team.players[0].name, week);
-                const p2ByeBadge = getByeBadge(score.team.players[1].name, week);
-
-                html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 0, week, p1Display)}${p1ByeBadge}<br><small>${score.p1Score.toFixed(1)} pts</small></td>`;
-                html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 1, week, p2Display)}${p2ByeBadge}<br><small>${score.p2Score.toFixed(1)} pts</small></td>`;
+                html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 0, week, p1Display)}${p1ByeBadge}<br><small ${p1ScoreStyle}>${score.p1Score.toFixed(1)} pts</small></td>`;
+                html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 1, week, p2Display)}${p2ByeBadge}<br><small ${p2ScoreStyle}>${score.p2Score.toFixed(1)} pts</small></td>`;
                 html += `<td><strong>${score.total.toFixed(1)}</strong></td>`;
                 html += '</tr>';
             });
@@ -799,6 +829,15 @@
 
             const awardName = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
             title.textContent = `Season Overview - ${awardName}`;
+
+            // Add bye week explanation if any byes this week
+            const byeTeams = byeWeeks[week] || [];
+            if (byeTeams.length > 0) {
+                const byeNote = document.createElement('div');
+                byeNote.style.cssText = 'background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em;';
+                byeNote.innerHTML = `<strong>ℹ️ Bye Week Notice:</strong> Players with <span class="bye-badge">BYE</span> badge cannot score points this week. Substitute points do not count if original player is on bye.`;
+                content.insertBefore(byeNote, content.firstChild);
+            }
 
             const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
             const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
@@ -922,8 +961,24 @@
             return byeTeams.includes(team);
         }
 
-        function getByeBadge(playerName, week) {
-            if (isPlayerOnBye(playerName, week)) {
+        function getByeBadge(team, playerIndex, week, displayName) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+
+            // Check if there's an active substitution
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            // CRITICAL: Check if ORIGINAL player is on bye (not substitute)
+            // If original is on bye, the substitute's points don't count
+            const originalPlayer = team.players[playerIndex].name;
+
+            if (isPlayerOnBye(originalPlayer, week)) {
                 return '<span class="bye-badge">BYE</span>';
             }
             return '';
