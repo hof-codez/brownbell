@@ -35,16 +35,57 @@
             text-align: center;
         }
 
+        /* ADD THESE NEW STYLES */
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .header-logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+
+        .header-text {
+            text-align: left;
+        }
+
         .header h1 {
             color: #000000;
-            /* Colorado Black */
             font-size: 2em;
             margin-bottom: 5px;
+            margin: 0;
         }
 
         .header .subtitle {
             color: #666;
             font-size: 1em;
+            margin: 0;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .header-logo {
+                width: 60px;
+                height: 60px;
+            }
+
+            .header-text {
+                text-align: center;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
         }
 
         .automation-status {
@@ -517,8 +558,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Brown Bell Award</h1>
-            <div class="subtitle">Season Standings - Auto-Updated Daily</div>
+            <div class="header-content">
+                <img src="brown-bell-logo.png" alt="Brown Bell Award" class="header-logo">
+                <div class="header-text">
+                    <h1>Brown Bell Award</h1>
+                    <div class="subtitle">Season Standings - Auto-Updated Daily</div>
+                </div>
+            </div>
         </div>
 
         <div class="automation-status" id="automationStatus" style="display: none;">
