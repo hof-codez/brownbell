@@ -449,6 +449,14 @@ class BrownBellAutomator {
                 continue;
             }
 
+            // Skip if player already has points this week (already played)
+            const currentWeekScores = await this.getWeeklyScores(week);
+            // Block if player has ANY score entry this week (even if 0)
+            if (currentWeekScores[playerId] !== undefined) {
+                console.log(`Skipping ${player.first_name} ${player.last_name} - already played this week`);
+                continue;
+            }
+
             const substitute = {
                 id: playerId,
                 name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
