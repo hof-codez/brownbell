@@ -14,7 +14,8 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #000000 0%, #CFB87C 100%);
+            background: linear-gradient(135deg, #8B4513 0%, #D4AF37 100%);
+            /* Brown to Gold */
             min-height: 100vh;
             color: #333;
             padding: 10px;
@@ -55,10 +56,10 @@
         }
 
         .header h1 {
-            color: #000000;
+            color: #8B4513;
+            /* Rich brown */
             font-size: 2em;
             margin-bottom: 5px;
-            margin: 0;
         }
 
         .header .subtitle {
@@ -133,8 +134,8 @@
 
         .week-info {
             font-weight: bold;
-            color: #CFB87C;
-            /* Colorado Gold */
+            color: #D4AF37;
+            /* Gold */
         }
 
         .last-updated {
@@ -168,13 +169,13 @@
         }
 
         .award-toggle .main-award.active {
-            background: linear-gradient(135deg, #000000, #CFB87C);
-            /* Black to Gold */
+            background: linear-gradient(135deg, #B8860B, #D4AF37);
+            /* Dark gold to gold */
         }
 
         .award-toggle .next-up-award.active {
-            background: linear-gradient(135deg, #A2AAAD, #CFB87C);
-            /* Silver to Gold */
+            background: linear-gradient(135deg, #CD7F32, #D4AF37);
+            /* Bronze to gold */
         }
 
         .view-toggle {
@@ -197,11 +198,11 @@
         }
 
         .view-toggle button.active {
-            background: linear-gradient(135deg, #000000, #CFB87C);
-            /* Black to Gold */
+            background: linear-gradient(135deg, #8B4513, #D4AF37);
+            /* Brown to gold */
             color: white;
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
         }
 
         .card {
@@ -243,25 +244,25 @@
         }
 
         .rank-gold {
-            background: linear-gradient(90deg, #CFB87C, #E6D7A3) !important;
-            /* Colorado Gold gradient */
+            background: linear-gradient(90deg, #D4AF37, #FFD700) !important;
+            /* Gold gradient */
             font-weight: bold;
-            color: #000000;
-            /* Black text for contrast */
+            color: #3D2817;
+            /* Dark brown text */
         }
 
         .rank-silver {
-            background: linear-gradient(90deg, #A2AAAD, #C0C0C0) !important;
-            /* Silver gradient */
+            background: linear-gradient(90deg, #CD7F32, #E6A85C) !important;
+            /* Bronze gradient */
             font-weight: bold;
-            color: #000000;
+            color: #3D2817;
         }
 
         .rank-bronze {
-            background: linear-gradient(90deg, #5A5A5A, #2C2C2C) !important;
-            /* Dark gray/black gradient */
+            background: linear-gradient(90deg, #8B4513, #A0522D) !important;
+            /* Brown gradient */
             font-weight: bold;
-            color: #CFB87C;
+            color: #D4AF37;
             /* Gold text */
         }
 
@@ -275,29 +276,31 @@
         }
 
         .pos-QB {
-            background: #000000;
-            /* Black */
-            color: #CFB87C;
+            background: #8B4513;
+            /* Rich brown */
+            color: #FFD700;
             /* Gold text */
         }
 
         .pos-RB {
-            background: #CFB87C;
-            /* Gold */
-            color: #000000;
-            /* Black text */
+            background: #CD7F32;
+            /* Bronze */
+            color: #FFFFFF;
+            /* White text */
         }
 
         .pos-WR {
-            background: #A2AAAD;
-            /* Silver */
-            color: #000000;
-            /* Black text */
+            background: #D4AF37;
+            /* Gold */
+            color: #3D2817;
+            /* Dark brown text */
         }
 
         .sub-badge {
-            background: #fff3cd;
-            color: #856404;
+            background: #FFF8DC;
+            /* Cornsilk */
+            color: #8B4513;
+            /* Brown text */
             padding: 1px 4px;
             border-radius: 3px;
             font-size: 0.7em;
@@ -306,7 +309,8 @@
         }
 
         .auto-sub-badge {
-            background: #17a2b8;
+            background: #CD7F32;
+            /* Bronze */
             color: white;
             padding: 1px 4px;
             border-radius: 3px;
@@ -316,7 +320,8 @@
         }
 
         .bye-badge {
-            background: #6c757d;
+            background: #8B7355;
+            /* Tan/brown */
             color: white;
             padding: 1px 4px;
             border-radius: 3px;
@@ -326,14 +331,16 @@
         }
 
         .bye-sub-badge {
-            background: linear-gradient(135deg, #6c757d, #495057);
-            color: white;
+            background: linear-gradient(135deg, #8B4513, #A0522D);
+            /* Brown gradient */
+            color: #FFD700;
+            /* Gold text */
             padding: 1px 4px;
             border-radius: 3px;
             font-size: 0.7em;
             font-weight: bold;
             margin-left: 3px;
-            border: 1px solid #343a40;
+            border: 1px solid #D4AF37;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
         }
 
@@ -373,70 +380,81 @@
             z-index: 5;
         }
 
-        /* Alternating team row colors - Colorado themed */
+        /* Alternating team row colors - Brown Bell themed */
         .season-overview-table .team-row-1 td {
-            background-color: #f8f9fa;
-        }
-
-        .season-overview-table .team-row-2 td {
-            background-color: #FFF8E7;
-        }
-
-        /* Light gold */
-        .season-overview-table .team-row-3 td {
-            background-color: #F5F5F5;
-        }
-
-        /* Light silver */
-        .season-overview-table .team-row-4 td {
-            background-color: #FFFAF0;
-        }
-
-        .season-overview-table .team-row-5 td {
-            background-color: #E8E8E8;
-        }
-
-        .season-overview-table .team-row-6 td {
-            background-color: #FFF5E1;
-        }
-
-        .season-overview-table .team-row-7 td {
-            background-color: #F0F0F0;
-        }
-
-        .season-overview-table .team-row-8 td {
-            background-color: #FFFACD;
-        }
-
-        .season-overview-table .team-row-9 td {
-            background-color: #E5E5E5;
-        }
-
-        .season-overview-table .team-row-10 td {
             background-color: #FFF8DC;
         }
 
+        /* Cornsilk */
+        .season-overview-table .team-row-2 td {
+            background-color: #FAEBD7;
+        }
+
+        /* Antique white */
+        .season-overview-table .team-row-3 td {
+            background-color: #FFE4B5;
+        }
+
+        /* Moccasin */
+        .season-overview-table .team-row-4 td {
+            background-color: #FFDEAD;
+        }
+
+        /* Navajo white */
+        .season-overview-table .team-row-5 td {
+            background-color: #F5DEB3;
+        }
+
+        /* Wheat */
+        .season-overview-table .team-row-6 td {
+            background-color: #FFE4C4;
+        }
+
+        /* Bisque */
+        .season-overview-table .team-row-7 td {
+            background-color: #FFEBCD;
+        }
+
+        /* Blanched almond */
+        .season-overview-table .team-row-8 td {
+            background-color: #FFEFD5;
+        }
+
+        /* Papaya whip */
+        .season-overview-table .team-row-9 td {
+            background-color: #FFF5EE;
+        }
+
+        /* Seashell */
+        .season-overview-table .team-row-10 td {
+            background-color: #FAF0E6;
+        }
+
+        /* Linen */
         .season-overview-table .team-row-11 td {
-            background-color: #EDEDED;
+            background-color: #FDF5E6;
         }
 
+        /* Old lace */
         .season-overview-table .team-row-12 td {
-            background-color: #FFFFE0;
+            background-color: #FFFAF0;
         }
 
-        /* Hover effect for better tracking */
+        /* Floral white */
+
+        /* Hover effect */
         .season-overview-table tr:hover td {
-            background-color: #CFB87C !important;
-            /* Colorado Gold */
+            background-color: #D4AF37 !important;
+            /* Gold */
             cursor: pointer;
             transition: background-color 0.2s ease;
         }
 
         /* Keep team cells distinct on hover */
         .season-overview-table tr:hover .team-cell {
-            background-color: #000000 !important;
-            /* Black */
-            color: #CFB87C !important;
+            background-color: #8B4513 !important;
+            /* Brown */
+            color: #FFD700 !important;
             /* Gold text */
             font-weight: bold;
         }
@@ -491,9 +509,10 @@
         }
 
         .refresh-btn {
-            background: linear-gradient(135deg, #CFB87C, #000000);
-            /* Gold to Black */
-            color: white;
+            background: linear-gradient(135deg, #D4AF37, #B8860B);
+            /* Gold gradient */
+            color: #3D2817;
+            /* Dark brown text */
             border: none;
             padding: 8px 16px;
             border-radius: 6px;
@@ -504,8 +523,7 @@
 
         .refresh-btn:hover {
             transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(207, 184, 124, 0.4);
-            /* Gold shadow */
+            box-shadow: 0 3px 10px rgba(212, 175, 55, 0.6);
         }
 
         @media (max-width: 768px) {
