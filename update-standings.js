@@ -475,8 +475,12 @@ class BrownBellAutomator {
 
             // CORRECTED: Check if THIS CANDIDATE (not the injured player) already played
             const currentWeekScores = await this.getWeeklyScores(week);
-            if (currentWeekScores[playerId] !== undefined) {
-                console.log(`Skipping ${player.first_name} ${player.last_name} - already played this week (${currentWeekScores[playerId]} pts)`);
+            const candidateScore = currentWeekScores[playerId] || 0;
+
+            // Only skip if player has scored points (game has started)
+            // 0 points before game time means they haven't played yet
+            if (candidateScore > 0) {
+                console.log(`Skipping ${player.first_name} ${player.last_name} - already played this week (${candidateScore} pts)`);
                 continue;
             }
 
