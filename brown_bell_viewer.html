@@ -264,6 +264,18 @@
             margin-left: 3px;
         }
 
+        .bye-sub-badge {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            color: white;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+            border: 1px solid #343a40;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
         .season-overview-table {
             width: 100%;
             border-collapse: collapse;
@@ -792,8 +804,10 @@
             const byeTeams = byeWeeks[week] || [];
             if (byeTeams.length > 0) {
                 html += `<div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em; border-left: 4px solid #6c757d;">
-            <strong>ℹ️ Bye Week Notice:</strong> Players with <span class="bye-badge">BYE</span> badge cannot score points this week. Substitute points do not count if original player is on bye.
-        </div>`;
+                    <strong>ℹ️ Bye Week Notice:</strong> 
+                    <span class="bye-badge">BYE</span> = Player on bye week. 
+                    <span class="bye-sub-badge">BYE-SUB</span> = Substitute played but points don't count (original player on bye).
+                </div>`;
             }
 
             html += '<table class="standings-table">';
@@ -975,13 +989,19 @@
                 (!s.endWeek || s.endWeek >= week)
             );
 
-            // CRITICAL: Check if ORIGINAL player is on bye (not substitute)
-            // If original is on bye, the substitute's points don't count
+            // Check if ORIGINAL player is on bye
             const originalPlayer = team.players[playerIndex].name;
+            const originalOnBye = isPlayerOnBye(originalPlayer, week);
 
-            if (isPlayerOnBye(originalPlayer, week)) {
+            if (originalOnBye) {
+                // Special case: Original player on bye AND has a substitute
+                if (sub) {
+                    return '<span class="bye-sub-badge">BYE-SUB</span>';
+                }
+                // Regular bye: Original player on bye, no substitute
                 return '<span class="bye-badge">BYE</span>';
             }
+
             return '';
         }
 
