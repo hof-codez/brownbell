@@ -14,7 +14,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #000000 0%, #CFB87C 100%);
             min-height: 100vh;
             color: #333;
             padding: 10px;
@@ -36,7 +36,8 @@
         }
 
         .header h1 {
-            color: #764ba2;
+            color: #000000;
+            /* Colorado Black */
             font-size: 2em;
             margin-bottom: 5px;
         }
@@ -55,6 +56,7 @@
             margin-bottom: 15px;
             text-align: center;
             font-size: 0.9em;
+            display: none !important;
         }
 
         .loading {
@@ -90,7 +92,8 @@
 
         .week-info {
             font-weight: bold;
-            color: #764ba2;
+            color: #CFB87C;
+            /* Colorado Gold */
         }
 
         .last-updated {
@@ -124,11 +127,13 @@
         }
 
         .award-toggle .main-award.active {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #000000, #CFB87C);
+            /* Black to Gold */
         }
 
         .award-toggle .next-up-award.active {
-            background: linear-gradient(135deg, #28a745, #20c997);
+            background: linear-gradient(135deg, #A2AAAD, #CFB87C);
+            /* Silver to Gold */
         }
 
         .view-toggle {
@@ -151,7 +156,8 @@
         }
 
         .view-toggle button.active {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #000000, #CFB87C);
+            /* Black to Gold */
             color: white;
             transform: translateY(-2px);
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
@@ -196,18 +202,26 @@
         }
 
         .rank-gold {
-            background: linear-gradient(90deg, #ffd700, #ffed4e) !important;
+            background: linear-gradient(90deg, #CFB87C, #E6D7A3) !important;
+            /* Colorado Gold gradient */
             font-weight: bold;
+            color: #000000;
+            /* Black text for contrast */
         }
 
         .rank-silver {
-            background: linear-gradient(90deg, #c0c0c0, #e0e0e0) !important;
+            background: linear-gradient(90deg, #A2AAAD, #C0C0C0) !important;
+            /* Silver gradient */
             font-weight: bold;
+            color: #000000;
         }
 
         .rank-bronze {
-            background: linear-gradient(90deg, #cd7f32, #daa520) !important;
+            background: linear-gradient(90deg, #5A5A5A, #2C2C2C) !important;
+            /* Dark gray/black gradient */
             font-weight: bold;
+            color: #CFB87C;
+            /* Gold text */
         }
 
         .position-badge {
@@ -220,18 +234,24 @@
         }
 
         .pos-QB {
-            background: #e3f2fd;
-            color: #1976d2;
+            background: #000000;
+            /* Black */
+            color: #CFB87C;
+            /* Gold text */
         }
 
         .pos-RB {
-            background: #f3e5f5;
-            color: #7b1fa2;
+            background: #CFB87C;
+            /* Gold */
+            color: #000000;
+            /* Black text */
         }
 
         .pos-WR {
-            background: #e8f5e9;
-            color: #388e3c;
+            background: #A2AAAD;
+            /* Silver */
+            color: #000000;
+            /* Black text */
         }
 
         .sub-badge {
@@ -312,65 +332,71 @@
             z-index: 5;
         }
 
-        /* Alternating team row colors */
+        /* Alternating team row colors - Colorado themed */
         .season-overview-table .team-row-1 td {
             background-color: #f8f9fa;
         }
 
         .season-overview-table .team-row-2 td {
-            background-color: #e3f2fd;
+            background-color: #FFF8E7;
         }
 
+        /* Light gold */
         .season-overview-table .team-row-3 td {
-            background-color: #f3e5f5;
+            background-color: #F5F5F5;
         }
 
+        /* Light silver */
         .season-overview-table .team-row-4 td {
-            background-color: #e8f5e8;
+            background-color: #FFFAF0;
         }
 
         .season-overview-table .team-row-5 td {
-            background-color: #fff3e0;
+            background-color: #E8E8E8;
         }
 
         .season-overview-table .team-row-6 td {
-            background-color: #fce4ec;
+            background-color: #FFF5E1;
         }
 
         .season-overview-table .team-row-7 td {
-            background-color: #e0f2f1;
+            background-color: #F0F0F0;
         }
 
         .season-overview-table .team-row-8 td {
-            background-color: #f1f8e9;
+            background-color: #FFFACD;
         }
 
         .season-overview-table .team-row-9 td {
-            background-color: #ede7f6;
+            background-color: #E5E5E5;
         }
 
         .season-overview-table .team-row-10 td {
-            background-color: #e8eaf6;
+            background-color: #FFF8DC;
         }
 
         .season-overview-table .team-row-11 td {
-            background-color: #e1f5fe;
+            background-color: #EDEDED;
         }
 
         .season-overview-table .team-row-12 td {
-            background-color: #f9fbe7;
+            background-color: #FFFFE0;
         }
 
         /* Hover effect for better tracking */
         .season-overview-table tr:hover td {
-            background-color: #ffeb3b !important;
+            background-color: #CFB87C !important;
+            /* Colorado Gold */
             cursor: pointer;
             transition: background-color 0.2s ease;
         }
 
         /* Keep team cells distinct on hover */
         .season-overview-table tr:hover .team-cell {
-            background-color: #ffc107 !important;
+            background-color: #000000 !important;
+            /* Black */
+            color: #CFB87C !important;
+            /* Gold text */
             font-weight: bold;
         }
 
@@ -424,7 +450,8 @@
         }
 
         .refresh-btn {
-            background: linear-gradient(135deg, #28a745, #20c997);
+            background: linear-gradient(135deg, #CFB87C, #000000);
+            /* Gold to Black */
             color: white;
             border: none;
             padding: 8px 16px;
@@ -436,7 +463,8 @@
 
         .refresh-btn:hover {
             transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 3px 10px rgba(207, 184, 124, 0.4);
+            /* Gold shadow */
         }
 
         @media (max-width: 768px) {
