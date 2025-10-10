@@ -249,7 +249,7 @@ class BrownBellAutomator {
     }
 
     async detectInjuries(week) {
-        console.log('Detecting player injuries...');
+        console.log('🔍 Detecting player injuries...');
 
         const weekScores = await this.getWeeklyScores(week);
         const injuries = { main: {}, nextup: {} };
@@ -273,11 +273,15 @@ class BrownBellAutomator {
                         const player = this.playersData[playerId];
                         const playerScore = weekScores[playerId] || 0;
 
+                        console.log(`📊 ${originalPlayer.name} (${teamName}): Score=${playerScore}, Status=${player.injury_status || 'none'}`);
+
                         // CRITICAL RULE: If player has scored points this week, they started and cannot be substituted
                         if (playerScore > 0) {
-                            console.log(`${originalPlayer.name} scored ${playerScore} points - CANNOT substitute (started the game)`);
-                            return; // Skip this player - they started the game
+                            console.log(`✅ ${originalPlayer.name} scored ${playerScore} points - CANNOT substitute (started the game)`);
+                            return;
                         }
+
+                        // ... rest of existing injury detection logic
 
                         let injuryStatus = 'healthy';
 
@@ -397,14 +401,28 @@ class BrownBellAutomator {
     }
 
     async findSubstitute(teamName, injuredPlayer, week, awardType) {
+        console.log(`\n🔍 FIND SUBSTITUTE CALLED:`);
+        console.log(`   Team: ${teamName}`);
+        console.log(`   Injured: ${injuredPlayer.originalPlayer.name}`);
+        console.log(`   Week: ${week}`);
+        console.log(`   Award: ${awardType}`);
+
         const roster = this.leagueData.rosters.find(r =>
             this.leagueData.userMap[r.owner_id] === teamName
         );
 
-        if (!roster) return null;
+        if (!roster) {
+            console.log(`❌ No roster found for ${teamName}`);
+            return null;
+        }
+
+        console.log(`✅ Roster found, ${roster.players.length} players to evaluate`);
 
         const originalDuo = this.knownDuos[awardType][teamName];
-        if (!originalDuo || !roster.players) return null;
+        if (!originalDuo || !roster.players) {
+            console.log(`❌ No original duo or roster players`);
+            return null;
+        }
 
         const eligibleSubs = [];
 
@@ -566,14 +584,22 @@ class BrownBellAutomator {
     }
 
     async generateWeeklySubstitutions(week, existingSubstitutions) {
-        console.log(`Generating weekly substitutions for week ${week}...`);
+        console.log(`🔄 Generating weekly substitutions for week ${week}...`);
 
         const injuries = await this.detectInjuries(week);
         const weeklySubstitutions = [];
 
+        console.log(`📋 Injuries detected:`, JSON.stringify(injuries, null, 2));
+
         for (const awardType of ['main', 'nextup']) {
+            console.log(`\n🏆 Processing ${awardType} award...`);
+
             for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
+                console.log(`\n👥 Team: ${teamName} - ${teamInjuries.length} injuries`);
+
                 for (const injury of teamInjuries) {
+                    console.log(`\n🤕 Injured: ${injury.originalPlayer.name} (${injury.status})`);
+
                     // Check exclusion list first
                     const isExcluded = this.substitutionExclusions.some(excl =>
                         excl.teamName === teamName &&
@@ -582,7 +608,7 @@ class BrownBellAutomator {
                     );
 
                     if (isExcluded) {
-                        console.log(`Substitution excluded: ${teamName} ${awardType} player ${injury.index} - no eligible substitutes`);
+                        console.log(`⛔ Substitution excluded: ${teamName} ${awardType} player ${injury.index} - no eligible substitutes`);
                         continue;
                     }
 
@@ -598,14 +624,17 @@ class BrownBellAutomator {
                     );
 
                     if (hasActiveSub) {
-                        console.log(`Substitution already exists: ${teamName} ${awardType} player ${injury.index} week ${week}`);
-                        continue; // Skip - already have a sub for this player this week
+                        console.log(`✅ Substitution already exists: ${teamName} ${awardType} player ${injury.index} week ${week}`);
+                        continue;
                     }
 
                     // Only create new substitution if none exists
+                    console.log(`🔎 Calling findSubstitute for ${teamName}...`);
                     const substitute = await this.findSubstitute(teamName, injury, week, awardType);
 
                     if (substitute) {
+                        console.log(`✅ Found substitute: ${substitute.name}`);
+
                         weeklySubstitutions.push({
                             teamName,
                             playerIndex: injury.index,
@@ -622,9 +651,9 @@ class BrownBellAutomator {
                             reason: `Injury Checkpoint (3) - ${injury.status}`
                         });
 
-                        console.log(`New auto-sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name} (Week ${week})`);
+                        console.log(`✅ New auto-sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name} (Week ${week})`);
                     } else {
-                        console.log(`No suitable substitute found: ${teamName} ${awardType} for ${injury.originalPlayer.name}`);
+                        console.log(`❌ No suitable substitute found: ${teamName} ${awardType} for ${injury.originalPlayer.name}`);
                     }
                 }
             }
