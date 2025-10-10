@@ -427,6 +427,12 @@ class BrownBellAutomator {
 
         for (const playerId of roster.players) {
             const player = this.playersData[playerId];
+
+            // DEBUG: Log every player being considered
+            if (player && ['QB', 'RB', 'WR'].includes(player.position)) {
+                console.log(`Evaluating: ${player.first_name} ${player.last_name} (${playerId})`);
+            }
+
             if (!player || !['QB', 'RB', 'WR'].includes(player.position)) continue;
 
             // Skip if this is the injured player
@@ -449,11 +455,10 @@ class BrownBellAutomator {
                 continue;
             }
 
-            // Skip if player already has points this week (already played)
+            // CORRECTED: Check if THIS CANDIDATE (not the injured player) already played
             const currentWeekScores = await this.getWeeklyScores(week);
-            // Block if player has ANY score entry this week (even if 0)
             if (currentWeekScores[playerId] !== undefined) {
-                console.log(`Skipping ${player.first_name} ${player.last_name} - already played this week`);
+                console.log(`Skipping ${player.first_name} ${player.last_name} - already played this week (${currentWeekScores[playerId]} pts)`);
                 continue;
             }
 
