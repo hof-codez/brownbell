@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-10-09T22:51:19.267Z",
+  "timestamp": "2025-10-10T01:36:32.669Z",
   "currentWeek": 6,
   "currentAward": "main",
   "teams": [
@@ -574,7 +574,7 @@
         "1": 37
       },
       "6": {
-        "0": 0,
+        "0": 17.56,
         "1": 0
       }
     },
@@ -600,8 +600,8 @@
         "1": 20.8
       },
       "6": {
-        "0": 0,
-        "1": 0
+        "0": 12.3,
+        "1": 5.6
       }
     },
     "tigollbiddiez": {
@@ -706,7 +706,7 @@
         "1": 11.1
       },
       "6": {
-        "0": 0,
+        "0": 18.88,
         "1": 0
       }
     },
@@ -1230,8 +1230,8 @@
     }
   ],
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-10-09T22:51:19.267Z",
-  "lastCheckpointType": "THURSDAY_CHECK",
+  "lastAutomationRun": "2025-10-10T01:36:32.669Z",
+  "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
