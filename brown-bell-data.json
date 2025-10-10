@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-10-10T02:32:45.470Z",
+  "timestamp": "2025-10-10T02:34:38.536Z",
   "currentWeek": 6,
   "currentAward": "main",
   "teams": [
@@ -601,7 +601,7 @@
       },
       "6": {
         "0": 12.3,
-        "1": 6
+        "1": 5.8
       }
     },
     "tigollbiddiez": {
@@ -1230,7 +1230,7 @@
     }
   ],
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-10-10T02:32:45.470Z",
+  "lastAutomationRun": "2025-10-10T02:34:38.536Z",
   "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
