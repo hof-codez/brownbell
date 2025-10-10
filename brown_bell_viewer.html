@@ -577,7 +577,8 @@
     <div class="container">
         <div class="header">
             <div class="header-content">
-                <img src="https://raw.githubusercontent.com/hof-codez/brownbell/refs/heads/main/brown-bell-logo.png" alt="Brown Bell Award" class="header-logo">
+                <img src="https://raw.githubusercontent.com/hof-codez/brownbell/refs/heads/main/brown-bell-logo.png"
+                    alt="Brown Bell Award" class="header-logo">
                 <div class="header-text">
                     <h1>Brown Bell Award</h1>
                     <div class="subtitle">Season Standings - Auto-Updated Daily</div>
@@ -923,8 +924,8 @@
                 const p1OnBye = isPlayerOnBye(score.team.players[0].name, week);
                 const p2OnBye = isPlayerOnBye(score.team.players[1].name, week);
 
-                const p1ScoreStyle = p1OnBye ? 'style="color: #999; text-decoration: line-through;"' : '';
-                const p2ScoreStyle = p2OnBye ? 'style="color: #999; text-decoration: line-through;"' : '';
+                const p1ScoreStyle = p1OnBye ? 'style="color: #dc3545; text-decoration: line-through;"' : '';
+                const p2ScoreStyle = p2OnBye ? 'style="color: #dc3545; text-decoration: line-through;"' : '';
 
                 html += `<tr class="${rankClass}">`;
                 html += `<td><strong>${rank}</strong></td>`;
