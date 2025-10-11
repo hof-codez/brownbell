@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brown Bell Award - Season Standings</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #8B4513 0%, #D4AF37 100%);
+            /* Brown to Gold */
+            min-height: 100vh;
+            color: #333;
+            padding: 10px;
+            padding-bottom: 120px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        /* ADD THESE NEW STYLES */
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .header-logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+
+        .header-text {
+            text-align: left;
+        }
+
+        .header h1 {
+            color: #8B4513;
+            /* Rich brown */
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 1em;
+            margin: 0;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .header-logo {
+                width: 60px;
+                height: 60px;
+            }
+
+            .header-text {
+                text-align: center;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+        }
+
+        .automation-status {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 0.9em;
+            display: none !important;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .info-bar {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .week-info {
+            font-weight: bold;
+            color: #D4AF37;
+            /* Gold */
+        }
+
+        .last-updated {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .award-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .award-toggle button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #666;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+
+        .award-toggle button.active {
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .award-toggle .main-award.active {
+            background: linear-gradient(135deg, #B8860B, #D4AF37);
+            /* Dark gold to gold */
+        }
+
+        .award-toggle .next-up-award.active {
+            background: linear-gradient(135deg, #CD7F32, #D4AF37);
+            /* Bronze to gold */
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .view-toggle button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #666;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: linear-gradient(135deg, #8B4513, #D4AF37);
+            /* Brown to gold */
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #444;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .standings-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .standings-table th {
+            background: #f0f0f0;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            color: #444;
+            font-size: 0.9em;
+        }
+
+        .standings-table td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 0.9em;
+        }
+
+        .standings-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .rank-gold {
+            background: linear-gradient(90deg, #D4AF37, #FFD700) !important;
+            /* Gold gradient */
+            font-weight: bold;
+            color: #3D2817;
+            /* Dark brown text */
+        }
+
+        .rank-silver {
+            background: linear-gradient(90deg, #CD7F32, #E6A85C) !important;
+            /* Bronze gradient */
+            font-weight: bold;
+            color: #3D2817;
+        }
+
+        .rank-bronze {
+            background: linear-gradient(90deg, #8B4513, #A0522D) !important;
+            /* Brown gradient */
+            font-weight: bold;
+            color: #D4AF37;
+            /* Gold text */
+        }
+
+        .position-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.75em;
+            margin-right: 5px;
+        }
+
+        .pos-QB {
+            background: #8B4513;
+            /* Rich brown */
+            color: #FFD700;
+            /* Gold text */
+        }
+
+        .pos-RB {
+            background: #CD7F32;
+            /* Bronze */
+            color: #FFFFFF;
+            /* White text */
+        }
+
+        .pos-WR {
+            background: #D4AF37;
+            /* Gold */
+            color: #3D2817;
+            /* Dark brown text */
+        }
+
+        .sub-badge {
+            background: #FFF8DC;
+            /* Cornsilk */
+            color: #8B4513;
+            /* Brown text */
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+        }
+
+        .auto-sub-badge {
+            background: #CD7F32;
+            /* Bronze */
+            color: white;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+        }
+
+        .bye-badge {
+            background: #8B7355;
+            /* Tan/brown */
+            color: white;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+        }
+
+        .bye-sub-badge {
+            background: linear-gradient(135deg, #8B4513, #A0522D);
+            /* Brown gradient */
+            color: #FFD700;
+            /* Gold text */
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+            border: 1px solid #D4AF37;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .season-overview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8em;
+            overflow-x: auto;
+        }
+
+        .season-overview-table th {
+            background: #f0f0f0;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 0.75em;
+            min-width: 35px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .season-overview-table td {
+            padding: 6px 4px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+            font-size: 0.75em;
+        }
+
+        .season-overview-table .team-cell {
+            text-align: left;
+            font-weight: bold;
+            background: #f8f9fa;
+            min-width: 120px;
+            font-size: 0.8em;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+        }
+
+        /* Alternating team row colors - Brown Bell themed */
+        .season-overview-table .team-row-1 td {
+            background-color: #FFF8DC;
+        }
+
+        /* Cornsilk */
+        .season-overview-table .team-row-2 td {
+            background-color: #FAEBD7;
+        }
+
+        /* Antique white */
+        .season-overview-table .team-row-3 td {
+            background-color: #FFE4B5;
+        }
+
+        /* Moccasin */
+        .season-overview-table .team-row-4 td {
+            background-color: #FFDEAD;
+        }
+
+        /* Navajo white */
+        .season-overview-table .team-row-5 td {
+            background-color: #F5DEB3;
+        }
+
+        /* Wheat */
+        .season-overview-table .team-row-6 td {
+            background-color: #FFE4C4;
+        }
+
+        /* Bisque */
+        .season-overview-table .team-row-7 td {
+            background-color: #FFEBCD;
+        }
+
+        /* Blanched almond */
+        .season-overview-table .team-row-8 td {
+            background-color: #FFEFD5;
+        }
+
+        /* Papaya whip */
+        .season-overview-table .team-row-9 td {
+            background-color: #FFF5EE;
+        }
+
+        /* Seashell */
+        .season-overview-table .team-row-10 td {
+            background-color: #FAF0E6;
+        }
+
+        /* Linen */
+        .season-overview-table .team-row-11 td {
+            background-color: #FDF5E6;
+        }
+
+        /* Old lace */
+        .season-overview-table .team-row-12 td {
+            background-color: #FFFAF0;
+        }
+
+        /* Floral white */
+
+        /* Hover effect */
+        .season-overview-table tr:hover td {
+            background-color: #D4AF37 !important;
+            /* Gold */
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        /* Keep team cells distinct on hover */
+        .season-overview-table tr:hover .team-cell {
+            background-color: #8B4513 !important;
+            /* Brown */
+            color: #FFD700 !important;
+            /* Gold text */
+            font-weight: bold;
+        }
+
+        /* Enhanced borders for better separation */
+        .season-overview-table .team-row-border {
+            border-bottom: 2px solid #666 !important;
+        }
+
+        .player-cell {
+            white-space: nowrap;
+        }
+
+        .week-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .week-selector select {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-size: 1em;
+            background: white;
+        }
+
+        .active-subs {
+            background: #fff8dc;
+            border: 1px solid #ffd700;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .active-subs h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .sub-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #D4AF37, #B8860B);
+            /* Gold gradient */
+            color: #3D2817;
+            /* Dark brown text */
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(212, 175, 55, 0.6);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+                padding-bottom: 120px;
+            }
+
+            .header {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            .standings-table th,
+            .standings-table td {
+                padding: 8px 4px;
+                font-size: 0.8em;
+            }
+
+            .position-badge {
+                font-size: 0.7em;
+                padding: 1px 4px;
+            }
+
+            .season-overview-table {
+                font-size: 0.7em;
+            }
+
+            .season-overview-table th,
+            .season-overview-table td {
+                padding: 4px 2px;
+                font-size: 0.7em;
+            }
+
+            .info-bar {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <img src="https://raw.githubusercontent.com/hof-codez/brownbell/refs/heads/main/brown-bell-logo.png"
+                    alt="Brown Bell Award" class="header-logo">
+                <div class="header-text">
+                    <h1>Brown Bell Award</h1>
+                    <div class="subtitle">Season Standings - Auto-Updated Daily</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="automation-status" id="automationStatus" style="display: none;">
+            Automatically updated via GitHub Actions
+        </div>
+
+        <div id="loading" class="loading">
+            <div>Loading league data...</div>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="content" style="display: none;">
+            <div class="info-bar">
+                <div class="week-info">Current Week: <span id="currentWeek">-</span></div>
+                <div class="last-updated">Last Updated: <span id="lastUpdated">-</span></div>
+                <button class="refresh-btn" onclick="loadData()">Refresh</button>
+            </div>
+
+            <div id="activeSubs" class="active-subs" style="display: none;">
+                <h3>Active Substitutions</h3>
+                <div id="activeSubsList"></div>
+            </div>
+
+            <div class="week-selector" id="weekSelector" style="display: none;">
+                <select id="weekSelect" onchange="updateWeeklyView()">
+                    <option value="current">Current Week</option>
+                </select>
+            </div>
+
+            <!-- Award Toggle -->
+            <div class="award-toggle">
+                <button id="mainAwardBtn" class="main-award active" onclick="toggleAward('main')">Brown Bell
+                    Award</button>
+                <button id="nextUpAwardBtn" class="next-up-award" onclick="toggleAward('nextup')">Next Up Award</button>
+            </div>
+
+            <div class="view-toggle">
+                <button id="weeklyBtn" class="active" onclick="showView('weekly')">Weekly Standings</button>
+                <button id="seasonBtn" onclick="showView('season')">Season Overview</button>
+            </div>
+
+            <div class="card" id="standingsCard">
+                <h2 id="standingsTitle">Weekly Standings</h2>
+                <div class="table-container">
+                    <div id="standingsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let appData = null;
+        let currentView = 'weekly';
+        let selectedWeek = 'current';
+        let currentAward = 'main';
+
+        // NFL 2025 Bye Weeks by team (CORRECT 2025 SCHEDULE)
+        const byeWeeks = {
+            5: ['PIT', 'CHI', 'GB', 'ATL'],  // Week 5
+            6: ['HOU', 'MIN', 'TEN', 'KC'],  // Week 6  
+            7: ['BAL', 'CIN', 'DAL', 'IND'],  // Week 7
+            8: ['JAX', 'LV', 'DET', 'ARI', 'SEA', 'LAR'],  // Week 8
+            9: ['PHI', 'CLE', 'NYJ', 'TB'],  // Week 9
+            10: ['BUF', 'NO', 'CAR', 'NE', 'NYG', 'SF'],  // Week 10
+            11: ['DEN', 'LAC', 'MIA', 'WAS'],  // Week 11
+            12: [],  // Week 12 - no byes
+            14: []  // Week 14 - no byes
+        };
+
+        // NFL team lookup by player (you'll need to expand this with your actual players)
+        const playerTeams = {
+            'Jayden Daniels': 'WAS',
+            'CeeDee Lamb': 'DAL',
+            'Josh Allen': 'BUF',
+            'Derrick Henry': 'BAL',
+            'Justin Herbert': 'LAC',
+            'Josh Jacobs': 'GB',
+            'Christian McCaffrey': 'SF',
+            'Justin Jefferson': 'MIN',
+            'Jordan Love': 'GB',
+            'Hollywood Brown': 'KC',
+            'Lamar Jackson': 'BAL',
+            'Tony Pollard': 'TEN',
+            'Patrick Mahomes': 'KC',
+            'Josh Downs': 'IND',
+            'Jalen Hurts': 'PHI',
+            "Ja'Marr Chase": 'CIN',
+            'Joe Burrow': 'CIN',
+            'Saquon Barkley': 'PHI',
+            'C.J. Stroud': 'HOU',
+            'Jahmyr Gibbs': 'DET',
+            'Jared Goff': 'DET',
+            'Mike Evans': 'TB',
+            'Dak Prescott': 'DAL',
+            'Terry McLaurin': 'WAS',
+            // Add more players as needed
+
+            // Next Up Award Players
+            'Jaxson Dart': 'NYG',
+            'Malik Nabers': 'NYG',
+            'Jayden Higgins': 'HOU',
+            'Bo Nix': 'DEN',
+            'Tetairoa McMillan': 'CAR',
+            'Bucky Irving': 'TB',
+            'Quinshon Judkins': 'CLE',
+            'Jalen Coker': 'CAR',
+            'Emeka Egbuka': 'TB',
+            'J.J. McCarthy': 'MIN',
+            'Ashton Jeanty': 'LV',
+            'Brian Thomas': 'JAX',
+            'Kaleb Johnson': 'PIT',
+            'DeVaughn Vele': 'DEN',
+            'Xavier Legette': 'CAR',
+            'Elic Ayomanor': 'TEN',
+            'Rome Odunze': 'CHI',
+            'Tory Horton': 'SEA',
+            'Trey Benson': 'ARI',
+            'Michael Penix': 'ATL',
+            'Ollie Gordon': 'MIA'
+
+        };
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadData();
+        });
+
+        async function loadData() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const content = document.getElementById('content');
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            content.style.display = 'none';
+
+            try {
+                const response = await fetch('./brown-bell-data.json?' + new Date().getTime());
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load data: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                appData = data;
+
+                if (data.currentAward) {
+                    currentAward = data.currentAward;
+                }
+
+                if (data.lastAutomationRun) {
+                    const statusDiv = document.getElementById('automationStatus');
+                    const lastRun = new Date(data.lastAutomationRun);
+                    statusDiv.innerHTML = `Automatically updated via GitHub Actions - Last run: ${lastRun.toLocaleDateString()} ${lastRun.toLocaleTimeString()}`;
+                    statusDiv.style.display = 'block';
+                }
+
+                updateDisplay();
+                loading.style.display = 'none';
+                content.style.display = 'block';
+
+            } catch (err) {
+                console.error('Error loading data:', err);
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.innerHTML = `
+                    <strong>Unable to load league data.</strong><br>
+                    Error: ${err.message}<br>
+                    <small>If you're viewing this locally, make sure the brown-bell-data.json file is in the same directory.</small>
+                `;
+            }
+        }
+
+        function toggleAward(awardType) {
+            currentAward = awardType;
+            document.getElementById('mainAwardBtn').classList.toggle('active', awardType === 'main');
+            document.getElementById('nextUpAwardBtn').classList.toggle('active', awardType === 'nextup');
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            if (!appData) return;
+
+            // Set award toggle buttons without calling toggleAward
+            document.getElementById('mainAwardBtn').classList.toggle('active', currentAward === 'main');
+            document.getElementById('nextUpAwardBtn').classList.toggle('active', currentAward === 'nextup');
+
+            document.getElementById('currentWeek').textContent = appData.currentWeek || 1;
+
+            if (appData.timestamp) {
+                const date = new Date(appData.timestamp);
+                document.getElementById('lastUpdated').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            }
+
+            const weekSelect = document.getElementById('weekSelect');
+            weekSelect.innerHTML = '<option value="current">Current Week</option>';
+            for (let i = 1; i <= 18; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `Week ${i}`;
+                weekSelect.appendChild(option);
+            }
+            weekSelect.value = 'current'; // Force selection to current week
+
+            updateActiveSubstitutions();
+
+            if (currentView === 'weekly') {
+                showWeeklyStandings();
+            } else {
+                showSeasonOverview();
+            }
+        }
+
+        function updateActiveSubstitutions() {
+            const selectedWeekNum = selectedWeek === 'current' ? (appData.currentWeek || 1) : parseInt(selectedWeek);
+
+            // Find substitutions active for the selected week
+            const activeSubs = (appData.substitutions || []).filter(s =>
+                s.awardType === currentAward &&
+                s.startWeek <= selectedWeekNum &&
+                (!s.endWeek || s.endWeek >= selectedWeekNum)
+            );
+
+            const subsCard = document.getElementById('activeSubs');
+            const subsList = document.getElementById('activeSubsList');
+
+            if (activeSubs.length === 0) {
+                subsCard.style.display = 'none';
+                return;
+            }
+
+            subsCard.style.display = 'block';
+            subsList.innerHTML = '';
+
+            const awardLabel = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+
+            activeSubs.forEach(sub => {
+                const div = document.createElement('div');
+                div.className = 'sub-item';
+
+                const subBadgeClass = sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge';
+                const subBadgeText = sub.autoGenerated ? 'AUTO-SUB' : 'SUB';
+                const reasonText = sub.reason ? ` (${sub.reason})` : '';
+
+                div.innerHTML = `
+            <strong>${sub.teamName}</strong> <small>(${awardLabel})</small>: 
+            <span class="position-badge pos-${sub.substitutePosition}">${sub.substitutePosition}</span>
+            ${sub.substituteName} 
+            <span class="${subBadgeClass}">${subBadgeText} for ${sub.originalName}</span>
+            <br><small>Week ${sub.startWeek}-${sub.endWeek || 'Indefinite'}${reasonText}</small>
+        `;
+                subsList.appendChild(div);
+            });
+        }
+
+        function showView(view) {
+            currentView = view;
+
+            document.getElementById('weeklyBtn').classList.toggle('active', view === 'weekly');
+            document.getElementById('seasonBtn').classList.toggle('active', view === 'season');
+
+            document.getElementById('weekSelector').style.display = view === 'weekly' ? 'flex' : 'none';
+
+            if (view === 'weekly') {
+                showWeeklyStandings();
+            } else {
+                showSeasonOverview();
+            }
+        }
+
+        function updateWeeklyView() {
+            selectedWeek = document.getElementById('weekSelect').value;
+            updateActiveSubstitutions(); // Add this line
+            showWeeklyStandings();
+        }
+
+        function showWeeklyStandings() {
+            const week = selectedWeek === 'current' ? (appData.currentWeek || 1) : parseInt(selectedWeek);
+            const title = document.getElementById('standingsTitle');
+            const content = document.getElementById('standingsContent');
+
+            const awardName = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+            title.textContent = `Week ${week} Standings - ${awardName}`;
+
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+
+            const weeklyScores = [];
+            teams.forEach(team => {
+                const teamKey = currentAward === 'main' ? team.name : team.mainTeamName;
+                const weekScores = scoresData?.[teamKey]?.[week] || {};
+
+                const p1Score = weekScores[0] || 0;
+                const p2Score = weekScores[1] || 0;
+                const total = p1Score + p2Score;
+
+                weeklyScores.push({
+                    team: team,
+                    p1Score,
+                    p2Score,
+                    total,
+                    week
+                });
+            });
+
+            weeklyScores.sort((a, b) => b.total - a.total);
+
+            let html = '';
+
+            // Add bye week explanation if any byes this week
+            const byeTeams = byeWeeks[week] || [];
+            if (byeTeams.length > 0) {
+                html += `<div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em; border-left: 4px solid #6c757d;">
+                    <strong>ℹ️ Bye Week Notice:</strong> 
+                    <span class="bye-badge">BYE</span> = Player on bye week. 
+                    <span class="bye-sub-badge">BYE-SUB</span> = Substitute played but points don't count (original player on bye).
+                </div>`;
+            }
+
+            html += '<table class="standings-table">';
+            html += '<thead><tr>';
+            html += '<th>Rank</th><th>Team</th><th>Player 1</th><th>Player 2</th><th>Total</th>';
+            html += '</tr></thead><tbody>';
+
+            weeklyScores.forEach((score, idx) => {
+                const rank = idx + 1;
+                let rankClass = '';
+                if (rank === 1) rankClass = 'rank-gold';
+                else if (rank === 2) rankClass = 'rank-silver';
+                else if (rank === 3) rankClass = 'rank-bronze';
+
+                const p1Display = getPlayerDisplayName(score.team, 0, week);
+                const p2Display = getPlayerDisplayName(score.team, 1, week);
+                const p1ByeBadge = getByeBadge(score.team, 0, week, p1Display);
+                const p2ByeBadge = getByeBadge(score.team, 1, week, p2Display);
+
+                // Check if original players are on bye (for score styling)
+                const p1OnBye = isPlayerOnBye(score.team.players[0].name, week);
+                const p2OnBye = isPlayerOnBye(score.team.players[1].name, week);
+
+                const p1ScoreStyle = p1OnBye ? 'style="color: #dc3545; text-decoration: line-through;"' : '';
+                const p2ScoreStyle = p2OnBye ? 'style="color: #dc3545; text-decoration: line-through;"' : '';
+
+                html += `<tr class="${rankClass}">`;
+                html += `<td><strong>${rank}</strong></td>`;
+                html += `<td><strong>${score.team.name}</strong></td>`;
+                html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 0, week, p1Display)}${p1ByeBadge}<br><small ${p1ScoreStyle}>${score.p1Score.toFixed(1)} pts</small></td>`;
+                html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 1, week, p2Display)}${p2ByeBadge}<br><small ${p2ScoreStyle}>${score.p2Score.toFixed(1)} pts</small></td>`;
+                html += `<td><strong>${score.total.toFixed(1)}</strong></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+        }
+
+        function showSeasonOverview() {
+            const title = document.getElementById('standingsTitle');
+            const content = document.getElementById('standingsContent');
+
+            const awardName = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+            title.textContent = `Season Overview - ${awardName}`;
+
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+
+            const seasonTotals = [];
+            teams.forEach(team => {
+                const teamKey = currentAward === 'main' ? team.name : team.mainTeamName;
+                const weeklyTotals = [];
+                let seasonTotal = 0;
+
+                for (let week = 1; week <= 18; week++) {
+                    const weekScores = scoresData?.[teamKey]?.[week] || {};
+                    const p1Score = weekScores[0] || 0;
+                    const p2Score = weekScores[1] || 0;
+                    const total = p1Score + p2Score;
+                    weeklyTotals.push({ p1: p1Score, p2: p2Score, total });
+                    seasonTotal += total;
+                }
+
+                seasonTotals.push({
+                    team,
+                    weeklyTotals,
+                    seasonTotal
+                });
+            });
+
+            seasonTotals.sort((a, b) => b.seasonTotal - a.seasonTotal);
+
+            let html = '<table class="season-overview-table">';
+            html += '<thead><tr>';
+            html += '<th>Rank</th><th>Team</th>';
+            for (let w = 1; w <= 18; w++) {
+                html += `<th>W${w}</th>`;
+            }
+            html += '<th>Total</th>';
+            html += '</tr></thead><tbody>';
+
+            seasonTotals.forEach((data, idx) => {
+                const rank = idx + 1;
+                let rankClass = '';
+                if (rank === 1) rankClass = 'rank-gold';
+                else if (rank === 2) rankClass = 'rank-silver';
+                else if (rank === 3) rankClass = 'rank-bronze';
+
+                const teamRowClass = `team-row-${((idx % 12) + 1)}`;
+
+                html += `<tr class="${rankClass} ${teamRowClass}">`;
+                html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
+                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong></td>`;
+
+                // Player 1 scores
+                for (let w = 1; w <= 18; w++) {
+                    const score = data.weeklyTotals[w - 1].p1;
+                    const player1Name = data.team.players[0].name;
+                    const isBye = isPlayerOnBye(player1Name, w);
+                    const displayScore = isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-');
+                    const cellClass = isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '';
+                    html += `<td class="player-cell" ${cellClass}>${displayScore}</td>`;
+                }
+                html += `<td rowspan="2" style="vertical-align: middle;"><strong>${data.seasonTotal.toFixed(1)}</strong></td>`;
+                html += '</tr>';
+
+                // Player 2 scores
+                html += `<tr class="${rankClass} ${teamRowClass}">`;
+                for (let w = 1; w <= 18; w++) {
+                    const score = data.weeklyTotals[w - 1].p2;
+                    const player2Name = data.team.players[1].name;
+                    const isBye = isPlayerOnBye(player2Name, w);
+                    const displayScore = isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-');
+                    const cellClass = isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '';
+                    html += `<td class="player-cell" ${cellClass}>${displayScore}</td>`;
+                }
+                html += '</tr>';
+
+                // Add separator after each team
+                if (idx < seasonTotals.length - 1) {
+                    html += `<tr class="team-row-border"><td colspan="21" style="height: 1px; padding: 0; border: none;"></td></tr>`;
+                }
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+        }
+
+        function getPlayerDisplayName(team, playerIndex, week) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+            return sub ? sub.substituteName : team.players[playerIndex].name;
+        }
+
+        function getSubBadge(team, playerIndex, week) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            if (!sub) return '';
+
+            const badgeClass = sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge';
+            const badgeText = sub.autoGenerated ? 'AUTO-SUB' : 'SUB';
+            return `<span class="${badgeClass}">${badgeText}</span>`;
+        }
+
+        function isPlayerOnBye(playerName, week) {
+            const team = playerTeams[playerName];
+            if (!team) return false;
+
+            const byeTeams = byeWeeks[week] || [];
+            return byeTeams.includes(team);
+        }
+
+        function getByeBadge(team, playerIndex, week, displayName) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+
+            // Check if there's an active substitution
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            // Check if ORIGINAL player is on bye
+            const originalPlayer = team.players[playerIndex].name;
+            const originalOnBye = isPlayerOnBye(originalPlayer, week);
+
+            if (originalOnBye) {
+                // Special case: Original player on bye AND has a substitute
+                if (sub) {
+                    return '<span class="bye-sub-badge">BYE-SUB</span>';
+                }
+                // Regular bye: Original player on bye, no substitute
+                return '<span class="bye-badge">BYE</span>';
+            }
+
+            return '';
+        }
+
+        function getPlayerDisplayWithCorrectBadge(team, playerIndex, week, displayName) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            // Use substitute's actual position if there's a substitution, otherwise use original player position
+            const actualPosition = sub ? sub.substitutePosition : team.players[playerIndex].position;
+            const positionBadge = `<span class="position-badge pos-${actualPosition}">${actualPosition}</span>`;
+
+            // Show SUB badge if this is a substitute
+            const subBadge = sub ? ` <span class="${sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge'}">${sub.autoGenerated ? 'AUTO-SUB' : 'SUB'}</span>` : '';
+
+            return `${positionBadge} ${displayName}${subBadge}`;
+        }
+
+    </script>
+</body>
+
+</html>
