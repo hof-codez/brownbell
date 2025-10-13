@@ -9,16 +9,16 @@ class BrownBellAutomator {
         this.leagueData = null;
 
         // NFL 2025 Bye Weeks by team (CORRECT 2025 SCHEDULE)
-        this.byeWeeks = {
-            5: ['PIT', 'CHI', 'GB', 'ATL'],  // Week 5
-            6: ['HOU', 'MIN', 'TEN', 'KC'],  // Week 6  
-            7: ['BAL', 'CIN', 'DAL', 'IND'],  // Week 7
-            8: ['JAX', 'LV', 'DET', 'ARI', 'SEA', 'LAR'],  // Week 8
-            9: ['PHI', 'CLE', 'NYJ', 'TB'],  // Week 9
-            10: ['BUF', 'NO', 'CAR', 'NE', 'NYG', 'SF'],  // Week 10
-            11: ['DEN', 'LAC', 'MIA', 'WAS'],  // Week 11
-            12: [],  // Week 12 - no byes
-            14: []  // Week 14 - no byes
+        const byeWeeks = {
+            5: ['ATL', 'CHI', 'GB', 'PIT'],  // Week 5
+            6: ['HOU', 'MIN'],  // Week 6
+            7: ['BAL', 'BUF'],  // Week 7
+            8: ['ARI', 'DET', 'JAX', 'LV', 'LAR', 'SEA'],  // Week 8
+            9: ['CLE', 'NYJ', 'PHI', 'TB'],  // Week 9
+            10: ['CIN', 'DAL', 'KC', 'TEN'],  // Week 10
+            11: ['IND', 'NO'],  // Week 11
+            12: ['DEN', 'LAC', 'MIA', 'WAS'],  // Week 12
+            14: ['CAR', 'NE', 'NYG', 'SF']  // Week 14
         };
 
         // Exclusion list: prevent auto-substitutions for specific scenarios
