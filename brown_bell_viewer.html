@@ -1016,7 +1016,7 @@
                     ? `<span class="inactive-badge">REMOVED</span>`
                     : '';
                 const managerChangeBadge = (managerChange && week >= managerChange.changeWeek)
-                    ? `<span class="manager-change-badge">NEW MGR</span>`
+                    ? `<span class="manager-change-badge">NEW-MGR</span>`
                     : '';
                 const rowClass = (isInactive && week > isInactive.lastActiveWeek) ? 'inactive-team' : '';
 
@@ -1103,7 +1103,7 @@
                 const lastActiveWeek = isInactive ? isInactive.lastActiveWeek : 18;
 
                 const inactiveBadge = isInactive ? `<span class="inactive-badge">REMOVED W${lastActiveWeek + 1}</span>` : '';
-                const managerChangeBadge = managerChange ? `<span class="manager-change-badge">NEW MGR</span>` : '';
+                const managerChangeBadge = managerChange ? `<span class="manager-change-badge">NEW-MGR</span>` : '';
 
                 // ADD THIS SECTION - Build team display with manager history
                 let teamDisplay = `<strong>${data.team.name}</strong>`;
@@ -1118,7 +1118,6 @@
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
                 html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;">${teamDisplay}${inactiveBadge}${managerChangeBadge}</td>`;  // CHANGED THIS LINE
 
-                // Player 1 scores
                 // Player 1 scores
                 for (let w = 1; w <= 18; w++) {
                     const score = data.weeklyTotals[w - 1].p1;
