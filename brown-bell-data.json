@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-10-12T23:26:14.460Z",
+  "timestamp": "2025-10-13T21:19:33.748Z",
   "currentWeek": 6,
   "currentAward": "main",
   "teams": [
@@ -154,15 +154,15 @@
         {
           "name": "C.J. Stroud",
           "position": "QB",
-          "sleeperId": "9758"
+          "sleeperId": null
         },
         {
           "name": "Jahmyr Gibbs",
           "position": "RB",
-          "sleeperId": "9221"
+          "sleeperId": null
         }
       ],
-      "sleeper_roster_id": 12
+      "sleeper_roster_id": null
     },
     {
       "name": "Ch3r0k33zY",
@@ -497,7 +497,7 @@
       },
       "6": {
         "0": 16.96,
-        "1": 0
+        "1": 20.5
       }
     },
     "FelixR08": {
@@ -523,7 +523,7 @@
       },
       "6": {
         "0": 19.46,
-        "1": 0
+        "1": 6.7
       }
     },
     "713Born501Raised": {
@@ -548,7 +548,7 @@
         "1": 11.4
       },
       "6": {
-        "0": 0,
+        "0": 31.48,
         "1": 16.2
       }
     },
@@ -624,10 +624,6 @@
       "5": {
         "0": 29.76,
         "1": 16.7
-      },
-      "6": {
-        "0": 0,
-        "1": 0
       }
     },
     "Ch3r0k33zY": {
@@ -652,7 +648,7 @@
         "1": 13.2
       },
       "6": {
-        "0": 0,
+        "0": 16.82,
         "1": 7.5
       }
     },
@@ -707,7 +703,7 @@
       },
       "6": {
         "0": 23.6,
-        "1": 0
+        "1": 10.6
       }
     },
     "713Born501Raised": {
@@ -888,7 +884,7 @@
         "1": 0
       },
       "6": {
-        "0": 0,
+        "0": 5.7,
         "1": 0
       }
     },
@@ -1274,9 +1270,15 @@
       "reason": "Injury Checkpoint (1) - out"
     }
   ],
+  "inactiveTeams": {
+    "tigollbiddiez": {
+      "lastActiveWeek": 5,
+      "reason": "Left League"
+    }
+  },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-10-12T23:26:14.460Z",
-  "lastCheckpointType": "SUNDAY_PREGAME_CHECK",
+  "lastAutomationRun": "2025-10-13T21:19:33.748Z",
+  "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
