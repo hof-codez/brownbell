@@ -1046,6 +1046,13 @@ class BrownBellAutomator {
                             playerId = activeSub.substitutePlayerId;
                             console.log(`Week ${week}: Using substitute ${activeSub.substituteName} (${playerId}) for ${teamName}`);
                         } else {
+                            // ADDED: Check if roster exists before trying to find player
+                            if (!roster) {
+                                // No roster available (inactive team) - load from existing data
+                                const awardScores = awardType === 'main' ? existingData.scores : existingData.nextUpScores;
+                                scores[awardType][teamName][week][index] = awardScores?.[teamName]?.[week]?.[index] || 0;
+                                return; // Skip to next player
+                            }
                             // Use original player's Sleeper ID
                             playerId = this.findPlayerInRoster(originalPlayer, roster);
                         }
