@@ -25,10 +25,14 @@ class BrownBellAutomator {
         this.substitutionExclusions = [];
 
         // Teams that left the league - show historical data only
-        this.inactiveTeams = {
-            'tigollbiddiez': {
-                lastActiveWeek: 5,
-                reason: 'Left League'
+        this.inactiveTeams = {};  // Empty now since tigollbiddiez is being replaced
+
+        // Manager changes - track when ownership transferred
+        this.managerChanges = {
+            'NewManagerUsername': {  // Replace with actual Sleeper username
+                previousManager: 'tigollbiddiez',
+                changeWeek: 6,
+                reason: 'Manager Replaced'
             }
         };
 
@@ -71,7 +75,7 @@ class BrownBellAutomator {
                     { name: 'Joe Burrow', position: 'QB' },
                     { name: 'Saquon Barkley', position: 'RB' }
                 ],
-                'tigollbiddiez': [
+                'Dcastro90': [
                     { name: 'C.J. Stroud', position: 'QB' },
                     { name: 'Jahmyr Gibbs', position: 'RB' }
                 ],
@@ -1334,7 +1338,8 @@ class BrownBellAutomator {
             scores: allScores.main,
             nextUpScores: allScores.nextup,
             substitutions: [...cleanedSubstitutions, ...newSubstitutions],
-            inactiveTeams: this.inactiveTeams,  // ADD THIS LINE
+            inactiveTeams: this.inactiveTeams,
+            managerChanges: this.managerChanges,  // ADD THIS LINE
             sleeperLeagueId: this.leagueId,
             lastAutomationRun: new Date().toISOString(),
             lastCheckpointType: checkpointType || 'ROUTINE_UPDATE',

@@ -358,6 +358,16 @@
             opacity: 0.6;
         }
 
+        .manager-change-badge {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
         .season-overview-table {
             width: 100%;
             border-collapse: collapse;
@@ -929,11 +939,16 @@
                 else if (rank === 2) rankClass = 'rank-silver';
                 else if (rank === 3) rankClass = 'rank-bronze';
 
-                // ADD THIS CHECK
+                // Check for inactive teams and manager changes
                 const teamName = score.team.name;
                 const isInactive = appData.inactiveTeams && appData.inactiveTeams[teamName];
+                const managerChange = appData.managerChanges && appData.managerChanges[teamName];
+
                 const inactiveBadge = (isInactive && week > isInactive.lastActiveWeek)
                     ? `<span class="inactive-badge">REMOVED</span>`
+                    : '';
+                const managerChangeBadge = (managerChange && week >= managerChange.changeWeek)
+                    ? `<span class="manager-change-badge">NEW MGR W${managerChange.changeWeek}</span>`
                     : '';
                 const rowClass = (isInactive && week > isInactive.lastActiveWeek) ? 'inactive-team' : '';
 
@@ -950,7 +965,7 @@
 
                 html += `<tr class="${rankClass} ${rowClass}">`;  // MODIFIED
                 html += `<td><strong>${rank}</strong></td>`;
-                html += `<td><strong>${score.team.name}</strong>${inactiveBadge}</td>`;  // MODIFIED
+                html += `<td><strong>${score.team.name}</strong>${inactiveBadge}${managerChangeBadge}</td>`;
                 html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 0, week, p1Display)}${p1ByeBadge}<br><small ${p1ScoreStyle}>${score.p1Score.toFixed(1)} pts</small></td>`;
                 html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 1, week, p2Display)}${p2ByeBadge}<br><small ${p2ScoreStyle}>${score.p2Score.toFixed(1)} pts</small></td>`;
                 html += `<td><strong>${score.total.toFixed(1)}</strong></td>`;
@@ -1016,13 +1031,16 @@
                 // ADD THIS ENTIRE SECTION - CHECK FOR INACTIVE TEAMS
                 const teamName = data.team.name;
                 const isInactive = appData.inactiveTeams && appData.inactiveTeams[teamName];
+                const managerChange = appData.managerChanges && appData.managerChanges[teamName];
                 const lastActiveWeek = isInactive ? isInactive.lastActiveWeek : 18;
+
                 const inactiveBadge = isInactive ? `<span class="inactive-badge">REMOVED W${lastActiveWeek + 1}</span>` : '';
+                const managerChangeBadge = managerChange ? `<span class="manager-change-badge">NEW MGR W${managerChange.changeWeek}</span>` : '';
                 // END OF ADDED SECTION
 
                 html += `<tr class="${rankClass} ${teamRowClass}">`;
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
-                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong>${inactiveBadge}</td>`;  // MODIFIED - ADDED inactiveBadge
+                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong>${inactiveBadge}${managerChangeBadge}</td>`;
 
                 // Player 1 scores
                 for (let w = 1; w <= 18; w++) {
