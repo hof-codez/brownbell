@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-10-13T21:19:33.748Z",
+  "timestamp": "2025-10-13T21:34:03.706Z",
   "currentWeek": 6,
   "currentAward": "main",
   "teams": [
@@ -154,15 +154,15 @@
         {
           "name": "C.J. Stroud",
           "position": "QB",
-          "sleeperId": null
+          "sleeperId": "9758"
         },
         {
           "name": "Jahmyr Gibbs",
           "position": "RB",
-          "sleeperId": null
+          "sleeperId": "9221"
         }
       ],
-      "sleeper_roster_id": null
+      "sleeper_roster_id": 12
     },
     {
       "name": "Ch3r0k33zY",
@@ -624,6 +624,10 @@
       "5": {
         "0": 29.76,
         "1": 16.7
+      },
+      "6": {
+        "0": 0,
+        "1": 7.5
       }
     },
     "Ch3r0k33zY": {
@@ -1270,14 +1274,16 @@
       "reason": "Injury Checkpoint (1) - out"
     }
   ],
-  "inactiveTeams": {
-    "tigollbiddiez": {
-      "lastActiveWeek": 5,
-      "reason": "Left League"
+  "inactiveTeams": {},
+  "managerChanges": {
+    "NewManagerUsername": {
+      "previousManager": "tigollbiddiez",
+      "changeWeek": 6,
+      "reason": "Manager Replaced"
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-10-13T21:19:33.748Z",
+  "lastAutomationRun": "2025-10-13T21:34:03.707Z",
   "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
