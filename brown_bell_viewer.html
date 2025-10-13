@@ -521,6 +521,27 @@
             margin-bottom: 10px;
         }
 
+        /* ADD THESE NEW STYLES */
+        #activeSubsList {
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .active-subs h3 {
+            color: #856404;
+            margin: 0;
+            /* Changed from margin-bottom: 10px */
+        }
+
+        .active-subs>div:first-child:hover {
+            background: rgba(255, 215, 0, 0.1);
+            border-radius: 6px;
+            padding: 5px;
+            margin: -5px;
+        }
+
+        /* END OF NEW STYLES */
+
         .sub-item {
             background: white;
             padding: 10px;
@@ -832,7 +853,6 @@
             );
 
             const subsCard = document.getElementById('activeSubs');
-            const subsList = document.getElementById('activeSubsList');
 
             if (activeSubs.length === 0) {
                 subsCard.style.display = 'none';
@@ -840,9 +860,26 @@
             }
 
             subsCard.style.display = 'block';
-            subsList.innerHTML = '';
 
+            // ADD THIS SECTION - Create collapsible header with summary
             const awardLabel = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+            const subCount = activeSubs.length;
+            const summary = activeSubs.map(s => `${s.teamName}: ${s.substituteName}`).join(', ');
+            const shortSummary = summary.length > 60 ? summary.substring(0, 60) + '...' : summary;
+
+            subsCard.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleSubsList()">
+        <div>
+            <h3 style="margin: 0;">Active Substitutions (${subCount})</h3>
+            <small id="subsSummary" style="color: #666;">${shortSummary}</small>
+        </div>
+        <span id="subsToggle" style="font-size: 1.2em; user-select: none;">▼</span>
+    </div>
+    <div id="activeSubsList" style="display: none; margin-top: 10px;"></div>
+`;
+            // END OF ADDED SECTION
+
+            const subsList = document.getElementById('activeSubsList'); // RE-GET the element
 
             activeSubs.forEach(sub => {
                 const div = document.createElement('div');
@@ -861,6 +898,22 @@
         `;
                 subsList.appendChild(div);
             });
+        }
+
+        function toggleSubsList() {
+            const subsList = document.getElementById('activeSubsList');
+            const toggle = document.getElementById('subsToggle');
+            const summary = document.getElementById('subsSummary');
+
+            if (subsList.style.display === 'none') {
+                subsList.style.display = 'block';
+                toggle.textContent = '▲';
+                summary.style.display = 'none';
+            } else {
+                subsList.style.display = 'none';
+                toggle.textContent = '▼';
+                summary.style.display = 'block';
+            }
         }
 
         function showView(view) {

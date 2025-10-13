@@ -29,7 +29,7 @@ class BrownBellAutomator {
 
         // Manager changes - track when ownership transferred
         this.managerChanges = {
-            'NewManagerUsername': {  // Replace with actual Sleeper username
+            'Dcastro90': {  // Replace with actual Sleeper username
                 previousManager: 'tigollbiddiez',
                 changeWeek: 6,
                 reason: 'Manager Replaced'
