@@ -26,6 +26,14 @@ class BrownBellAutomator {
 
         ];
 
+        // Teams that left the league - show historical data only
+        this.inactiveTeams = {
+            'tigollbiddiez': {
+                lastActiveWeek: 5,
+                reason: 'Left League'
+            }
+        };
+
         // Known duos from your tracker
         this.knownDuos = {
             main: {
@@ -1002,10 +1010,25 @@ class BrownBellAutomator {
                     this.leagueData.userMap[r.owner_id] === teamName
                 );
 
-                if (!roster) continue;
+                // ADD THIS ENTIRE SECTION - CHECK FOR INACTIVE TEAMS
+                const inactiveTeam = this.inactiveTeams[teamName];
+                const teamLastWeek = inactiveTeam ? inactiveTeam.lastActiveWeek : currentWeek;
 
-                // Get scores for each week up to current
-                for (let week = 1; week <= currentWeek; week++) {
+                if (inactiveTeam) {
+                    console.log(`⚠️ Team ${teamName} is inactive after Week ${inactiveTeam.lastActiveWeek} - ${inactiveTeam.reason}`);
+                }
+
+                if (!roster) {
+                    console.warn(`⚠️ No roster found for ${teamName} - using historical data only`);
+                    // For inactive teams, still process historical scores
+                    if (!inactiveTeam) {
+                        continue; // Skip if no roster and not a known inactive team
+                    }
+                }
+                // END OF ADDED SECTION
+
+                // Get scores for each week up to current OR last active week
+                for (let week = 1; week <= Math.min(currentWeek, teamLastWeek); week++) {  // MODIFIED THIS LINE
                     const weekScores = await this.getWeeklyScores(week);
                     scores[awardType][teamName][week] = {};
 
@@ -1306,6 +1329,7 @@ class BrownBellAutomator {
             scores: allScores.main,
             nextUpScores: allScores.nextup,
             substitutions: [...cleanedSubstitutions, ...newSubstitutions],
+            inactiveTeams: this.inactiveTeams,  // ADD THIS LINE
             sleeperLeagueId: this.leagueId,
             lastAutomationRun: new Date().toISOString(),
             lastCheckpointType: checkpointType || 'ROUTINE_UPDATE',

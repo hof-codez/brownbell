@@ -344,6 +344,20 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
         }
 
+        .inactive-badge {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .inactive-team {
+            opacity: 0.6;
+        }
+
         .season-overview-table {
             width: 100%;
             border-collapse: collapse;
@@ -915,21 +929,28 @@
                 else if (rank === 2) rankClass = 'rank-silver';
                 else if (rank === 3) rankClass = 'rank-bronze';
 
+                // ADD THIS CHECK
+                const teamName = score.team.name;
+                const isInactive = appData.inactiveTeams && appData.inactiveTeams[teamName];
+                const inactiveBadge = (isInactive && week > isInactive.lastActiveWeek)
+                    ? `<span class="inactive-badge">REMOVED</span>`
+                    : '';
+                const rowClass = (isInactive && week > isInactive.lastActiveWeek) ? 'inactive-team' : '';
+
                 const p1Display = getPlayerDisplayName(score.team, 0, week);
                 const p2Display = getPlayerDisplayName(score.team, 1, week);
                 const p1ByeBadge = getByeBadge(score.team, 0, week, p1Display);
                 const p2ByeBadge = getByeBadge(score.team, 1, week, p2Display);
 
-                // Check if original players are on bye (for score styling)
                 const p1OnBye = isPlayerOnBye(score.team.players[0].name, week);
                 const p2OnBye = isPlayerOnBye(score.team.players[1].name, week);
 
                 const p1ScoreStyle = p1OnBye ? 'style="color: #dc3545; text-decoration: line-through;"' : '';
                 const p2ScoreStyle = p2OnBye ? 'style="color: #dc3545; text-decoration: line-through;"' : '';
 
-                html += `<tr class="${rankClass}">`;
+                html += `<tr class="${rankClass} ${rowClass}">`;  // MODIFIED
                 html += `<td><strong>${rank}</strong></td>`;
-                html += `<td><strong>${score.team.name}</strong></td>`;
+                html += `<td><strong>${score.team.name}</strong>${inactiveBadge}</td>`;  // MODIFIED
                 html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 0, week, p1Display)}${p1ByeBadge}<br><small ${p1ScoreStyle}>${score.p1Score.toFixed(1)} pts</small></td>`;
                 html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 1, week, p2Display)}${p2ByeBadge}<br><small ${p2ScoreStyle}>${score.p2Score.toFixed(1)} pts</small></td>`;
                 html += `<td><strong>${score.total.toFixed(1)}</strong></td>`;
@@ -992,17 +1013,31 @@
 
                 const teamRowClass = `team-row-${((idx % 12) + 1)}`;
 
+                // ADD THIS ENTIRE SECTION - CHECK FOR INACTIVE TEAMS
+                const teamName = data.team.name;
+                const isInactive = appData.inactiveTeams && appData.inactiveTeams[teamName];
+                const lastActiveWeek = isInactive ? isInactive.lastActiveWeek : 18;
+                const inactiveBadge = isInactive ? `<span class="inactive-badge">REMOVED W${lastActiveWeek + 1}</span>` : '';
+                // END OF ADDED SECTION
+
                 html += `<tr class="${rankClass} ${teamRowClass}">`;
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
-                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong></td>`;
+                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong>${inactiveBadge}</td>`;  // MODIFIED - ADDED inactiveBadge
 
                 // Player 1 scores
                 for (let w = 1; w <= 18; w++) {
                     const score = data.weeklyTotals[w - 1].p1;
                     const player1Name = data.team.players[0].name;
                     const isBye = isPlayerOnBye(player1Name, w);
-                    const displayScore = isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-');
-                    const cellClass = isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '';
+
+                    // ADD THIS CHECK FOR INACTIVE TEAMS
+                    const afterRemoval = isInactive && w > lastActiveWeek;
+                    const displayScore = afterRemoval ? 'X' : (isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-'));
+                    const cellClass = afterRemoval
+                        ? 'style="background-color: #e9ecef; font-weight: bold; color: #dc3545;"'
+                        : (isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '');
+                    // END OF ADDED CHECK
+
                     html += `<td class="player-cell" ${cellClass}>${displayScore}</td>`;
                 }
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${data.seasonTotal.toFixed(1)}</strong></td>`;
@@ -1014,8 +1049,15 @@
                     const score = data.weeklyTotals[w - 1].p2;
                     const player2Name = data.team.players[1].name;
                     const isBye = isPlayerOnBye(player2Name, w);
-                    const displayScore = isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-');
-                    const cellClass = isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '';
+
+                    // ADD THIS CHECK FOR INACTIVE TEAMS (SAME AS PLAYER 1)
+                    const afterRemoval = isInactive && w > lastActiveWeek;
+                    const displayScore = afterRemoval ? 'X' : (isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-'));
+                    const cellClass = afterRemoval
+                        ? 'style="background-color: #e9ecef; font-weight: bold; color: #dc3545;"'
+                        : (isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '');
+                    // END OF ADDED CHECK
+
                     html += `<td class="player-cell" ${cellClass}>${displayScore}</td>`;
                 }
                 html += '</tr>';
