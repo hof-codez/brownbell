@@ -4,39 +4,36 @@ const https = require('https');
 
 class BrownBellAutomator {
     constructor(leagueId) {
-    this.leagueId = leagueId;
-    this.playersData = null;
-    this.leagueData = null;
+        this.leagueId = leagueId;
+        this.playersData = null;
+        this.leagueData = null;
 
-    // NFL 2025 Bye Weeks by team (CORRECT 2025 SCHEDULE)
-    this.byeWeeks = {
-        5: ['ATL', 'CHI', 'GB', 'PIT'],  // Week 5
-        6: ['HOU', 'MIN'],  // Week 6
-        7: ['BAL', 'BUF'],  // Week 7
-        8: ['ARI', 'DET', 'JAX', 'LV', 'LAR', 'SEA'],  // Week 8
-        9: ['CLE', 'NYJ', 'PHI', 'TB'],  // Week 9
-        10: ['CIN', 'DAL', 'KC', 'TEN'],  // Week 10
-        11: ['IND', 'NO'],  // Week 11
-        12: ['DEN', 'LAC', 'MIA', 'WAS'],  // Week 12
-        14: ['CAR', 'NE', 'NYG', 'SF']  // Week 14
-    };
+        // NFL 2025 Bye Weeks by team (CORRECT 2025 SCHEDULE)
+        this.byeWeeks = {
+            5: ['ATL', 'CHI', 'GB', 'PIT'],
+            6: ['HOU', 'MIN'],
+            7: ['BAL', 'BUF'],
+            8: ['ARI', 'DET', 'JAX', 'LV', 'LAR', 'SEA'],
+            9: ['CLE', 'NYJ', 'PHI', 'TB'],
+            10: ['CIN', 'DAL', 'KC', 'TEN'],
+            11: ['IND', 'NO'],
+            12: ['DEN', 'LAC', 'MIA', 'WAS'],
+            14: ['CAR', 'NE', 'NYG', 'SF']
+        };
 
-    // Exclusion list: prevent auto-substitutions for specific scenarios
-    this.substitutionExclusions = [
+        // Exclusion list: prevent auto-substitutions for specific scenarios
+        this.substitutionExclusions = [];
 
-    ];
+        // Teams that left the league - show historical data only
+        this.inactiveTeams = {
+            'tigollbiddiez': {
+                lastActiveWeek: 5,
+                reason: 'Left League'
+            }
+        };
 
-    // Teams that left the league - show historical data only
-    this.inactiveTeams = {
-        'tigollbiddiez': {
-            lastActiveWeek: 5,
-            reason: 'Left League'
-        }
-    };
-
-    // Known duos from your tracker
-    this.knownDuos = {
-        // ... rest of your teams
+        // Known duos from your tracker
+        this.knownDuos = {
             main: {
                 'Un14wfulBandit': [
                     { name: 'Josh Allen', position: 'QB' },
@@ -114,7 +111,7 @@ class BrownBellAutomator {
                 ],
                 'Kenyatta93': [
                     { name: 'Kaleb Johnson', position: 'RB', experience: 'rookie' },
-                    { name: 'DeVaughn Vele', position: 'WR', experience: 'second_year' }  // Note the capital V
+                    { name: 'DeVaughn Vele', position: 'WR', experience: 'second_year' }
                 ],
                 'FelixR08': [
                     { name: 'Elic Ayomanor', position: 'WR', experience: 'rookie' },
