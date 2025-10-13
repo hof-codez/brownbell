@@ -986,11 +986,12 @@ class BrownBellAutomator {
         const currentWeek = await this.getCurrentWeek();
         const scores = { main: {}, nextup: {} };
 
-        // Load existing substitutions
+        // Load existing data and substitutions
         let existingSubstitutions = [];
+        let existingData = { scores: {}, nextUpScores: {}, substitutions: [] };  // ADD THIS LINE
         try {
             if (require('fs').existsSync('brown-bell-data.json')) {
-                const existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
+                existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));  // MODIFIED
                 existingSubstitutions = existingData.substitutions || [];
             }
         } catch (error) {
