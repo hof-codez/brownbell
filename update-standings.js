@@ -1303,7 +1303,7 @@ class BrownBellAutomator {
                 name: teamName,
                 players: duo.map(player => ({
                     ...player,
-                    sleeperId: this.findPlayerInRoster(player, roster)
+                    sleeperId: roster ? this.findPlayerInRoster(player, roster) : null
                 })),
                 sleeper_roster_id: roster ? roster.roster_id : null
             });
@@ -1319,12 +1319,11 @@ class BrownBellAutomator {
                 name: `${teamName} (Next Up)`,
                 players: duo.map(player => ({
                     ...player,
-                    sleeperId: this.findPlayerInRoster(player, roster)
+                    sleeperId: roster ? this.findPlayerInRoster(player, roster) : null
                 })),
                 sleeper_roster_id: roster ? roster.roster_id : null
             });
         });
-
         const updatedData = {
             version: '2.0',
             timestamp: new Date().toISOString(),
