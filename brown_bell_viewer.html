@@ -921,11 +921,26 @@
             const byeTeams = byeWeeks[week] || [];
             if (byeTeams.length > 0) {
                 html += `<div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em; border-left: 4px solid #6c757d;">
-                    <strong>ℹ️ Bye Week Notice:</strong> 
-                    <span class="bye-badge">BYE</span> = Player on bye week. 
-                    <span class="bye-sub-badge">BYE-SUB</span> = Substitute played but points don't count (original player on bye).
-                </div>`;
+        <strong>ℹ️ Bye Week Notice:</strong> 
+        <span class="bye-badge">BYE</span> = Player on bye week. 
+        <span class="bye-sub-badge">BYE-SUB</span> = Substitute played but points don't count (original player on bye).
+    </div>`;
             }
+
+            // ADD THIS ENTIRE SECTION - Manager change history notice
+            if (appData.managerChanges) {
+                Object.entries(appData.managerChanges).forEach(([teamName, change]) => {
+                    const showingHistoricalWeek = week < change.changeWeek;
+                    if (showingHistoricalWeek) {
+                        html += `<div style="background: #e7f3ff; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em; border-left: 4px solid #17a2b8;">
+                <strong>ℹ️ Manager History:</strong> 
+                Week ${week} was managed by <strong>${change.previousManager}</strong>. 
+                <strong>${teamName}</strong> took over Week ${change.changeWeek}.
+            </div>`;
+                    }
+                });
+            }
+            // END OF ADDED SECTION
 
             html += '<table class="standings-table">';
             html += '<thead><tr>';
@@ -1036,31 +1051,50 @@
 
                 const inactiveBadge = isInactive ? `<span class="inactive-badge">REMOVED W${lastActiveWeek + 1}</span>` : '';
                 const managerChangeBadge = managerChange ? `<span class="manager-change-badge">NEW MGR W${managerChange.changeWeek}</span>` : '';
+
+                // ADD THIS SECTION - Build team display with manager history
+                let teamDisplay = `<strong>${data.team.name}</strong>`;
+                if (managerChange) {
+                    teamDisplay += `<br><small style="color: #666; font-weight: normal;">
+        (${managerChange.previousManager} W1-${managerChange.changeWeek - 1})
+    </small>`;
+                }
                 // END OF ADDED SECTION
 
                 html += `<tr class="${rankClass} ${teamRowClass}">`;
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
-                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;"><strong>${data.team.name}</strong>${inactiveBadge}${managerChangeBadge}</td>`;
+                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;">${teamDisplay}${inactiveBadge}${managerChangeBadge}</td>`;  // CHANGED THIS LINE
 
+                // Player 1 scores
                 // Player 1 scores
                 for (let w = 1; w <= 18; w++) {
                     const score = data.weeklyTotals[w - 1].p1;
                     const player1Name = data.team.players[0].name;
                     const isBye = isPlayerOnBye(player1Name, w);
 
-                    // ADD THIS CHECK FOR INACTIVE TEAMS
                     const afterRemoval = isInactive && w > lastActiveWeek;
-                    const displayScore = afterRemoval ? 'X' : (isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-'));
-                    const cellClass = afterRemoval
-                        ? 'style="background-color: #e9ecef; font-weight: bold; color: #dc3545;"'
-                        : (isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '');
-                    // END OF ADDED CHECK
+                    const underPreviousManager = managerChange && w < managerChange.changeWeek;  // ADD THIS LINE
 
-                    html += `<td class="player-cell" ${cellClass}>${displayScore}</td>`;
+                    const displayScore = afterRemoval ? 'X' : (isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-'));
+
+                    // REPLACE THE cellClass SECTION WITH THIS:
+                    let cellClass = '';
+                    if (afterRemoval) {
+                        cellClass = 'style="background-color: #e9ecef; font-weight: bold; color: #dc3545;"';
+                    } else if (isBye) {
+                        cellClass = 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"';
+                    } else if (underPreviousManager && score > 0) {
+                        cellClass = 'style="background-color: #e7f3ff; border-left: 2px solid #17a2b8;"';
+                    }
+
+                    const tooltip = underPreviousManager ? `title="Managed by ${managerChange.previousManager}"` : '';  // ADD THIS LINE
+
+                    html += `<td class="player-cell" ${cellClass} ${tooltip}>${displayScore}</td>`;  // MODIFIED THIS LINE
                 }
                 html += `<td rowspan="2" style="vertical-align: middle;"><strong>${data.seasonTotal.toFixed(1)}</strong></td>`;
                 html += '</tr>';
 
+                // Player 2 scores
                 // Player 2 scores
                 html += `<tr class="${rankClass} ${teamRowClass}">`;
                 for (let w = 1; w <= 18; w++) {
@@ -1068,15 +1102,24 @@
                     const player2Name = data.team.players[1].name;
                     const isBye = isPlayerOnBye(player2Name, w);
 
-                    // ADD THIS CHECK FOR INACTIVE TEAMS (SAME AS PLAYER 1)
                     const afterRemoval = isInactive && w > lastActiveWeek;
-                    const displayScore = afterRemoval ? 'X' : (isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-'));
-                    const cellClass = afterRemoval
-                        ? 'style="background-color: #e9ecef; font-weight: bold; color: #dc3545;"'
-                        : (isBye ? 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"' : '');
-                    // END OF ADDED CHECK
+                    const underPreviousManager = managerChange && w < managerChange.changeWeek;  // ADD THIS LINE
 
-                    html += `<td class="player-cell" ${cellClass}>${displayScore}</td>`;
+                    const displayScore = afterRemoval ? 'X' : (isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-'));
+
+                    // REPLACE THE cellClass SECTION WITH THIS:
+                    let cellClass = '';
+                    if (afterRemoval) {
+                        cellClass = 'style="background-color: #e9ecef; font-weight: bold; color: #dc3545;"';
+                    } else if (isBye) {
+                        cellClass = 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"';
+                    } else if (underPreviousManager && score > 0) {
+                        cellClass = 'style="background-color: #e7f3ff; border-left: 2px solid #17a2b8;"';
+                    }
+
+                    const tooltip = underPreviousManager ? `title="Managed by ${managerChange.previousManager}"` : '';  // ADD THIS LINE
+
+                    html += `<td class="player-cell" ${cellClass} ${tooltip}>${displayScore}</td>`;  // MODIFIED THIS LINE
                 }
                 html += '</tr>';
 
