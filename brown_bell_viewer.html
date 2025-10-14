@@ -540,6 +540,65 @@
             margin: -5px;
         }
 
+        .weekly-recap {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .weekly-recap h3 {
+            color: white;
+            margin: 0;
+            font-size: 1.1em;
+        }
+
+        .recap-toggle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .recap-toggle-header:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 5px;
+            margin: -5px;
+        }
+
+        .recap-content {
+            margin-top: 15px;
+        }
+
+        .recap-stat {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .recap-stat-title {
+            font-weight: bold;
+            font-size: 0.95em;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .recap-stat-value {
+            font-size: 0.85em;
+            opacity: 0.95;
+        }
+
+        .recap-emoji {
+            font-size: 1.3em;
+        }
+
         /* END OF NEW STYLES */
 
         .sub-item {
@@ -651,6 +710,17 @@
             <div id="activeSubs" class="active-subs" style="display: none;">
                 <h3>Active Substitutions</h3>
                 <div id="activeSubsList"></div>
+            </div>
+
+            <div id="weeklyRecap" class="weekly-recap" style="display: none;">
+                <div class="recap-toggle-header" onclick="toggleRecap()">
+                    <div>
+                        <h3>📊 Weekly Recap</h3>
+                        <small id="recapSummary" style="opacity: 0.9;">Click to view stats and storylines</small>
+                    </div>
+                    <span id="recapToggle" style="font-size: 1.2em; user-select: none;">▼</span>
+                </div>
+                <div id="recapContent" class="recap-content" style="display: none;"></div>
             </div>
 
             <div class="week-selector" id="weekSelector" style="display: none;">
@@ -836,6 +906,7 @@
             updateActiveSubstitutions();
 
             if (currentView === 'weekly') {
+                updateWeeklyRecap();
                 showWeeklyStandings();
             } else {
                 showSeasonOverview();
@@ -916,6 +987,183 @@
             }
         }
 
+        function toggleRecap() {
+            const recapContent = document.getElementById('recapContent');
+            const toggle = document.getElementById('recapToggle');
+            const summary = document.getElementById('recapSummary');
+
+            if (recapContent.style.display === 'none') {
+                recapContent.style.display = 'block';
+                toggle.textContent = '▲';
+                summary.style.display = 'none';
+            } else {
+                recapContent.style.display = 'none';
+                toggle.textContent = '▼';
+                summary.style.display = 'block';
+            }
+        }
+
+        function generateWeeklyRecap(week) {
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+
+            if (week < 1) return null;
+
+            const weeklyStats = [];
+            teams.forEach(team => {
+                const teamKey = currentAward === 'main' ? team.name : team.mainTeamName;
+                const thisWeekScores = scoresData?.[teamKey]?.[week] || {};
+                const lastWeekScores = week > 1 ? (scoresData?.[teamKey]?.[week - 1] || {}) : {};
+
+                const thisWeekTotal = (thisWeekScores[0] || 0) + (thisWeekScores[1] || 0);
+                const lastWeekTotal = (lastWeekScores[0] || 0) + (lastWeekScores[1] || 0);
+                const improvement = thisWeekTotal - lastWeekTotal;
+
+                // Calculate season average up to this week
+                let seasonTotal = 0;
+                let weeksPlayed = 0;
+                for (let w = 1; w <= week; w++) {
+                    const weekScores = scoresData?.[teamKey]?.[w] || {};
+                    const weekTotal = (weekScores[0] || 0) + (weekScores[1] || 0);
+                    if (weekTotal > 0) {
+                        seasonTotal += weekTotal;
+                        weeksPlayed++;
+                    }
+                }
+                const seasonAvg = weeksPlayed > 0 ? seasonTotal / weeksPlayed : 0;
+
+                weeklyStats.push({
+                    team: team.name,
+                    thisWeekTotal,
+                    lastWeekTotal,
+                    improvement,
+                    seasonAvg,
+                    variance: thisWeekTotal - seasonAvg
+                });
+            });
+
+            // Find interesting stats
+            const topScorer = [...weeklyStats].sort((a, b) => b.thisWeekTotal - a.thisWeekTotal)[0];
+            const biggestComeback = week > 1 ? [...weeklyStats].sort((a, b) => b.improvement - a.improvement)[0] : null;
+            const biggestUnderperformer = [...weeklyStats].sort((a, b) => a.variance - b.variance)[0];
+            const closestRace = findClosestRace(weeklyStats);
+
+            return {
+                topScorer,
+                biggestComeback,
+                biggestUnderperformer,
+                closestRace
+            };
+        }
+
+        function updateWeeklyRecap() {
+            const week = selectedWeek === 'current' ? (appData.currentWeek || 1) : parseInt(selectedWeek);
+            const recapCard = document.getElementById('weeklyRecap');
+            const recapContent = document.getElementById('recapContent');
+
+            // Only show for weekly view
+            if (currentView !== 'weekly') {
+                recapCard.style.display = 'none';
+                return;
+            }
+
+            const stats = generateWeeklyRecap(week);
+
+            if (!stats || !stats.topScorer) {
+                recapCard.style.display = 'none';
+                return;
+            }
+
+            recapCard.style.display = 'block';
+
+            let html = '';
+
+            // Top Scorer
+            html += `
+        <div class="recap-stat">
+            <div class="recap-stat-title">
+                <span class="recap-emoji">🏆</span>
+                <span>Champion of the Week</span>
+            </div>
+            <div class="recap-stat-value">
+                <strong>${stats.topScorer.team}</strong> dominated with ${stats.topScorer.thisWeekTotal.toFixed(1)} points!
+            </div>
+        </div>
+    `;
+
+            // Biggest Comeback
+            if (stats.biggestComeback && stats.biggestComeback.improvement > 0) {
+                html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">📈</span>
+                    <span>Biggest Comeback</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${stats.biggestComeback.team}</strong> bounced back with a +${stats.biggestComeback.improvement.toFixed(1)} point improvement from last week!
+                </div>
+            </div>
+        `;
+            }
+
+            // Underperformer
+            if (stats.biggestUnderperformer && stats.biggestUnderperformer.variance < -10) {
+                html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">📉</span>
+                    <span>Underperformer Alert</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${stats.biggestUnderperformer.team}</strong> fell short, scoring ${Math.abs(stats.biggestUnderperformer.variance).toFixed(1)} points below their season average.
+                </div>
+            </div>
+        `;
+            }
+
+            // Closest Race
+            if (stats.closestRace && stats.closestRace.diff < 5) {
+                html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">⚔️</span>
+                    <span>Closest Battle</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${stats.closestRace.team1}</strong> (${stats.closestRace.score1.toFixed(1)}) barely edged out 
+                    <strong>${stats.closestRace.team2}</strong> (${stats.closestRace.score2.toFixed(1)}) by just ${stats.closestRace.diff.toFixed(1)} points!
+                </div>
+            </div>
+        `;
+            }
+
+            recapContent.innerHTML = html;
+        }
+
+        function findClosestRace(stats) {
+            if (stats.length < 2) return null;
+
+            const sorted = [...stats].sort((a, b) => b.thisWeekTotal - a.thisWeekTotal);
+            let closestPair = null;
+            let smallestDiff = Infinity;
+
+            for (let i = 0; i < sorted.length - 1; i++) {
+                const diff = sorted[i].thisWeekTotal - sorted[i + 1].thisWeekTotal;
+                if (diff < smallestDiff && diff > 0) {
+                    smallestDiff = diff;
+                    closestPair = {
+                        team1: sorted[i].team,
+                        score1: sorted[i].thisWeekTotal,
+                        team2: sorted[i + 1].team,
+                        score2: sorted[i + 1].thisWeekTotal,
+                        diff: diff
+                    };
+                }
+            }
+
+            return closestPair;
+        }
+
         function showView(view) {
             currentView = view;
 
@@ -925,6 +1173,7 @@
             document.getElementById('weekSelector').style.display = view === 'weekly' ? 'flex' : 'none';
 
             if (view === 'weekly') {
+                updateWeeklyRecap();
                 showWeeklyStandings();
             } else {
                 showSeasonOverview();
@@ -934,6 +1183,7 @@
         function updateWeeklyView() {
             selectedWeek = document.getElementById('weekSelect').value;
             updateActiveSubstitutions(); // Add this line
+            updateWeeklyRecap();
             showWeeklyStandings();
         }
 
