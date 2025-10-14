@@ -541,7 +541,7 @@
         }
 
         .weekly-recap {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #721c24 0%, #b8860b 100%);
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 15px;
@@ -1052,7 +1052,66 @@
                 topScorer,
                 biggestComeback,
                 biggestUnderperformer,
-                closestRace
+                closestRace,
+                substituteStats: calculateSubstituteStats(week)
+            };
+        }
+
+        function calculateSubstituteStats(week) {
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+            const substitutions = appData.substitutions || [];
+
+            // Find active substitutions for this week
+            const activeSubs = substitutions.filter(s =>
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            if (activeSubs.length === 0) return null;
+
+            const subStats = [];
+
+            activeSubs.forEach(sub => {
+                const teamKey = sub.teamName;
+                const weekScores = scoresData?.[teamKey]?.[week] || {};
+                const subScore = weekScores[sub.playerIndex] || 0;
+
+                // Calculate original player's season average (excluding this week)
+                let originalTotal = 0;
+                let originalWeeks = 0;
+                for (let w = 1; w < week; w++) {
+                    const oldWeekScores = scoresData?.[teamKey]?.[w] || {};
+                    const oldScore = oldWeekScores[sub.playerIndex] || 0;
+                    if (oldScore > 0) {
+                        originalTotal += oldScore;
+                        originalWeeks++;
+                    }
+                }
+                const originalAvg = originalWeeks > 0 ? originalTotal / originalWeeks : 0;
+
+                subStats.push({
+                    teamName: sub.teamName,
+                    substituteName: sub.substituteName,
+                    originalName: sub.originalName,
+                    score: subScore,
+                    originalAvg: originalAvg,
+                    differential: subScore - originalAvg,
+                    reason: sub.reason
+                });
+            });
+
+            // Find best and worst substitutes
+            const bestSub = [...subStats].sort((a, b) => b.score - a.score)[0];
+            const mvpSub = [...subStats].sort((a, b) => b.differential - a.differential)[0];
+            const worstSub = [...subStats].sort((a, b) => a.score - b.score)[0];
+
+            return {
+                totalSubs: subStats.length,
+                bestSub,
+                mvpSub: mvpSub && mvpSub.differential > 5 ? mvpSub : null,
+                worstSub: worstSub && worstSub.score < 5 ? worstSub : null
             };
         }
 
@@ -1124,18 +1183,89 @@
             // Closest Race
             if (stats.closestRace && stats.closestRace.diff < 5) {
                 html += `
+        <div class="recap-stat">
+            <div class="recap-stat-title">
+                <span class="recap-emoji">⚔️</span>
+                <span>Closest Battle</span>
+            </div>
+            <div class="recap-stat-value">
+                <strong>${stats.closestRace.team1}</strong> (${stats.closestRace.score1.toFixed(1)}) barely edged out 
+                <strong>${stats.closestRace.team2}</strong> (${stats.closestRace.score2.toFixed(1)}) by just ${stats.closestRace.diff.toFixed(1)} points!
+            </div>
+        </div>
+    `;
+            }
+
+            // ADD THIS ENTIRE SECTION - SUBSTITUTE STATS
+            if (stats.substituteStats) {
+                const subStats = stats.substituteStats;
+
+                // Best Substitute Performance
+                if (subStats.bestSub && subStats.bestSub.score > 10) {
+                    html += `
             <div class="recap-stat">
                 <div class="recap-stat-title">
-                    <span class="recap-emoji">⚔️</span>
-                    <span>Closest Battle</span>
+                    <span class="recap-emoji">🌟</span>
+                    <span>Substitute Superstar</span>
                 </div>
                 <div class="recap-stat-value">
-                    <strong>${stats.closestRace.team1}</strong> (${stats.closestRace.score1.toFixed(1)}) barely edged out 
-                    <strong>${stats.closestRace.team2}</strong> (${stats.closestRace.score2.toFixed(1)}) by just ${stats.closestRace.diff.toFixed(1)} points!
+                    <strong>${subStats.bestSub.substituteName}</strong> (filling in for ${subStats.bestSub.originalName}) 
+                    put up ${subStats.bestSub.score.toFixed(1)} points for <strong>${subStats.bestSub.teamName}</strong>!
                 </div>
             </div>
         `;
+                }
+
+                // MVP Substitute (outperformed original's average)
+                if (subStats.mvpSub && subStats.mvpSub.differential > 5) {
+                    html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">💎</span>
+                    <span>Diamond in the Rough</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${subStats.mvpSub.substituteName}</strong> exceeded expectations by ${subStats.mvpSub.differential.toFixed(1)} points 
+                    compared to <strong>${subStats.mvpSub.originalName}</strong>'s season average! 
+                    Great pickup by <strong>${subStats.mvpSub.teamName}</strong>!
+                </div>
+            </div>
+        `;
+                }
+
+                // Worst Substitute (bust)
+                if (subStats.worstSub && subStats.worstSub.score < 5) {
+                    html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">😬</span>
+                    <span>Substitute Struggle</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${subStats.worstSub.substituteName}</strong> had a rough outing with only ${subStats.worstSub.score.toFixed(1)} points 
+                    for <strong>${subStats.worstSub.teamName}</strong>. Better luck next week!
+                </div>
+            </div>
+        `;
+                }
+
+                // Total Substitutions Active
+                if (subStats.totalSubs > 0) {
+                    html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">🔄</span>
+                    <span>Substitution Report</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${subStats.totalSubs}</strong> ${subStats.totalSubs === 1 ? 'substitution was' : 'substitutions were'} 
+                    active this week across the league.
+                </div>
+            </div>
+        `;
+                }
             }
+            // END OF ADDED SECTION
 
             recapContent.innerHTML = html;
         }
