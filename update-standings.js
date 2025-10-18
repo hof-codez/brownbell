@@ -281,13 +281,13 @@ class BrownBellAutomator {
 
                     if (playerId) {
                         const player = this.playersData[playerId];
-                        const playerScore = weekScores[playerId] || 0;
 
-                        console.log(`📊 ${originalPlayer.name} (${teamName}): Score=${playerScore}, Status=${player.injury_status || 'none'}`);
+                        console.log(`📊 ${originalPlayer.name} (${teamName}): Score=${weekScores[playerId] !== undefined ? weekScores[playerId] : 'not played'}, Status=${player.injury_status || 'none'}`);
 
-                        // CRITICAL RULE: If player has scored points this week, they started and cannot be substituted
-                        if (playerScore > 0) {
-                            console.log(`✅ ${originalPlayer.name} scored ${playerScore} points - CANNOT substitute (started the game)`);
+                        // CRITICAL RULE: If player's game has started (exists in scores), they cannot be substituted
+                        if (weekScores[playerId] !== undefined) {
+                            const playerScore = weekScores[playerId];
+                            console.log(`✅ ${originalPlayer.name} played this week (${playerScore} pts) - CANNOT substitute (game started)`);
                             return;
                         }
 
@@ -557,15 +557,13 @@ class BrownBellAutomator {
 
             // CORRECTED: Check if THIS CANDIDATE (not the injured player) already played
             const currentWeekScores = await this.getWeeklyScores(week);
-            const candidateScore = currentWeekScores[playerId] || 0;
 
-            // Only skip if player has scored points (game has started)
-            // 0 points before game time means they haven't played yet
-            if (candidateScore > 0) {
-                console.log(`Skipping ${player.first_name} ${player.last_name} - already played this week (${candidateScore} pts)`);
+            // Check if player exists in scores (game has started), regardless of point value
+            if (currentWeekScores[playerId] !== undefined) {
+                const score = currentWeekScores[playerId];
+                console.log(`Skipping ${player.first_name} ${player.last_name} - already played this week (${score} pts)`);
                 continue;
             }
-
             const substitute = {
                 id: playerId,
                 name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
@@ -770,6 +768,22 @@ class BrownBellAutomator {
                             ? `Substitute Injured - Replacement (${injury.status})`
                             : `Injury Checkpoint (3) - ${injury.status}`;
 
+                        // NEW: If replacing a sub, end the previous substitution
+                        if (wasReplacingSub) {
+                            const previousSub = existingSubstitutions.find(s =>
+                                s.teamName === teamName &&
+                                s.playerIndex === injury.index &&
+                                s.awardType === awardType &&
+                                s.startWeek < week &&
+                                (!s.endWeek || s.endWeek >= week)
+                            );
+
+                            if (previousSub && !previousSub.endWeek) {
+                                console.log(`📅 Ending previous substitution: ${previousSub.substituteName} at Week ${week - 1}`);
+                                previousSub.endWeek = week - 1;
+                            }
+                        }
+
                         weeklySubstitutions.push({
                             teamName,
                             playerIndex: injury.index,
@@ -798,50 +812,25 @@ class BrownBellAutomator {
     }
 
     cleanupSubstitutions(substitutions, currentWeek) {
-        // Remove invalid substitutions and resolve conflicts
+        // Remove invalid substitutions
         const validSubstitutions = substitutions.filter(sub => {
             // Fix invalid date ranges
             if (sub.endWeek && sub.endWeek < sub.startWeek) {
+                console.log(`🔧 Fixing invalid date range for ${sub.substituteName}`);
                 sub.endWeek = null;
             }
 
             // Remove future substitutions
             if (sub.startWeek > currentWeek) {
+                console.log(`🗑️ Removing future substitution: ${sub.substituteName} (starts Week ${sub.startWeek})`);
                 return false;
             }
 
             return true;
         });
 
-        // Group overlapping substitutions and keep the most recent
-        const grouped = {};
-        validSubstitutions.forEach(sub => {
-            const key = `${sub.teamName}_${sub.playerIndex}_${sub.awardType}`;
-            if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(sub);
-        });
-
-        const cleaned = [];
-        Object.values(grouped).forEach(group => {
-            // Sort by start week descending
-            group.sort((a, b) => b.startWeek - a.startWeek);
-
-            // For each week, only keep one active substitution
-            const weeklyActive = {};
-            group.forEach(sub => {
-                for (let week = sub.startWeek; week <= (sub.endWeek || currentWeek); week++) {
-                    if (!weeklyActive[week] || weeklyActive[week].startWeek < sub.startWeek) {
-                        weeklyActive[week] = sub;
-                    }
-                }
-            });
-
-            // Add unique substitutions
-            const unique = [...new Set(Object.values(weeklyActive))];
-            cleaned.push(...unique);
-        });
-
-        return cleaned;
+        console.log(`✅ Validated ${validSubstitutions.length} substitutions (removed ${substitutions.length - validSubstitutions.length})`);
+        return validSubstitutions;
     }
 
     isPlayerInNextUpDuo(playerId, teamName) {
