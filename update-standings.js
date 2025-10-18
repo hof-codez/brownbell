@@ -282,12 +282,17 @@ class BrownBellAutomator {
                     if (playerId) {
                         const player = this.playersData[playerId];
 
-                        console.log(`📊 ${originalPlayer.name} (${teamName}): Score=${weekScores[playerId] !== undefined ? weekScores[playerId] : 'not played'}, Status=${player.injury_status || 'none'}`);
+                        const playerScore = weekScores[playerId];
+                        const hasScore = weekScores[playerId] !== undefined;
 
-                        // CRITICAL RULE: If player's game has started (exists in scores), they cannot be substituted
-                        if (weekScores[playerId] !== undefined) {
-                            const playerScore = weekScores[playerId];
-                            console.log(`✅ ${originalPlayer.name} played this week (${playerScore} pts) - CANNOT substitute (game started)`);
+                        console.log(`📊 ${originalPlayer.name} (${teamName}): Score=${hasScore ? playerScore : 'not played'}, Status=${player.injury_status || 'none'}`);
+
+                        // CRITICAL RULE: If player has scored points OR it's Monday/Tuesday (week is over), they cannot be substituted
+                        const dayOfWeek = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday
+                        const weekIsOver = dayOfWeek === 1 || dayOfWeek === 2;
+
+                        if (hasScore && (playerScore > 0 || weekIsOver)) {
+                            console.log(`✅ ${originalPlayer.name} ${weekIsOver ? 'finished week' : 'played'} (${playerScore} pts) - CANNOT substitute`);
                             return;
                         }
 
@@ -557,10 +562,14 @@ class BrownBellAutomator {
             // CORRECTED: Check if THIS CANDIDATE (not the injured player) already played
             const currentWeekScores = await this.getWeeklyScores(week);
 
-            // Check if player exists in scores (game has started), regardless of point value
-            if (currentWeekScores[playerId] !== undefined) {
-                const score = currentWeekScores[playerId];
-                console.log(`Skipping ${player.first_name} ${player.last_name} - already played this week (${score} pts)`);
+            // Check if player has played (scored points OR week is over)
+            const candidateScore = currentWeekScores[playerId];
+            const hasScore = candidateScore !== undefined;
+            const dayOfWeek = new Date().getDay();
+            const weekIsOver = dayOfWeek === 1 || dayOfWeek === 2;
+
+            if (hasScore && (candidateScore > 0 || weekIsOver)) {
+                console.log(`Skipping ${player.first_name} ${player.last_name} - ${weekIsOver ? 'week finished' : 'already played'} (${candidateScore} pts)`);
                 continue;
             }
             const substitute = {
