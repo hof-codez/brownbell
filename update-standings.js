@@ -7,6 +7,7 @@ class BrownBellAutomator {
         this.leagueId = leagueId;
         this.playersData = null;
         this.leagueData = null;
+        this.cachedSchedule = {};
 
         // NFL 2025 Bye Weeks by team (CORRECT 2025 SCHEDULE)
         this.byeWeeks = {
@@ -883,6 +884,211 @@ class BrownBellAutomator {
         }
 
         return !!teamByeWeek;
+    }
+
+    async hasPlayerGameStarted(playerId, week) {
+        const player = this.playersData[playerId];
+        if (!player || !player.team) return false;
+
+        const now = new Date();
+        const nflTeam = player.team;
+
+        // Try to get cached schedule first
+        if (!this.cachedSchedule || !this.cachedSchedule[week]) {
+            await this.fetchNFLSchedule(week);
+        }
+
+        // Use fetched schedule if available
+        const weekSchedule = this.cachedSchedule?.[week];
+
+        if (weekSchedule && weekSchedule[nflTeam]) {
+            const teamGame = weekSchedule[nflTeam];
+
+            // If team is on bye
+            if (teamGame.date === null) {
+                return false;
+            }
+
+            // Check if game has started
+            const gameHasStarted = now >= teamGame.date;
+
+            if (gameHasStarted) {
+                console.log(`${nflTeam} game started: ${teamGame.date.toISOString()}`);
+            }
+
+            return gameHasStarted;
+        }
+
+        // Fallback: Conservative approach if schedule fetch failed
+        console.log(`⚠️ No schedule data for ${nflTeam} Week ${week}, using fallback`);
+        const dayOfWeek = now.getDay();
+        return (dayOfWeek === 1 || dayOfWeek === 2); // Mon/Tue = week over
+    }
+
+    async fetchNFLSchedule(week) {
+        console.log(`📅 Fetching NFL schedule for Week ${week}...`);
+
+        try {
+            // Fetch the official NFL schedule page
+            const url = 'https://operations.nfl.com/gameday/nfl-schedule/2025-nfl-schedule/';
+            const html = await this.fetchHtml(url);
+
+            // Parse the schedule for the specific week
+            const weekSchedule = this.parseNFLSchedule(html, week);
+
+            // Cache it for this week
+            this.cachedSchedule = this.cachedSchedule || {};
+            this.cachedSchedule[week] = weekSchedule;
+
+            console.log(`✅ Successfully fetched schedule for Week ${week} - ${Object.keys(weekSchedule).length} teams`);
+            return weekSchedule;
+
+        } catch (error) {
+            console.warn(`⚠️ Failed to fetch NFL schedule: ${error.message}`);
+            console.log('Falling back to manual schedule data');
+            return null;
+        }
+    }
+
+    async fetchHtml(url) {
+        return new Promise((resolve, reject) => {
+            https.get(url, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => resolve(data));
+            }).on('error', reject);
+        });
+    }
+
+    parseNFLSchedule(html, targetWeek) {
+        const schedule = {};
+
+        // NFL team abbreviation mapping (consistent with Sleeper API)
+        const teamAbbreviations = {
+            'Arizona Cardinals': 'ARI', 'Atlanta Falcons': 'ATL', 'Baltimore Ravens': 'BAL',
+            'Buffalo Bills': 'BUF', 'Carolina Panthers': 'CAR', 'Chicago Bears': 'CHI',
+            'Cincinnati Bengals': 'CIN', 'Cleveland Browns': 'CLE', 'Dallas Cowboys': 'DAL',
+            'Denver Broncos': 'DEN', 'Detroit Lions': 'DET', 'Green Bay Packers': 'GB',
+            'Houston Texans': 'HOU', 'Indianapolis Colts': 'IND', 'Jacksonville Jaguars': 'JAX',
+            'Kansas City Chiefs': 'KC', 'Las Vegas Raiders': 'LV', 'Los Angeles Chargers': 'LAC',
+            'Los Angeles Rams': 'LAR', 'Miami Dolphins': 'MIA', 'Minnesota Vikings': 'MIN',
+            'New England Patriots': 'NE', 'New Orleans Saints': 'NO', 'New York Giants': 'NYG',
+            'New York Jets': 'NYJ', 'Philadelphia Eagles': 'PHI', 'Pittsburgh Steelers': 'PIT',
+            'San Francisco 49ers': 'SF', 'Seattle Seahawks': 'SEA', 'Tampa Bay Buccaneers': 'TB',
+            'Tennessee Titans': 'TEN', 'Washington Commanders': 'WAS'
+        };
+
+        // Look for "WEEK X" section
+        const weekPattern = new RegExp(`WEEK ${targetWeek}[\\s\\S]*?(?=WEEK ${targetWeek + 1}|$)`, 'i');
+        const weekSection = html.match(weekPattern);
+
+        if (!weekSection) {
+            console.warn(`Could not find Week ${targetWeek} in schedule`);
+            return schedule;
+        }
+
+        const weekHtml = weekSection[0];
+
+        // Parse game lines - look for patterns like "Team1 at Team2" or "Team1 vs Team2"
+        const gamePattern = /([A-Za-z\s]+?)\s+(?:at|vs)\s+([A-Za-z\s]+?)\s*(?:\([^)]+\))?\s*\|\s*(\d{1,2}:\d{2}[ap])\s*\(([A-Z]+)\)/g;
+
+        let match;
+        let currentDate = null;
+
+        // Track day of week for each game
+        const dayPattern = /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+([A-Za-z]+)\.\s+(\d{1,2}),\s+(\d{4})/;
+        const dateMatches = weekHtml.match(new RegExp(dayPattern, 'g'));
+
+        while ((match = gamePattern.exec(weekHtml)) !== null) {
+            const team1Full = match[1].trim();
+            const team2Full = match[2].trim();
+            const timeStr = match[3]; // e.g., "8:15p"
+            const timezone = match[4]; // e.g., "ET"
+
+            // Convert team names to abbreviations
+            const team1 = teamAbbreviations[team1Full];
+            const team2 = teamAbbreviations[team2Full];
+
+            if (!team1 || !team2) {
+                console.warn(`Unknown team: ${team1Full} or ${team2Full}`);
+                continue;
+            }
+
+            // Parse time and convert to UTC
+            const gameTime = this.convertGameTimeToUTC(timeStr, timezone, weekHtml);
+
+            if (gameTime) {
+                schedule[team1] = { date: gameTime };
+                schedule[team2] = { date: gameTime };
+            }
+        }
+
+        // Handle bye weeks - teams listed in "BYES:" section
+        const byePattern = /BYES:\s*([^WEEK]+)/i;
+        const byeMatch = weekHtml.match(byePattern);
+        if (byeMatch) {
+            const byeTeamsText = byeMatch[1];
+            Object.entries(teamAbbreviations).forEach(([fullName, abbr]) => {
+                if (byeTeamsText.includes(fullName)) {
+                    schedule[abbr] = { date: null }; // null = bye week
+                    console.log(`${abbr} on bye Week ${targetWeek}`);
+                }
+            });
+        }
+
+        return schedule;
+    }
+
+    convertGameTimeToUTC(timeStr, timezone, weekHtml) {
+        // Extract date from the week section (look for date pattern before the game)
+        const datePattern = /([A-Za-z]+),\s+([A-Za-z]+)\.\s+(\d{1,2}),\s+(\d{4})/;
+        const dateMatch = weekHtml.match(datePattern);
+
+        if (!dateMatch) return null;
+
+        const month = dateMatch[2]; // e.g., "Sept", "Oct"
+        const day = parseInt(dateMatch[3]);
+        const year = parseInt(dateMatch[4]);
+
+        // Parse time (e.g., "8:15p" -> 20:15)
+        const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})([ap])/);
+        if (!timeMatch) return null;
+
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const period = timeMatch[3];
+
+        // Convert to 24-hour format
+        if (period === 'p' && hours !== 12) hours += 12;
+        if (period === 'a' && hours === 12) hours = 0;
+
+        // Convert timezone offset to UTC
+        const timezoneOffsets = {
+            'ET': -5,  // Eastern Time (during standard time)
+            'CT': -6,  // Central Time
+            'MT': -7,  // Mountain Time
+            'PT': -8,  // Pacific Time
+            'BRT': -3, // Brazil Time
+            'BST': +1, // British Summer Time
+            'IST': +1, // Irish Standard Time
+            'CET': +1  // Central European Time
+        };
+
+        const offset = timezoneOffsets[timezone] || 0;
+        const utcHours = hours - offset;
+
+        // Month conversion
+        const monthMap = {
+            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+            'Jul': 6, 'Aug': 7, 'Sep': 8, 'Sept': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+        };
+
+        const monthNum = monthMap[month] || 0;
+
+        // Create UTC date
+        const gameDate = new Date(Date.UTC(year, monthNum, day, utcHours, minutes, 0));
+
+        return gameDate;
     }
 
     async checkGameTimeInjuries() {
