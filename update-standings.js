@@ -388,7 +388,7 @@ class BrownBellAutomator {
             }
         }
 
-        // Summary log
+        // Summary log 1
         if (injuredSubs.length > 0) {
             const mainCount = injuredSubs.filter(s => s.awardType === 'main').length;
             const nextUpCount = injuredSubs.filter(s => s.awardType === 'nextup').length;
