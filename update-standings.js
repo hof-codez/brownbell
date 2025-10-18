@@ -359,11 +359,10 @@ class BrownBellAutomator {
                 continue;
             }
 
-            const playerScore = weekScores[playerId] || 0;
-
-            // CHECK 2: If substitute scored points, they played and are locked in
-            if (playerScore > 0) {
-                console.log(`✅ Substitute ${sub.substituteName} scored ${playerScore} points - healthy (${sub.teamName} - ${awardLabel})`);
+            // CHECK 2: If substitute's game has started (exists in scores), they are locked in
+            if (weekScores[playerId] !== undefined) {
+                const playerScore = weekScores[playerId];
+                console.log(`✅ Substitute ${sub.substituteName} played this week (${playerScore} pts) - locked in (${sub.teamName} - ${awardLabel})`);
                 continue;
             }
 
@@ -1204,31 +1203,6 @@ class BrownBellAutomator {
         };
 
         return substituteMap[playerName] || 'unknown';
-    }
-
-    getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions) {
-        const originalDuo = this.knownDuos.nextup[teamName];
-        if (!originalDuo) return 'unknown';
-
-        // Check for active substitution
-        const activeSub = existingSubstitutions.find(sub =>
-            sub.teamName === teamName &&
-            sub.playerIndex === playerIndex &&
-            sub.awardType === 'nextup' &&
-            sub.startWeek <= week &&
-            (!sub.endWeek || sub.endWeek >= week)
-        );
-
-        if (activeSub) {
-            // Map substitute to experience level
-            // Ollie Gordon = rookie, J.J. McCarthy = sophomore, etc.
-            const substituteExperience = this.getSubstituteExperience(activeSub.substituteName);
-            console.log(`Substitute ${activeSub.substituteName} experience: ${substituteExperience}`);
-            return substituteExperience;
-        } else {
-            // Use original player's experience
-            return originalDuo[playerIndex].experience;
-        }
     }
 
     getSubstituteExperience(playerName) {
