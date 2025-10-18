@@ -328,7 +328,7 @@ class BrownBellAutomator {
     }
 
     async detectSubstituteInjuries(week, existingSubstitutions) {
-        console.log('🔍 Checking if active substitutes are injured...');
+        console.log('🔍 Checking if active substitutes are injured or dropped from roster...');
 
         const weekScores = await this.getWeeklyScores(week);
         const injuredSubs = [];
@@ -339,38 +339,62 @@ class BrownBellAutomator {
                 continue;
             }
 
+            const awardLabel = sub.awardType === 'main' ? 'Main Award' : 'Next Up Award';
             const playerId = sub.substitutePlayerId;
             const player = this.playersData[playerId];
 
-            if (!player) continue;
-
-            const playerScore = weekScores[playerId] || 0;
-
-            // If substitute scored points, they played and are fine
-            if (playerScore > 0) {
-                console.log(`✅ Substitute ${sub.substituteName} scored ${playerScore} points - healthy`);
+            if (!player) {
+                console.log(`⚠️ Player data not found for ${sub.substituteName} (${sub.teamName} - ${awardLabel})`);
                 continue;
             }
 
-            // Check injury status
+            // CHECK 1: Verify substitute is still on roster
+            const roster = this.leagueData.rosters.find(r =>
+                this.leagueData.userMap[r.owner_id] === sub.teamName
+            );
+
+            if (roster && !roster.players.includes(playerId)) {
+                console.log(`🚨 SUBSTITUTE DROPPED FROM ROSTER: ${sub.substituteName} for ${sub.teamName} (${awardLabel})`);
+                injuredSubs.push(sub);
+                continue;
+            }
+
+            const playerScore = weekScores[playerId] || 0;
+
+            // CHECK 2: If substitute scored points, they played and are locked in
+            if (playerScore > 0) {
+                console.log(`✅ Substitute ${sub.substituteName} scored ${playerScore} points - healthy (${sub.teamName} - ${awardLabel})`);
+                continue;
+            }
+
+            // CHECK 3: Check injury status
             let isInjured = false;
             if (player.injury_status) {
                 const status = player.injury_status.toLowerCase();
                 if (['out', 'doubtful', 'ir', 'pup'].includes(status)) {
                     isInjured = true;
-                    console.log(`🚨 SUBSTITUTE INJURED: ${sub.substituteName} (${status}) for ${sub.teamName}`);
+                    console.log(`🚨 SUBSTITUTE INJURED: ${sub.substituteName} (${status}) for ${sub.teamName} (${awardLabel})`);
                 }
             }
 
-            // Check if on bye
+            // CHECK 4: Check if on bye
             if (this.isPlayerOnBye(playerId, week)) {
                 isInjured = true;
-                console.log(`🚨 SUBSTITUTE ON BYE: ${sub.substituteName} for ${sub.teamName}`);
+                console.log(`🚨 SUBSTITUTE ON BYE: ${sub.substituteName} for ${sub.teamName} (${awardLabel})`);
             }
 
             if (isInjured) {
                 injuredSubs.push(sub);
             }
+        }
+
+        // Summary log
+        if (injuredSubs.length > 0) {
+            const mainCount = injuredSubs.filter(s => s.awardType === 'main').length;
+            const nextUpCount = injuredSubs.filter(s => s.awardType === 'nextup').length;
+            console.log(`📋 SUBSTITUTE REPLACEMENT SUMMARY: ${mainCount} Main Award, ${nextUpCount} Next Up Award subs need replacement`);
+        } else {
+            console.log(`✅ All active substitutes are healthy and on roster`);
         }
 
         return injuredSubs;
@@ -623,14 +647,36 @@ class BrownBellAutomator {
             return null;
         }
 
-        // Sort by total score and randomly select from top 5
+        // Sort by total score and select from top 4 using weighted random
         eligibleSubs.sort((a, b) => b.score - a.score);
-        const topPerformers = eligibleSubs.slice(0, Math.min(5, eligibleSubs.length));
-        const randomIndex = Math.floor(Math.random() * topPerformers.length);
-        const selectedSub = topPerformers[randomIndex];
+        const topPerformers = eligibleSubs.slice(0, Math.min(4, eligibleSubs.length));
+
+        // Weighted random selection: #1=40%, #2=30%, #3=20%, #4=10%
+        const weights = [0.40, 0.30, 0.20, 0.10];
+        const availableWeights = weights.slice(0, topPerformers.length);
+        const totalWeight = availableWeights.reduce((sum, w) => sum + w, 0);
+
+        // Normalize weights if fewer than 4 players
+        const normalizedWeights = availableWeights.map(w => w / totalWeight);
+
+        // Generate random selection based on weights
+        const random = Math.random();
+        let cumulativeWeight = 0;
+        let selectedIndex = 0;
+
+        for (let i = 0; i < normalizedWeights.length; i++) {
+            cumulativeWeight += normalizedWeights[i];
+            if (random <= cumulativeWeight) {
+                selectedIndex = i;
+                break;
+            }
+        }
+
+        const selectedSub = topPerformers[selectedIndex];
+        const rankText = ['1st', '2nd', '3rd', '4th'][selectedIndex];
 
         const experienceNote = awardType === 'nextup' ? ` (${selectedSub.yearsExp <= 0 ? 'rookie' : 'sophomore'})` : '';
-        console.log(`Selected ${selectedSub.name}${experienceNote} (${selectedSub.score.toFixed(1)} pts over 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
+        console.log(`Selected ${selectedSub.name}${experienceNote} (${rankText} best: ${selectedSub.score.toFixed(1)} pts over 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
 
         return selectedSub;
     }
