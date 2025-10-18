@@ -277,24 +277,23 @@ class BrownBellAutomator {
 
                 const teamInjuries = [];
 
-                originalDuo.forEach((originalPlayer, index) => {
+                // CHANGED: forEach → for loop to allow await
+                for (let index = 0; index < originalDuo.length; index++) {
+                    const originalPlayer = originalDuo[index];
                     const playerId = this.findPlayerInRoster(originalPlayer, roster);
 
                     if (playerId) {
                         const player = this.playersData[playerId];
 
-                        const playerScore = weekScores[playerId];
-                        const hasScore = weekScores[playerId] !== undefined;
+                        const playerScore = weekScores[playerId] || 0;
+                        const gameStarted = await this.hasPlayerGameStarted(playerId, week);
 
-                        console.log(`📊 ${originalPlayer.name} (${teamName}): Score=${hasScore ? playerScore : 'not played'}, Status=${player.injury_status || 'none'}`);
+                        console.log(`📊 ${originalPlayer.name} (${teamName}): Score=${playerScore}, Status=${player.injury_status || 'none'}, Game Started=${gameStarted}`);
 
-                        // CRITICAL RULE: If player has scored points OR it's Monday/Tuesday (week is over), they cannot be substituted
-                        const dayOfWeek = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday
-                        const weekIsOver = dayOfWeek === 1 || dayOfWeek === 2;
-
-                        if (hasScore && (playerScore > 0 || weekIsOver)) {
-                            console.log(`✅ ${originalPlayer.name} ${weekIsOver ? 'finished week' : 'played'} (${playerScore} pts) - CANNOT substitute`);
-                            return;
+                        // CRITICAL RULE: Only lock if player scored points OR their game has started
+                        if (playerScore > 0 || gameStarted) {
+                            console.log(`✅ ${originalPlayer.name} ${gameStarted ? 'game started' : 'scored points'} (${playerScore} pts) - CANNOT substitute`);
+                            continue; // CHANGED: return → continue (to skip to next player)
                         }
 
                         // ... rest of existing injury detection logic
@@ -322,7 +321,7 @@ class BrownBellAutomator {
                             });
                         }
                     }
-                });
+                }
 
                 if (teamInjuries.length > 0) {
                     injuries[awardType][teamName] = teamInjuries;
@@ -365,10 +364,12 @@ class BrownBellAutomator {
                 continue;
             }
 
-            // CHECK 2: If substitute's game has started (exists in scores), they are locked in
-            if (weekScores[playerId] !== undefined) {
-                const playerScore = weekScores[playerId];
-                console.log(`✅ Substitute ${sub.substituteName} played this week (${playerScore} pts) - locked in (${sub.teamName} - ${awardLabel})`);
+            // CHECK 2: If substitute's game has started, they are locked in
+            const gameStarted = await this.hasPlayerGameStarted(playerId, week);
+            const playerScore = weekScores[playerId] || 0;
+
+            if (playerScore > 0 || gameStarted) {
+                console.log(`✅ Substitute ${sub.substituteName} ${gameStarted ? 'game started' : 'scored points'} (${playerScore} pts) - locked in (${sub.teamName} - ${awardLabel})`);
                 continue;
             }
 
@@ -563,16 +564,15 @@ class BrownBellAutomator {
             // CORRECTED: Check if THIS CANDIDATE (not the injured player) already played
             const currentWeekScores = await this.getWeeklyScores(week);
 
-            // Check if player has played (scored points OR week is over)
-            const candidateScore = currentWeekScores[playerId];
-            const hasScore = candidateScore !== undefined;
-            const dayOfWeek = new Date().getDay();
-            const weekIsOver = dayOfWeek === 1 || dayOfWeek === 2;
+            // Check if player has played (scored points OR game has started)
+            const candidateScore = currentWeekScores[playerId] || 0;
+            const gameStarted = await this.hasPlayerGameStarted(playerId, week);
 
-            if (hasScore && (candidateScore > 0 || weekIsOver)) {
-                console.log(`Skipping ${player.first_name} ${player.last_name} - ${weekIsOver ? 'week finished' : 'already played'} (${candidateScore} pts)`);
+            if (candidateScore > 0 || gameStarted) {
+                console.log(`Skipping ${player.first_name} ${player.last_name} - ${gameStarted ? 'game started' : 'scored points'} (${candidateScore} pts)`);
                 continue;
             }
+
             const substitute = {
                 id: playerId,
                 name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
@@ -580,7 +580,6 @@ class BrownBellAutomator {
                 yearsExp: player.years_exp || 0
             };
 
-            // Next Up Award smart eligibility
             // Next Up Award smart eligibility - CHECK THIS FIRST
             if (awardType === 'nextup') {
                 const yearsExp = substitute.yearsExp || 0;
@@ -963,7 +962,9 @@ class BrownBellAutomator {
     parseNFLSchedule(html, targetWeek) {
         const schedule = {};
 
-        // NFL team abbreviation mapping (consistent with Sleeper API)
+        console.log(`Parsing schedule for Week ${targetWeek}...`);
+
+        // NFL team abbreviation mapping
         const teamAbbreviations = {
             'Arizona Cardinals': 'ARI', 'Atlanta Falcons': 'ATL', 'Baltimore Ravens': 'BAL',
             'Buffalo Bills': 'BUF', 'Carolina Panthers': 'CAR', 'Chicago Bears': 'CHI',
@@ -978,117 +979,178 @@ class BrownBellAutomator {
             'Tennessee Titans': 'TEN', 'Washington Commanders': 'WAS'
         };
 
-        // Look for "WEEK X" section
-        const weekPattern = new RegExp(`WEEK ${targetWeek}[\\s\\S]*?(?=WEEK ${targetWeek + 1}|$)`, 'i');
-        const weekSection = html.match(weekPattern);
+        // Extract week section
+        const weekPattern = new RegExp(`WEEK ${targetWeek}[\\s\\S]*?(?=WEEK ${targetWeek + 1}|Week ${targetWeek + 1}|$)`, 'i');
+        const weekMatch = html.match(weekPattern);
 
-        if (!weekSection) {
-            console.warn(`Could not find Week ${targetWeek} in schedule`);
+        if (!weekMatch) {
+            console.warn(`❌ Could not find Week ${targetWeek}`);
             return schedule;
         }
 
-        const weekHtml = weekSection[0];
+        const weekSection = weekMatch[0];
 
-        // Parse game lines - look for patterns like "Team1 at Team2" or "Team1 vs Team2"
-        const gamePattern = /([A-Za-z\s]+?)\s+(?:at|vs)\s+([A-Za-z\s]+?)\s*(?:\([^)]+\))?\s*\|\s*(\d{1,2}:\d{2}[ap])\s*\(([A-Z]+)\)/g;
+        // Strip HTML tags and decode entities
+        const cleanText = weekSection
+            .replace(/<[^>]+>/g, '\n')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
 
-        let match;
         let currentDate = null;
 
-        // Track day of week for each game
-        const dayPattern = /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+([A-Za-z]+)\.\s+(\d{1,2}),\s+(\d{4})/;
-        const dateMatches = weekHtml.match(new RegExp(dayPattern, 'g'));
+        for (let i = 0; i < cleanText.length; i++) {
+            const line = cleanText[i];
 
-        while ((match = gamePattern.exec(weekHtml)) !== null) {
-            const team1Full = match[1].trim();
-            const team2Full = match[2].trim();
-            const timeStr = match[3]; // e.g., "8:15p"
-            const timezone = match[4]; // e.g., "ET"
-
-            // Convert team names to abbreviations
-            const team1 = teamAbbreviations[team1Full];
-            const team2 = teamAbbreviations[team2Full];
-
-            if (!team1 || !team2) {
-                console.warn(`Unknown team: ${team1Full} or ${team2Full}`);
+            // Check for date line
+            const dateMatch = line.match(/(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+([A-Za-z]+)\.\s+(\d{1,2}),\s+(\d{4})/);
+            if (dateMatch) {
+                currentDate = {
+                    day: dateMatch[1],
+                    month: dateMatch[2],
+                    dayNum: parseInt(dateMatch[3]),
+                    year: parseInt(dateMatch[4])
+                };
                 continue;
             }
 
-            // Parse time and convert to UTC
-            const gameTime = this.convertGameTimeToUTC(timeStr, timezone, weekHtml);
+            // Check for team matchup (include digits for teams like "49ers")
+            const gameMatch = line.match(/^([A-Za-z\d\s]+?)\s+(?:at|vs)\s+([A-Za-z\d\s]+?)(?:\s*\(([^)]+)\))?$/);
+            if (gameMatch && currentDate) {
+                const team1Full = gameMatch[1].trim();
+                const team2Full = gameMatch[2].trim();
 
-            if (gameTime) {
-                schedule[team1] = { date: gameTime };
-                schedule[team2] = { date: gameTime };
+                // Look for time in next few lines
+                let timeStr = null;
+                let timezone = null;
+
+                for (let j = i + 1; j < Math.min(i + 5, cleanText.length); j++) {
+                    const timeLine = cleanText[j];
+                    const timeMatch = timeLine.match(/^(\d{1,2}:\d{2}[ap])\s*\(([A-Z]+)\)$/);
+                    if (timeMatch) {
+                        timeStr = timeMatch[1];
+                        timezone = timeMatch[2];
+                        break;
+                    }
+                }
+
+                if (timeStr && timezone) {
+                    const team1 = teamAbbreviations[team1Full];
+                    const team2 = teamAbbreviations[team2Full];
+
+                    if (team1 && team2) {
+                        const gameDate = this.convertGameTimeToUTC(
+                            timeStr,
+                            timezone,
+                            currentDate.year,
+                            currentDate.month,
+                            currentDate.dayNum
+                        );
+
+                        if (gameDate) {
+                            schedule[team1] = { date: gameDate, opponent: team2 };
+                            schedule[team2] = { date: gameDate, opponent: team1 };
+                        }
+                    }
+                }
+            }
+
+            // Check for BYES
+            if (line.startsWith('BYES:')) {
+                const byeText = line.substring(5);
+                const byeTeams = byeText.split(',').map(t => t.trim());
+                byeTeams.forEach(teamName => {
+                    let abbr = null;
+                    Object.entries(teamAbbreviations).forEach(([fullName, teamAbbr]) => {
+                        if (fullName.includes(teamName) || teamName.includes(fullName)) {
+                            abbr = teamAbbr;
+                        }
+                    });
+
+                    if (abbr) {
+                        schedule[abbr] = { date: null, opponent: null };
+                    }
+                });
             }
         }
 
-        // Handle bye weeks - teams listed in "BYES:" section
-        const byePattern = /BYES:\s*([^WEEK]+)/i;
-        const byeMatch = weekHtml.match(byePattern);
-        if (byeMatch) {
-            const byeTeamsText = byeMatch[1];
-            Object.entries(teamAbbreviations).forEach(([fullName, abbr]) => {
-                if (byeTeamsText.includes(fullName)) {
-                    schedule[abbr] = { date: null }; // null = bye week
-                    console.log(`${abbr} on bye Week ${targetWeek}`);
-                }
-            });
-        }
-
+        console.log(`✅ Fetched schedule for ${Object.keys(schedule).length} teams`);
         return schedule;
     }
 
-    convertGameTimeToUTC(timeStr, timezone, weekHtml) {
-        // Extract date from the week section (look for date pattern before the game)
-        const datePattern = /([A-Za-z]+),\s+([A-Za-z]+)\.\s+(\d{1,2}),\s+(\d{4})/;
-        const dateMatch = weekHtml.match(datePattern);
+    convertGameTimeToUTC(timeStr, timezone, year, month, day) {
+        try {
+            // Parse time (e.g., "8:15p" -> 20:15)
+            const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})([ap])/);
+            if (!timeMatch) {
+                console.warn(`Invalid time format: ${timeStr}`);
+                return null;
+            }
 
-        if (!dateMatch) return null;
+            let hours = parseInt(timeMatch[1]);
+            const minutes = parseInt(timeMatch[2]);
+            const period = timeMatch[3];
 
-        const month = dateMatch[2]; // e.g., "Sept", "Oct"
-        const day = parseInt(dateMatch[3]);
-        const year = parseInt(dateMatch[4]);
+            // Convert to 24-hour format
+            if (period === 'p' && hours !== 12) hours += 12;
+            if (period === 'a' && hours === 12) hours = 0;
 
-        // Parse time (e.g., "8:15p" -> 20:15)
-        const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})([ap])/);
-        if (!timeMatch) return null;
+            // Timezone offsets from UTC (negative = behind UTC, positive = ahead of UTC)
+            const timezoneOffsets = {
+                'ET': -4,  // Eastern Daylight Time (Oct = still daylight)
+                'CT': -5,  // Central Daylight Time
+                'MT': -6,  // Mountain Daylight Time
+                'PT': -7,  // Pacific Daylight Time
+                'BRT': -3, // Brazil Time
+                'BST': +1, // British Summer Time
+                'IST': +1, // Irish Standard Time
+                'CET': +2  // Central European Summer Time
+            };
 
-        let hours = parseInt(timeMatch[1]);
-        const minutes = parseInt(timeMatch[2]);
-        const period = timeMatch[3];
+            const offset = timezoneOffsets[timezone];
+            if (offset === undefined) {
+                console.warn(`Unknown timezone: ${timezone}`);
+                return null;
+            }
 
-        // Convert to 24-hour format
-        if (period === 'p' && hours !== 12) hours += 12;
-        if (period === 'a' && hours === 12) hours = 0;
+            // Month conversion
+            const monthMap = {
+                'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+                'Jul': 6, 'Aug': 7, 'Sep': 8, 'Sept': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+            };
 
-        // Convert timezone offset to UTC
-        const timezoneOffsets = {
-            'ET': -5,  // Eastern Time (during standard time)
-            'CT': -6,  // Central Time
-            'MT': -7,  // Mountain Time
-            'PT': -8,  // Pacific Time
-            'BRT': -3, // Brazil Time
-            'BST': +1, // British Summer Time
-            'IST': +1, // Irish Standard Time
-            'CET': +1  // Central European Time
-        };
+            const monthNum = monthMap[month];
+            if (monthNum === undefined) {
+                console.warn(`Unknown month: ${month}`);
+                return null;
+            }
 
-        const offset = timezoneOffsets[timezone] || 0;
-        const utcHours = hours - offset;
+            // Convert game time to UTC
+            // If game is at 8:15 PM ET (hours=20), and ET is UTC-4,
+            // then UTC time is 20 - (-4) = 24 = 0 hours next day
+            let utcHours = hours - offset;
+            let utcDay = day;
 
-        // Month conversion
-        const monthMap = {
-            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-            'Jul': 6, 'Aug': 7, 'Sep': 8, 'Sept': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-        };
+            // Handle day rollover
+            if (utcHours >= 24) {
+                utcHours -= 24;
+                utcDay += 1;
+            } else if (utcHours < 0) {
+                utcHours += 24;
+                utcDay -= 1;
+            }
 
-        const monthNum = monthMap[month] || 0;
+            // Create UTC date
+            const utcDate = new Date(Date.UTC(year, monthNum, utcDay, utcHours, minutes, 0));
 
-        // Create UTC date
-        const gameDate = new Date(Date.UTC(year, monthNum, day, utcHours, minutes, 0));
+            return utcDate;
 
-        return gameDate;
+        } catch (error) {
+            console.error(`Error converting time: ${error.message}`);
+            return null;
+        }
     }
 
     async checkGameTimeInjuries() {
@@ -1578,6 +1640,63 @@ class BrownBellAutomator {
         return updatedData;
     }
 
+    async testScheduleFetch(week) {
+        console.log('\n🧪 TESTING NFL SCHEDULE FETCH\n');
+
+        await this.initializeLeagueData();
+
+        const schedule = await this.fetchNFLSchedule(week);
+
+        if (!schedule) {
+            console.log('❌ Failed to fetch schedule');
+            return;
+        }
+
+        console.log(`\n📋 Week ${week} Schedule Summary:`);
+        console.log(`Total teams: ${Object.keys(schedule).length}`);
+
+        // Group by game time
+        const games = {};
+        Object.entries(schedule).forEach(([team, info]) => {
+            if (info.date === null) {
+                console.log(`🏖️ ${team}: BYE WEEK`);
+            } else {
+                const dateKey = info.date.toISOString();
+                if (!games[dateKey]) games[dateKey] = [];
+                games[dateKey].push(team);
+            }
+        });
+
+        // Show games in chronological order
+        const sortedTimes = Object.keys(games).sort();
+        sortedTimes.forEach(time => {
+            const date = new Date(time);
+            const teams = games[time];
+            console.log(`\n⏰ ${date.toLocaleString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                timeZone: 'America/New_York'
+            })} ET`);
+            console.log(`   Teams: ${teams.join(', ')}`);
+        });
+
+        // Test game started logic for a few teams
+        console.log('\n🔍 Testing Game Started Logic:');
+        const testTeams = ['PIT', 'CIN', 'BAL', 'BUF'];
+        for (const team of testTeams) {
+            // Find a player from this team
+            const player = Object.values(this.playersData).find(p => p.team === team);
+            if (player) {
+                const hasStarted = await this.hasPlayerGameStarted(player.player_id, week);
+                const status = schedule[team];
+                console.log(`${team} (${player.first_name} ${player.last_name}): Game started = ${hasStarted}, Status = ${status?.date ? 'Playing' : 'BYE'}`);
+            }
+        }
+    }
+
     async run() {
         try {
             console.log('🏈 Starting Brown Bell automation...');
@@ -1602,19 +1721,30 @@ class BrownBellAutomator {
     }
 }
 
-
-
 // Run automation
-const leagueId = process.env.SLEEPER_LEAGUE_ID || '1126351965879164928';
+const leagueId = process.env.SLEEPER_LEAGUE_ID || '1180184775406903296';
 const automator = new BrownBellAutomator(leagueId);
 
 if (require.main === module) {
-    automator.run()
-        .then(() => process.exit(0))
-        .catch(error => {
-            console.error(error);
-            process.exit(1);
-        });
+    // TEST MODE: Set environment variable to test schedule fetch
+    if (process.env.TEST_SCHEDULE === 'true') {
+        const testWeek = parseInt(process.env.TEST_WEEK || '7');
+        automator.testScheduleFetch(testWeek)
+            .then(() => process.exit(0))
+            .catch(error => {
+                console.error(error);
+                process.exit(1);
+            });
+    } else {
+        // Normal automation
+        automator.run()
+            .then(() => process.exit(0))
+            .catch(error => {
+                console.error(error);
+                process.exit(1);
+            });
+    }
 }
 
 module.exports = BrownBellAutomator;
+
