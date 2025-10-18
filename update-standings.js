@@ -722,6 +722,57 @@ class BrownBellAutomator {
         for (const injuredSub of injuredSubs) {
             console.log(`\n🔄 FORCING REPLACEMENT for dropped substitute: ${injuredSub.substituteName} (${injuredSub.teamName} - ${injuredSub.awardType})`);
 
+            // FIRST: Check if the ORIGINAL player still needs a substitute
+            const roster = this.leagueData.rosters.find(r =>
+                this.leagueData.userMap[r.owner_id] === injuredSub.teamName
+            );
+
+            if (roster) {
+                // Find the original player in the duo
+                const originalDuo = this.knownDuos[injuredSub.awardType][injuredSub.teamName];
+                const originalPlayer = originalDuo[injuredSub.playerIndex];
+                const originalPlayerId = this.findPlayerInRoster(originalPlayer, roster);
+
+                if (originalPlayerId) {
+                    const player = this.playersData[originalPlayerId];
+
+                    // Check if original player is still injured enough to need a sub
+                    let stillNeedsSub = false;
+                    if (player.injury_status) {
+                        const status = player.injury_status.toLowerCase();
+                        if (['out', 'doubtful', 'ir', 'pup'].includes(status)) {
+                            stillNeedsSub = true;
+                        }
+                    }
+
+                    // Also check if on bye
+                    if (this.isPlayerOnBye(originalPlayerId, week)) {
+                        stillNeedsSub = true;
+                    }
+
+                    if (!stillNeedsSub) {
+                        console.log(`✅ Original player ${originalPlayer.name} is healthy/questionable - no replacement needed`);
+
+                        // End the dropped substitution
+                        const oldSubInList = existingSubstitutions.find(s =>
+                            s.teamName === injuredSub.teamName &&
+                            s.playerIndex === injuredSub.playerIndex &&
+                            s.awardType === injuredSub.awardType &&
+                            s.startWeek === injuredSub.startWeek
+                        );
+
+                        if (oldSubInList && !oldSubInList.endWeek) {
+                            console.log(`📅 Ending substitution: ${injuredSub.substituteName} at Week ${week - 1}`);
+                            oldSubInList.endWeek = week - 1;
+                        }
+
+                        continue; // Skip to next injured sub - don't find a replacement
+                    }
+
+                    console.log(`⚠️ Original player ${originalPlayer.name} is ${player.injury_status || 'on bye'} - finding replacement`);
+                }
+            }
+
             // Create a fake "injury" object for the substitute
             const forcedInjury = {
                 originalPlayer: {
