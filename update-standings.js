@@ -673,8 +673,18 @@ class BrownBellAutomator {
             return null;
         }
 
-        // Sort by total score and select from top 4 using weighted random
+        // Sort by total score (descending - best first)
         eligibleSubs.sort((a, b) => b.score - a.score);
+
+        // Next Up Award: Always select BEST player (smaller pool, harder to find subs)
+        if (awardType === 'nextup') {
+            const selectedSub = eligibleSubs[0];
+            const experienceNote = ` (${selectedSub.yearsExp <= 0 ? 'rookie' : 'sophomore'})`;
+            console.log(`Selected ${selectedSub.name}${experienceNote} - BEST available: ${selectedSub.score.toFixed(1)} pts over 3 weeks (${eligibleSubs.length} eligible on roster)`);
+            return selectedSub;
+        }
+
+        // Main Award: Use weighted random selection from top 4
         const topPerformers = eligibleSubs.slice(0, Math.min(4, eligibleSubs.length));
 
         // Weighted random selection: #1=40%, #2=30%, #3=20%, #4=10%
@@ -701,8 +711,7 @@ class BrownBellAutomator {
         const selectedSub = topPerformers[selectedIndex];
         const rankText = ['1st', '2nd', '3rd', '4th'][selectedIndex];
 
-        const experienceNote = awardType === 'nextup' ? ` (${selectedSub.yearsExp <= 0 ? 'rookie' : 'sophomore'})` : '';
-        console.log(`Selected ${selectedSub.name}${experienceNote} (${rankText} best: ${selectedSub.score.toFixed(1)} pts over 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
+        console.log(`Selected ${selectedSub.name} (${rankText} best: ${selectedSub.score.toFixed(1)} pts over 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
 
         return selectedSub;
     }
