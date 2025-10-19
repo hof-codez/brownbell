@@ -368,6 +368,16 @@
             margin-left: 5px;
         }
 
+        .no-sub-badge {
+            background-color: #dc3545;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 4px;
+        }
+
         .season-overview-table {
             width: 100%;
             border-collapse: collapse;
@@ -1575,6 +1585,12 @@
                 s.startWeek <= week &&
                 (!s.endWeek || s.endWeek >= week)
             );
+
+            // If NO-SUB scenario, show original player name
+            if (sub && sub.noSubBadge === true) {
+                return team.players[playerIndex].name;
+            }
+
             return sub ? sub.substituteName : team.players[playerIndex].name;
         }
 
@@ -1643,6 +1659,14 @@
                 s.startWeek <= week &&
                 (!s.endWeek || s.endWeek >= week)
             );
+
+            // Handle NO-SUB scenario
+            if (sub && sub.noSubBadge === true) {
+                const actualPosition = team.players[playerIndex].position;
+                const positionBadge = `<span class="position-badge pos-${actualPosition}">${actualPosition}</span>`;
+                const noSubBadge = ' <span class="no-sub-badge">NO-SUB</span>';
+                return `${positionBadge} <span style="text-decoration: line-through; color: #999;">${displayName}</span>${noSubBadge}`;
+            }
 
             // Use substitute's actual position if there's a substitution, otherwise use original player position
             const actualPosition = sub ? sub.substitutePosition : team.players[playerIndex].position;
