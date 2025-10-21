@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-10-21T15:42:03.972Z",
+  "timestamp": "2025-10-21T20:35:16.261Z",
   "currentWeek": 7,
   "currentAward": "main",
   "teams": [
@@ -10,12 +10,12 @@
         {
           "name": "Josh Allen",
           "position": "QB",
-          "sleeperId": "4984"
+          "sleeperId": null
         },
         {
           "name": "Derrick Henry",
           "position": "RB",
-          "sleeperId": "3198"
+          "sleeperId": null
         }
       ],
       "sleeper_roster_id": 6
@@ -58,7 +58,7 @@
         {
           "name": "Jayden Daniels",
           "position": "QB",
-          "sleeperId": "11566"
+          "sleeperId": null
         },
         {
           "name": "CeeDee Lamb",
@@ -225,7 +225,7 @@
           "name": "Jayden Higgins",
           "position": "WR",
           "experience": "rookie",
-          "sleeperId": "12484"
+          "sleeperId": null
         },
         {
           "name": "Bo Nix",
@@ -250,7 +250,7 @@
           "name": "Bucky Irving",
           "position": "RB",
           "experience": "second_year",
-          "sleeperId": "11584"
+          "sleeperId": null
         }
       ],
       "sleeper_roster_id": 3
@@ -269,7 +269,7 @@
           "name": "Jalen Coker",
           "position": "WR",
           "experience": "second_year",
-          "sleeperId": "11646"
+          "sleeperId": null
         }
       ],
       "sleeper_roster_id": 4
@@ -307,7 +307,7 @@
           "name": "Brian Thomas",
           "position": "WR",
           "experience": "second_year",
-          "sleeperId": "11631"
+          "sleeperId": null
         }
       ],
       "sleeper_roster_id": 6
@@ -320,13 +320,13 @@
           "name": "Kaleb Johnson",
           "position": "RB",
           "experience": "rookie",
-          "sleeperId": "12504"
+          "sleeperId": null
         },
         {
           "name": "DeVaughn Vele",
           "position": "WR",
           "experience": "second_year",
-          "sleeperId": "11834"
+          "sleeperId": null
         }
       ],
       "sleeper_roster_id": 7
@@ -358,13 +358,13 @@
           "name": "Tory Horton",
           "position": "WR",
           "experience": "rookie",
-          "sleeperId": "12497"
+          "sleeperId": null
         },
         {
           "name": "Trey Benson",
           "position": "RB",
           "experience": "second_year",
-          "sleeperId": "11589"
+          "sleeperId": null
         }
       ],
       "sleeper_roster_id": 10
@@ -1541,7 +1541,7 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-10-21T15:42:03.972Z",
+  "lastAutomationRun": "2025-10-21T20:35:16.261Z",
   "lastCheckpointType": "TUESDAY_CHECK",
   "automationStats": {
     "scoresUpdated": 21,
