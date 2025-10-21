@@ -218,11 +218,12 @@ class BrownBellAutomator {
         }
     }
 
-    findPlayerInRoster(originalPlayer, roster) {
+    findPlayerInRoster(originalPlayer, roster, allowTradedPlayers = false) {
         if (!roster.players) return null;
 
-        return roster.players.find(playerId => {
-            const player = this.playersData[playerId];
+        // First, try to find player ID by name
+        const playerId = Object.keys(this.playersData).find(id => {
+            const player = this.playersData[id];
             if (!player) return false;
 
             const playerFullName = `${player.first_name || ''} ${player.last_name || ''}`.trim().toLowerCase();
@@ -257,6 +258,20 @@ class BrownBellAutomator {
 
             return false;
         });
+
+        if (!playerId) return null;
+
+        // If allowTradedPlayers is true (for historical scoring), return the ID even if not on current roster
+        if (allowTradedPlayers) {
+            return playerId;
+        }
+
+        // Otherwise, check if player is still on roster
+        if (!roster.players.includes(playerId)) {
+            return null;
+        }
+
+        return playerId;
     }
 
     async detectInjuries(week) {
@@ -1538,11 +1553,21 @@ class BrownBellAutomator {
                 // END OF ADDED SECTION
 
                 // Get scores for each week up to current OR last active week
-                for (let week = 1; week <= Math.min(currentWeek, teamLastWeek); week++) {  // MODIFIED THIS LINE
+                for (let week = 1; week <= Math.min(currentWeek, teamLastWeek); week++) {
                     const weekScores = await this.getWeeklyScores(week);
                     scores[awardType][teamName][week] = {};
 
+                    // ADD THIS SECTION HERE - Check for roster changes
+                    const rosterChanges = existingData.rosterChanges || [];
+
                     originalDuo.forEach((originalPlayer, index) => {
+                        // Check if this player was traded
+                        const tradeInfo = rosterChanges.find(rc =>
+                            rc.teamName === teamName &&
+                            rc.playerIndex === index &&
+                            rc.awardType === awardType
+                        );
+
                         // Check for active substitution in this week
                         const activeSub = existingSubstitutions.find(sub =>
                             sub.teamName === teamName &&
@@ -1553,19 +1578,27 @@ class BrownBellAutomator {
                         );
 
                         let playerId;
+
+                        // PRIORITY 1: Active substitution (trade or injury)
                         if (activeSub) {
-                            // Use substitute's Sleeper ID
                             playerId = activeSub.substitutePlayerId;
                             console.log(`Week ${week}: Using substitute ${activeSub.substituteName} (${playerId}) for ${teamName}`);
-                        } else {
-                            // ADDED: Check if roster exists before trying to find player
+                        }
+                        // PRIORITY 2: Pre-trade weeks - use original player's historical points
+                        else if (tradeInfo && week < tradeInfo.changeWeek) {
+                            playerId = this.findPlayerInRoster(originalPlayer, roster, true); // Allow traded players
+                            if (playerId) {
+                                console.log(`Week ${week}: Using pre-trade ${originalPlayer.name} (${playerId}) for ${teamName}`);
+                            }
+                        }
+                        // PRIORITY 3: Normal active roster
+                        else {
                             if (!roster) {
                                 // No roster available (inactive team) - load from existing data
                                 const awardScores = awardType === 'main' ? existingData.scores : existingData.nextUpScores;
                                 scores[awardType][teamName][week][index] = awardScores?.[teamName]?.[week]?.[index] || 0;
-                                return; // Skip to next player
+                                return;
                             }
-                            // Use original player's Sleeper ID
                             playerId = this.findPlayerInRoster(originalPlayer, roster);
                         }
 
@@ -1820,6 +1853,8 @@ class BrownBellAutomator {
             scores: allScores.main,
             nextUpScores: allScores.nextup,
             substitutions: [...cleanedSubstitutions, ...newSubstitutions],
+            rosterChanges: existingData.rosterChanges || [], 
+            manualSubsUsed: existingData.manualSubsUsed || {}, 
             inactiveTeams: this.inactiveTeams,
             managerChanges: this.managerChanges,  // ADD THIS LINE
             sleeperLeagueId: this.leagueId,
