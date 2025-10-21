@@ -1822,7 +1822,7 @@ class BrownBellAutomator {
                 name: teamName,
                 players: duo.map(player => ({
                     ...player,
-                    sleeperId: roster ? this.findPlayerInRoster(player, roster) : null
+                    sleeperId: roster ? this.findPlayerInRoster(player, roster, true) : null  // ADD 'true' HERE
                 })),
                 sleeper_roster_id: roster ? roster.roster_id : null
             });
@@ -1838,11 +1838,12 @@ class BrownBellAutomator {
                 name: `${teamName} (Next Up)`,
                 players: duo.map(player => ({
                     ...player,
-                    sleeperId: roster ? this.findPlayerInRoster(player, roster) : null
+                    sleeperId: roster ? this.findPlayerInRoster(player, roster, true) : null  // ADD 'true' HERE
                 })),
                 sleeper_roster_id: roster ? roster.roster_id : null
             });
         });
+
         const updatedData = {
             version: '2.0',
             timestamp: new Date().toISOString(),
@@ -1853,8 +1854,8 @@ class BrownBellAutomator {
             scores: allScores.main,
             nextUpScores: allScores.nextup,
             substitutions: [...cleanedSubstitutions, ...newSubstitutions],
-            rosterChanges: existingData.rosterChanges || [], 
-            manualSubsUsed: existingData.manualSubsUsed || {}, 
+            rosterChanges: existingData.rosterChanges || [],
+            manualSubsUsed: existingData.manualSubsUsed || {},
             inactiveTeams: this.inactiveTeams,
             managerChanges: this.managerChanges,  // ADD THIS LINE
             sleeperLeagueId: this.leagueId,
