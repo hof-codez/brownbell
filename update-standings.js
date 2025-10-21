@@ -219,11 +219,11 @@ class BrownBellAutomator {
     }
 
     findPlayerInRoster(originalPlayer, roster, allowTradedPlayers = false) {
-        if (!roster.players) return null;
+        if (!roster || !roster.players) return null;
 
-        // First, try to find player ID by name
-        const playerId = Object.keys(this.playersData).find(id => {
-            const player = this.playersData[id];
+        // FIRST: Try to find player on current roster (normal case)
+        const playerId = roster.players.find(playerId => {
+            const player = this.playersData[playerId];
             if (!player) return false;
 
             const playerFullName = `${player.first_name || ''} ${player.last_name || ''}`.trim().toLowerCase();
@@ -259,19 +259,54 @@ class BrownBellAutomator {
             return false;
         });
 
-        if (!playerId) return null;
-
-        // If allowTradedPlayers is true (for historical scoring), return the ID even if not on current roster
-        if (allowTradedPlayers) {
+        // If found on current roster, return it
+        if (playerId) {
             return playerId;
         }
 
-        // Otherwise, check if player is still on roster
-        if (!roster.players.includes(playerId)) {
-            return null;
+        // SECOND: If allowTradedPlayers is true and not found on roster,
+        // search ALL players globally (for historical/traded players)
+        if (allowTradedPlayers) {
+            const tradedPlayerId = Object.keys(this.playersData).find(id => {
+                const player = this.playersData[id];
+                if (!player) return false;
+
+                const playerFullName = `${player.first_name || ''} ${player.last_name || ''}`.trim().toLowerCase();
+                const originalName = originalPlayer.name.toLowerCase();
+
+                // Use same matching logic
+                if (playerFullName === originalName) return true;
+
+                const nameVariations = [
+                    originalName,
+                    originalName.replace('devaughn', 'devaughn'),
+                    originalName.replace('vele', 'vele')
+                ];
+
+                if (nameVariations.some(variation => playerFullName === variation)) return true;
+
+                const playerParts = playerFullName.split(' ');
+                const originalParts = originalName.split(' ');
+
+                if (playerParts.length >= 2 && originalParts.length >= 2) {
+                    const playerLastName = playerParts[playerParts.length - 1];
+                    const originalLastName = originalParts[originalParts.length - 1];
+                    const playerFirstName = playerParts[0];
+                    const originalFirstName = originalParts[0];
+
+                    return playerLastName === originalLastName &&
+                        (playerFirstName.startsWith(originalFirstName.charAt(0)) ||
+                            originalFirstName.startsWith(playerFirstName.charAt(0)));
+                }
+
+                return false;
+            });
+
+            return tradedPlayerId || null;
         }
 
-        return playerId;
+        // Not found and not allowing traded players
+        return null;
     }
 
     async detectInjuries(week) {
