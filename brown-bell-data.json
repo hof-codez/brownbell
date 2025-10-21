@@ -10,12 +10,12 @@
         {
           "name": "Josh Allen",
           "position": "QB",
-          "sleeperId": null
+          "sleeperId": "4984"
         },
         {
           "name": "Derrick Henry",
           "position": "RB",
-          "sleeperId": null
+          "sleeperId": "3198"
         }
       ],
       "sleeper_roster_id": 6
@@ -58,7 +58,7 @@
         {
           "name": "Jayden Daniels",
           "position": "QB",
-          "sleeperId": null
+          "sleeperId": "11566"
         },
         {
           "name": "CeeDee Lamb",
@@ -225,7 +225,7 @@
           "name": "Jayden Higgins",
           "position": "WR",
           "experience": "rookie",
-          "sleeperId": null
+          "sleeperId": "12484"
         },
         {
           "name": "Bo Nix",
@@ -250,7 +250,7 @@
           "name": "Bucky Irving",
           "position": "RB",
           "experience": "second_year",
-          "sleeperId": null
+          "sleeperId": "11584"
         }
       ],
       "sleeper_roster_id": 3
@@ -269,7 +269,7 @@
           "name": "Jalen Coker",
           "position": "WR",
           "experience": "second_year",
-          "sleeperId": null
+          "sleeperId": "11646"
         }
       ],
       "sleeper_roster_id": 4
@@ -307,7 +307,7 @@
           "name": "Brian Thomas",
           "position": "WR",
           "experience": "second_year",
-          "sleeperId": null
+          "sleeperId": "11631"
         }
       ],
       "sleeper_roster_id": 6
@@ -320,13 +320,13 @@
           "name": "Kaleb Johnson",
           "position": "RB",
           "experience": "rookie",
-          "sleeperId": null
+          "sleeperId": "12504"
         },
         {
           "name": "DeVaughn Vele",
           "position": "WR",
           "experience": "second_year",
-          "sleeperId": null
+          "sleeperId": "11834"
         }
       ],
       "sleeper_roster_id": 7
@@ -358,13 +358,13 @@
           "name": "Tory Horton",
           "position": "WR",
           "experience": "rookie",
-          "sleeperId": null
+          "sleeperId": "12497"
         },
         {
           "name": "Trey Benson",
           "position": "RB",
           "experience": "second_year",
-          "sleeperId": null
+          "sleeperId": "11589"
         }
       ],
       "sleeper_roster_id": 10
