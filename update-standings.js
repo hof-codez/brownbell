@@ -1074,6 +1074,11 @@ class BrownBellAutomator {
                 sub.endWeek = null;
             }
 
+            // DON'T remove manual trade subs - ADD THIS CHECK
+            if (sub.isManualSubForTrade === true) {
+                return true; // Always keep trade subs
+            }
+
             // Remove future substitutions
             if (sub.startWeek > currentWeek) {
                 console.log(`🗑️ Removing future substitution: ${sub.substituteName} (starts Week ${sub.startWeek})`);
