@@ -504,13 +504,36 @@ class BrownBellAutomator {
         }
     }
 
-    validateDuoCombination(healthyPlayerPosition, substitutePosition) {
-        const validCombos = ['QB+RB', 'QB+WR', 'RB+WR'];
-        const newCombo = [healthyPlayerPosition, substitutePosition].sort().join('+');
-        const isValid = validCombos.includes(newCombo);
+    validateDuoCombination(healthyPlayerPosition, substitutePosition, awardType = 'main') {
+        // Main Award: Traditional combos only (QB+RB, QB+WR, RB+WR)
+        if (awardType === 'main') {
+            const validCombos = ['QB+RB', 'QB+WR', 'RB+WR'];
+            const newCombo = [healthyPlayerPosition, substitutePosition].sort().join('+');
+            const isValid = validCombos.includes(newCombo);
+
+            if (!isValid) {
+                console.warn(`Invalid Main Award duo combination: ${healthyPlayerPosition} + ${substitutePosition}`);
+            }
+
+            return isValid;
+        }
+
+        // Next Up Award: Any position combination EXCEPT QB+QB
+        // Valid positions: QB, RB, WR, TE, K
+
+        // Block QB+QB
+        if (healthyPlayerPosition === 'QB' && substitutePosition === 'QB') {
+            console.warn(`Invalid duo combination: QB + QB (no duplicate QBs allowed)`);
+            return false;
+        }
+
+        // All other combinations are valid
+        const validPositions = ['QB', 'RB', 'WR', 'TE', 'K'];
+        const isValid = validPositions.includes(healthyPlayerPosition) &&
+            validPositions.includes(substitutePosition);
 
         if (!isValid) {
-            console.warn(`Invalid duo combination: ${healthyPlayerPosition} + ${substitutePosition}`);
+            console.warn(`Invalid Next Up duo combination: ${healthyPlayerPosition} + ${substitutePosition}`);
         }
 
         return isValid;
@@ -522,7 +545,7 @@ class BrownBellAutomator {
         const injuredPlayer = originalDuo[injuredPlayerIndex];
 
         // Check if substitute creates valid duo combination
-        const isValidCombo = this.validateDuoCombination(healthyPlayer.position, substitute.position);
+        const isValidCombo = this.validateDuoCombination(healthyPlayer.position, substitute.position, awardType);  // ADD awardType HERE
 
         if (!isValidCombo) {
             console.warn(`❌ INVALID SUBSTITUTION BLOCKED:
@@ -600,12 +623,17 @@ class BrownBellAutomator {
         for (const playerId of roster.players) {
             const player = this.playersData[playerId];
 
+            // Position eligibility depends on award type
+            const validPositions = awardType === 'nextup'
+                ? ['QB', 'RB', 'WR', 'TE', 'K']  // Next Up: All positions
+                : ['QB', 'RB', 'WR'];             // Main Award: Traditional positions only
+
             // DEBUG: Log every player being considered
-            if (player && ['QB', 'RB', 'WR'].includes(player.position)) {
+            if (player && validPositions.includes(player.position)) {
                 console.log(`Evaluating: ${player.first_name} ${player.last_name} (${playerId})`);
             }
 
-            if (!player || !['QB', 'RB', 'WR'].includes(player.position)) continue;
+            if (!player || !validPositions.includes(player.position)) continue;
 
             // Skip if this is the injured player
             if (playerId === injuredPlayer.playerId) continue;
@@ -681,7 +709,6 @@ class BrownBellAutomator {
 
                 console.log(`${substitute.name} is eligible: ${playerExperience} (${yearsExp} years) pairs with ${healthyPlayer.name} (${healthyExperience})`);
 
-                // ADD THIS NEW SECTION HERE
                 // NEXT UP SPECIFIC POSITION RULE: No QB+QB combinations allowed
                 if (substitute.position === 'QB' && healthyPlayer.position === 'QB') {
                     console.log(`Skipping ${substitute.name} (QB) - cannot have QB+QB duo in Next Up Award`);
