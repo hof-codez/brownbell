@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-10-23T23:05:09.914Z",
+  "timestamp": "2025-10-24T03:48:25.082Z",
   "currentWeek": 8,
   "currentAward": "main",
   "teams": [
@@ -435,7 +435,7 @@
         "1": 18.8
       },
       "8": {
-        "0": 0,
+        "0": 27.28,
         "1": 0
       }
     },
@@ -470,7 +470,7 @@
       },
       "8": {
         "0": 0,
-        "1": 0
+        "1": 14.4
       }
     },
     "fsmrubix": {
@@ -948,7 +948,7 @@
       },
       "8": {
         "0": 0,
-        "1": 0
+        "1": 19.7
       }
     },
     "Un14wfulBandit": {
@@ -1689,11 +1689,11 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-10-23T23:05:09.914Z",
-  "lastCheckpointType": "THURSDAY_CHECK",
+  "lastAutomationRun": "2025-10-24T03:48:25.082Z",
+  "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
-    "newSubstitutions": 1,
+    "newSubstitutions": 0,
     "totalSubstitutions": 37,
     "cleanedSubstitutions": 0
   }
