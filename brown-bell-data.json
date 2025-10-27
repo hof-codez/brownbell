@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-10-26T23:28:26.722Z",
+  "timestamp": "2025-10-27T04:51:23.617Z",
   "currentWeek": 8,
   "currentAward": "main",
   "teams": [
@@ -436,7 +436,7 @@
       },
       "8": {
         "0": 27.28,
-        "1": 0
+        "1": 13.5
       }
     },
     "HofDimez": {
@@ -537,7 +537,7 @@
         "1": 0
       },
       "8": {
-        "0": 0,
+        "0": 29.3,
         "1": 0
       }
     },
@@ -1734,8 +1734,8 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-10-26T23:28:26.722Z",
-  "lastCheckpointType": "SUNDAY_PREGAME_CHECK",
+  "lastAutomationRun": "2025-10-27T04:51:23.617Z",
+  "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
