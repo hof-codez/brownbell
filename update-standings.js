@@ -1770,18 +1770,7 @@ class BrownBellAutomator {
     getSubstituteExperience(playerName) {
         // Map known substitutes to their experience levels
         const substituteMap = {
-            'Michael Penix': 'rookie',
-            'Ollie Gordon': 'rookie',
-            // Add other substitutes as needed
-        };
-
-        return substituteMap[playerName] || 'unknown';
-    }
-
-    getSubstituteExperience(playerName) {
-        // Map known substitutes to their experience levels
-        const substituteMap = {
-            'Michael Penix': 'rookie',
+            'Michael Penix': 'sophomore',
             'Ollie Gordon': 'rookie',
             // Add other substitutes as needed
         };
