@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-10-30T14:51:09.023Z",
+  "timestamp": "2025-10-31T03:57:44.444Z",
   "currentWeek": 9,
   "currentAward": "main",
   "teams": [
@@ -595,7 +595,7 @@
         "1": 6.3
       },
       "9": {
-        "0": 0,
+        "0": 25.56,
         "1": 0
       }
     },
@@ -747,7 +747,7 @@
         "1": 0
       },
       "9": {
-        "0": 0,
+        "0": 14.2,
         "1": 0
       }
     },
@@ -786,7 +786,7 @@
       },
       "9": {
         "0": 0,
-        "1": 0
+        "1": 13.1
       }
     },
     "FLYB33ZY": {
@@ -1168,7 +1168,7 @@
       },
       "9": {
         "0": 0,
-        "1": 0
+        "1": 8.1
       }
     }
   },
@@ -1883,11 +1883,11 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-10-30T14:51:09.024Z",
-  "lastCheckpointType": "THURSDAY_CHECK",
+  "lastAutomationRun": "2025-10-31T03:57:44.444Z",
+  "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
-    "newSubstitutions": 4,
+    "newSubstitutions": 0,
     "totalSubstitutions": 43,
     "cleanedSubstitutions": 0
   }
