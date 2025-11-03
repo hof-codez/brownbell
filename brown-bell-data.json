@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-11-02T23:12:09.447Z",
+  "timestamp": "2025-11-03T00:45:44.057Z",
   "currentWeek": 9,
   "currentAward": "main",
   "teams": [
@@ -405,7 +405,7 @@
         "1": 5.8
       },
       "9": {
-        "0": 18.04,
+        "0": 29.82,
         "1": 17.6
       }
     },
@@ -864,7 +864,7 @@
       },
       "9": {
         "0": 27.24,
-        "1": 3.2
+        "1": 7
       }
     },
     "713Born501Raised": {
@@ -1012,11 +1012,11 @@
       },
       "8": {
         "0": 6.5,
-        "1": 19.7
+        "1": 0
       },
       "9": {
         "0": 0,
-        "1": 3
+        "1": 19.92
       }
     },
     "Un14wfulBandit": {
@@ -1053,8 +1053,8 @@
         "1": 0
       },
       "9": {
-        "0": 11.6,
-        "1": 4.1
+        "0": 19.9,
+        "1": 8.5
       }
     },
     "Kenyatta93": {
@@ -1883,8 +1883,8 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-11-02T23:12:09.447Z",
-  "lastCheckpointType": "SUNDAY_PREGAME_CHECK",
+  "lastAutomationRun": "2025-11-03T00:45:44.057Z",
+  "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
