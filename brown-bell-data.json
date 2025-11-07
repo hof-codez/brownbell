@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-11-07T03:39:23.415Z",
+  "timestamp": "2025-11-07T20:49:24.201Z",
   "currentWeek": 10,
   "currentAward": "main",
   "teams": [
@@ -958,7 +958,7 @@
       },
       "10": {
         "0": 0,
-        "1": 8.82
+        "1": 8.8
       }
     },
     "Ch3r0k33zY": {
@@ -1037,45 +1037,45 @@
         "1": 6.6
       },
       "9": {
-        "0": 16.6,
+        "0": 0,
         "1": 1.9
       },
       "10": {
-        "0": 3.8,
+        "0": 0,
         "1": 0
       }
     },
     "HofDimez": {
       "1": {
-        "0": 0,
+        "0": 23.6,
         "1": 23.22
       },
       "2": {
-        "0": 0,
+        "0": 12.9,
         "1": 5.82
       },
       "3": {
-        "0": 0,
+        "0": 14.5,
         "1": 5.78
       },
       "4": {
-        "0": 0,
+        "0": 25.1,
         "1": 0
       },
       "5": {
-        "0": 0,
+        "0": 32.3,
         "1": 22.1
       },
       "6": {
-        "0": 0,
+        "0": 4.4,
         "1": 12.08
       },
       "7": {
-        "0": 0,
+        "0": 9.8,
         "1": 7.5
       },
       "8": {
-        "0": 0,
+        "0": 6.5,
         "1": 19.7
       },
       "9": {
@@ -1125,7 +1125,7 @@
         "1": 8.5
       },
       "10": {
-        "0": 12.5,
+        "0": 15.3,
         "1": 0
       }
     },
@@ -2032,21 +2032,21 @@
       "nextup": true
     }
   },
-"inactiveTeams": {},
-"managerChanges": {
-  "Dcastro90": {
-    "previousManager": "tigollbiddiez",
-    "changeWeek": 6,
-    "reason": "Manager Replaced"
+  "inactiveTeams": {},
+  "managerChanges": {
+    "Dcastro90": {
+      "previousManager": "tigollbiddiez",
+      "changeWeek": 6,
+      "reason": "Manager Replaced"
+    }
+  },
+  "sleeperLeagueId": "1180184775406903296",
+  "lastAutomationRun": "2025-11-07T20:49:24.201Z",
+  "lastCheckpointType": "ROUTINE_UPDATE",
+  "automationStats": {
+    "scoresUpdated": 21,
+    "newSubstitutions": 0,
+    "totalSubstitutions": 46,
+    "cleanedSubstitutions": 0
   }
-},
-"sleeperLeagueId": "1180184775406903296",
-"lastAutomationRun": "2025-11-07T03:39:23.415Z",
-"lastCheckpointType": "ROUTINE_UPDATE",
-"automationStats": {
-  "scoresUpdated": 21,
-  "newSubstitutions": 0,
-  "totalSubstitutions": 47,
-  "cleanedSubstitutions": 0
-}
 }
