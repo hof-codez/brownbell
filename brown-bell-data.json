@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-11-17T04:33:19.960Z",
+  "timestamp": "2025-11-17T14:44:53.323Z",
   "currentWeek": 11,
   "currentAward": "main",
   "teams": [
@@ -735,7 +735,7 @@
         "1": 0
       },
       "11": {
-        "0": 14.6,
+        "0": 14.5,
         "1": 6
       }
     },
@@ -782,7 +782,7 @@
       },
       "11": {
         "0": 4.3,
-        "1": 9.2
+        "1": 10
       }
     },
     "Dcastro90": {
@@ -2299,7 +2299,7 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-11-17T04:33:19.960Z",
+  "lastAutomationRun": "2025-11-17T14:44:53.323Z",
   "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
