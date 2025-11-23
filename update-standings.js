@@ -384,6 +384,8 @@ class BrownBellAutomator {
 
     async detectSubstituteInjuries(week, existingSubstitutions) {
         console.log('🔍 Checking if active substitutes are injured or dropped from roster...');
+        console.log('🔍 Detecting substitute injuries for Week', week);
+        console.log('📊 Checking', existingSubstitutions.length, 'existing substitutions');
 
         const weekScores = await this.getWeeklyScores(week);
         const injuredSubs = [];
@@ -393,6 +395,9 @@ class BrownBellAutomator {
             if (sub.startWeek > week || (sub.endWeek && sub.endWeek < week)) {
                 continue;
             }
+
+            // IMPORTANT: Include manual trade subs in bye week detection
+            console.log(`Checking sub: ${sub.substituteName} for ${sub.teamName} (${sub.awardType}) - Week ${sub.startWeek}-${sub.endWeek || 'Indefinite'}, Manual Trade: ${sub.isManualSubForTrade === true}`);
 
             // Skip "no replacement available" markers (they have null substitutes)
             if (!sub.substituteName || !sub.substitutePlayerId) {
