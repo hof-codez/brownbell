@@ -1661,7 +1661,10 @@ class BrownBellAutomator {
                         );
 
                         // Check for active substitution in this week
-                        // PRIORITY: Temporary bye replacements (specific weeks) over permanent subs (indefinite)
+                        // PRIORITY ORDER:
+                        // 1. Temporary bye replacements (isTemporaryByeReplacement: true)
+                        // 2. Other temporary subs (has endWeek)
+                        // 3. Permanent subs (endWeek: null)
                         const activeSubstitutions = existingSubstitutions.filter(sub =>
                             sub.teamName === teamName &&
                             sub.playerIndex === index &&
@@ -1670,18 +1673,18 @@ class BrownBellAutomator {
                             (!sub.endWeek || sub.endWeek >= week)
                         );
 
-                        // Sort by specificity: subs with endWeek set (temporary) take priority over indefinite subs
-                        const activeSub = activeSubstitutions.sort((a, b) => {
-                            // Temporary bye replacements first (have endWeek)
-                            if (a.endWeek !== null && b.endWeek === null) return -1;
-                            if (a.endWeek === null && b.endWeek !== null) return 1;
+                        // Find temporary bye replacement first (highest priority)
+                        let activeSub = activeSubstitutions.find(sub => sub.isTemporaryByeReplacement === true);
 
-                            // If both have endWeek, prefer more recent startWeek
-                            if (a.endWeek !== null && b.endWeek !== null) return b.startWeek - a.startWeek;
+                        // If no temporary bye replacement, find other temporary subs
+                        if (!activeSub) {
+                            activeSub = activeSubstitutions.find(sub => sub.endWeek !== null && !sub.isTemporaryByeReplacement);
+                        }
 
-                            // If both indefinite, prefer more recent startWeek
-                            return b.startWeek - a.startWeek;
-                        })[0];
+                        // If no temporary subs, use permanent sub
+                        if (!activeSub) {
+                            activeSub = activeSubstitutions.find(sub => sub.endWeek === null);
+                        }
 
                         let playerId;
 
