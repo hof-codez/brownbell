@@ -1661,13 +1661,27 @@ class BrownBellAutomator {
                         );
 
                         // Check for active substitution in this week
-                        const activeSub = existingSubstitutions.find(sub =>
+                        // PRIORITY: Temporary bye replacements (specific weeks) over permanent subs (indefinite)
+                        const activeSubstitutions = existingSubstitutions.filter(sub =>
                             sub.teamName === teamName &&
                             sub.playerIndex === index &&
                             sub.awardType === awardType &&
                             sub.startWeek <= week &&
                             (!sub.endWeek || sub.endWeek >= week)
                         );
+
+                        // Sort by specificity: subs with endWeek set (temporary) take priority over indefinite subs
+                        const activeSub = activeSubstitutions.sort((a, b) => {
+                            // Temporary bye replacements first (have endWeek)
+                            if (a.endWeek !== null && b.endWeek === null) return -1;
+                            if (a.endWeek === null && b.endWeek !== null) return 1;
+
+                            // If both have endWeek, prefer more recent startWeek
+                            if (a.endWeek !== null && b.endWeek !== null) return b.startWeek - a.startWeek;
+
+                            // If both indefinite, prefer more recent startWeek
+                            return b.startWeek - a.startWeek;
+                        })[0];
 
                         let playerId;
 
