@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-11-28T03:40:17.208Z",
+  "timestamp": "2025-11-29T11:14:19.875Z",
   "currentWeek": 13,
   "currentAward": "main",
   "teams": [
@@ -691,7 +691,7 @@
         "1": 8.1
       },
       "13": {
-        "0": 6.44,
+        "0": 10.54,
         "1": 0
       }
     },
@@ -799,8 +799,8 @@
         "1": 0
       },
       "13": {
-        "0": 0,
-        "1": 14.6
+        "0": 17.3,
+        "1": 19
       }
     },
     "Kenyatta93": {
@@ -853,8 +853,8 @@
         "1": 12.4
       },
       "13": {
-        "0": 13.32,
-        "1": 0
+        "0": 20.24,
+        "1": 5.6
       }
     },
     "Dcastro90": {
@@ -1450,7 +1450,7 @@
       },
       "13": {
         "0": 0,
-        "1": 0
+        "1": 2.8
       }
     },
     "FLYB33ZY": {
@@ -2762,8 +2762,8 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-11-28T03:40:17.208Z",
-  "lastCheckpointType": "ROUTINE_UPDATE",
+  "lastAutomationRun": "2025-11-29T11:14:19.875Z",
+  "lastCheckpointType": "SATURDAY_INTERNATIONAL_PREP",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
