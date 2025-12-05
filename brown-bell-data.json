@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-12-04T14:44:40.733Z",
+  "timestamp": "2025-12-05T03:47:09.826Z",
   "currentWeek": 14,
   "currentAward": "main",
   "teams": [
@@ -600,7 +600,7 @@
       },
       "14": {
         "0": 0,
-        "1": 0
+        "1": 18.1
       }
     },
     "KnowItAllJankyJew": {
@@ -948,7 +948,7 @@
       },
       "14": {
         "0": 0,
-        "1": 0
+        "1": 22.1
       }
     },
     "Ch3r0k33zY": {
@@ -1005,7 +1005,7 @@
         "1": 17.3
       },
       "14": {
-        "0": 0,
+        "0": 13.2,
         "1": 0
       }
     },
@@ -1063,7 +1063,7 @@
         "1": 22.6
       },
       "14": {
-        "0": 0,
+        "0": 9.14,
         "1": 0
       }
     }
@@ -2909,11 +2909,11 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-12-04T14:44:40.733Z",
-  "lastCheckpointType": "THURSDAY_CHECK",
+  "lastAutomationRun": "2025-12-05T03:47:09.826Z",
+  "lastCheckpointType": "ROUTINE_UPDATE",
   "automationStats": {
     "scoresUpdated": 21,
-    "newSubstitutions": 1,
+    "newSubstitutions": 0,
     "totalSubstitutions": 79,
     "cleanedSubstitutions": 0
   }
