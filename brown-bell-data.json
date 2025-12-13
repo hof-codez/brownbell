@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-12-12T03:53:38.133Z",
+  "timestamp": "2025-12-13T11:14:55.237Z",
   "currentWeek": 15,
   "currentAward": "main",
   "teams": [
@@ -430,7 +430,7 @@
       },
       "15": {
         "0": 0,
-        "1": 17.5
+        "1": 29.5
       }
     },
     "Chief1025": {
@@ -1050,7 +1050,7 @@
       },
       "15": {
         "0": 0,
-        "1": 20.2
+        "1": 21.2
       }
     },
     "FLYB33ZY": {
@@ -3044,8 +3044,8 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-12-12T03:53:38.133Z",
-  "lastCheckpointType": "ROUTINE_UPDATE",
+  "lastAutomationRun": "2025-12-13T11:14:55.237Z",
+  "lastCheckpointType": "SATURDAY_INTERNATIONAL_PREP",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
