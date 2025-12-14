@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-12-13T11:14:55.237Z",
+  "timestamp": "2025-12-14T11:17:03.997Z",
   "currentWeek": 15,
   "currentAward": "main",
   "teams": [
@@ -3044,8 +3044,8 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-12-13T11:14:55.237Z",
-  "lastCheckpointType": "SATURDAY_INTERNATIONAL_PREP",
+  "lastAutomationRun": "2025-12-14T11:17:03.997Z",
+  "lastCheckpointType": "SUNDAY_PREGAME_CHECK",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
