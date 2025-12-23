@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-12-22T14:45:25.221Z",
+  "timestamp": "2025-12-23T03:54:01.935Z",
   "currentWeek": 16,
   "currentAward": "main",
   "teams": [
@@ -565,7 +565,7 @@
         "1": 4.2
       },
       "16": {
-        "0": 0,
+        "0": 23.5,
         "1": 14.5
       }
     },
@@ -830,7 +830,7 @@
       },
       "16": {
         "0": 0,
-        "1": 0
+        "1": 11.8
       }
     },
     "Justin274447": {
@@ -3145,8 +3145,8 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-12-22T14:45:25.221Z",
-  "lastCheckpointType": "ROUTINE_UPDATE",
+  "lastAutomationRun": "2025-12-23T03:54:01.935Z",
+  "lastCheckpointType": "TUESDAY_CHECK",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
