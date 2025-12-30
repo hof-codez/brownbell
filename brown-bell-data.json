@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "timestamp": "2025-12-29T14:47:11.783Z",
+  "timestamp": "2025-12-30T03:55:36.602Z",
   "currentWeek": 17,
   "currentAward": "main",
   "teams": [
@@ -438,7 +438,7 @@
       },
       "17": {
         "0": 24.18,
-        "1": 0
+        "1": 43
       }
     },
     "Chief1025": {
@@ -717,7 +717,7 @@
         "1": 0
       },
       "17": {
-        "0": 0,
+        "0": 9.14,
         "1": 0
       }
     },
@@ -3342,8 +3342,8 @@
     }
   },
   "sleeperLeagueId": "1180184775406903296",
-  "lastAutomationRun": "2025-12-29T14:47:11.783Z",
-  "lastCheckpointType": "ROUTINE_UPDATE",
+  "lastAutomationRun": "2025-12-30T03:55:36.602Z",
+  "lastCheckpointType": "TUESDAY_CHECK",
   "automationStats": {
     "scoresUpdated": 21,
     "newSubstitutions": 0,
