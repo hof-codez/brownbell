@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brown Bell Award - Season Standings</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #8B4513 0%, #D4AF37 100%);
+            /* Brown to Gold */
+            min-height: 100vh;
+            color: #333;
+            padding: 10px;
+            padding-bottom: 120px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        /* ADD THESE NEW STYLES */
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .header-logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+
+        .header-text {
+            text-align: left;
+        }
+
+        .header h1 {
+            color: #8B4513;
+            /* Rich brown */
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 1em;
+            margin: 0;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .header-logo {
+                width: 60px;
+                height: 60px;
+            }
+
+            .header-text {
+                text-align: center;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+        }
+
+        .automation-status {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 0.9em;
+            display: none !important;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .info-bar {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .week-info {
+            font-weight: bold;
+            color: #D4AF37;
+            /* Gold */
+        }
+
+        .last-updated {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .award-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .award-toggle button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #666;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+
+        .award-toggle button.active {
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .award-toggle .main-award.active {
+            background: linear-gradient(135deg, #B8860B, #D4AF37);
+            /* Dark gold to gold */
+        }
+
+        .award-toggle .next-up-award.active {
+            background: linear-gradient(135deg, #CD7F32, #D4AF37);
+            /* Bronze to gold */
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .view-toggle button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #666;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: linear-gradient(135deg, #8B4513, #D4AF37);
+            /* Brown to gold */
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #444;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .standings-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .standings-table th {
+            background: #f0f0f0;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            color: #444;
+            font-size: 0.9em;
+        }
+
+        .standings-table td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 0.9em;
+        }
+
+        .standings-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .rank-gold {
+            background: linear-gradient(90deg, #D4AF37, #FFD700) !important;
+            /* Gold gradient */
+            font-weight: bold;
+            color: #3D2817;
+            /* Dark brown text */
+        }
+
+        .rank-silver {
+            background: linear-gradient(90deg, #CD7F32, #E6A85C) !important;
+            /* Bronze gradient */
+            font-weight: bold;
+            color: #3D2817;
+        }
+
+        .rank-bronze {
+            background: linear-gradient(90deg, #8B4513, #A0522D) !important;
+            /* Brown gradient */
+            font-weight: bold;
+            color: #D4AF37;
+            /* Gold text */
+        }
+
+        .position-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.75em;
+            margin-right: 5px;
+        }
+
+        .pos-QB {
+            background: #8B4513;
+            /* Rich brown */
+            color: #FFD700;
+            /* Gold text */
+        }
+
+        .pos-RB {
+            background: #CD7F32;
+            /* Bronze */
+            color: #FFFFFF;
+            /* White text */
+        }
+
+        .pos-WR {
+            background: #D4AF37;
+            /* Gold */
+            color: #3D2817;
+            /* Dark brown text */
+        }
+
+        .sub-badge {
+            background: #FFF8DC;
+            /* Cornsilk */
+            color: #8B4513;
+            /* Brown text */
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+        }
+
+        .auto-sub-badge {
+            background: #CD7F32;
+            /* Bronze */
+            color: white;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+        }
+
+        .bye-badge {
+            background: #8B7355;
+            /* Tan/brown */
+            color: white;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+        }
+
+        .bye-sub-badge {
+            background: linear-gradient(135deg, #8B4513, #A0522D);
+            /* Brown gradient */
+            color: #FFD700;
+            /* Gold text */
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 3px;
+            border: 1px solid #D4AF37;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .inactive-badge {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .inactive-team {
+            opacity: 0.6;
+        }
+
+        .manager-change-badge {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .no-sub-badge {
+            background-color: #dc3545;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 4px;
+        }
+
+        .trade-badge {
+            background-color: #444;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .season-overview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8em;
+            overflow-x: auto;
+        }
+
+        .season-overview-table th {
+            background: #f0f0f0;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 0.75em;
+            min-width: 35px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .season-overview-table td {
+            padding: 6px 4px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+            font-size: 0.75em;
+        }
+
+        .season-overview-table .team-cell {
+            text-align: left;
+            font-weight: bold;
+            background: #f8f9fa;
+            min-width: 120px;
+            font-size: 0.8em;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+        }
+
+        /* Alternating team row colors - Brown Bell themed */
+        .season-overview-table .team-row-1 td {
+            background-color: #FFF8DC;
+        }
+
+        /* Cornsilk */
+        .season-overview-table .team-row-2 td {
+            background-color: #FAEBD7;
+        }
+
+        /* Antique white */
+        .season-overview-table .team-row-3 td {
+            background-color: #FFE4B5;
+        }
+
+        /* Moccasin */
+        .season-overview-table .team-row-4 td {
+            background-color: #FFDEAD;
+        }
+
+        /* Navajo white */
+        .season-overview-table .team-row-5 td {
+            background-color: #F5DEB3;
+        }
+
+        /* Wheat */
+        .season-overview-table .team-row-6 td {
+            background-color: #FFE4C4;
+        }
+
+        /* Bisque */
+        .season-overview-table .team-row-7 td {
+            background-color: #FFEBCD;
+        }
+
+        /* Blanched almond */
+        .season-overview-table .team-row-8 td {
+            background-color: #FFEFD5;
+        }
+
+        /* Papaya whip */
+        .season-overview-table .team-row-9 td {
+            background-color: #FFF5EE;
+        }
+
+        /* Seashell */
+        .season-overview-table .team-row-10 td {
+            background-color: #FAF0E6;
+        }
+
+        /* Linen */
+        .season-overview-table .team-row-11 td {
+            background-color: #FDF5E6;
+        }
+
+        /* Old lace */
+        .season-overview-table .team-row-12 td {
+            background-color: #FFFAF0;
+        }
+
+        /* Floral white */
+
+        /* Hover effect */
+        .season-overview-table tr:hover td {
+            background-color: #D4AF37 !important;
+            /* Gold */
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        /* Keep team cells distinct on hover */
+        .season-overview-table tr:hover .team-cell {
+            background-color: #8B4513 !important;
+            /* Brown */
+            color: #FFD700 !important;
+            /* Gold text */
+            font-weight: bold;
+        }
+
+        /* Enhanced borders for better separation */
+        .season-overview-table .team-row-border {
+            border-bottom: 2px solid #666 !important;
+        }
+
+        .player-cell {
+            white-space: nowrap;
+        }
+
+        .week-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .week-selector select {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-size: 1em;
+            background: white;
+        }
+
+        .active-subs {
+            background: #fff8dc;
+            border: 1px solid #ffd700;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .active-subs h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        /* ADD THESE NEW STYLES */
+        #activeSubsList {
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .active-subs h3 {
+            color: #856404;
+            margin: 0;
+            /* Changed from margin-bottom: 10px */
+        }
+
+        .active-subs>div:first-child:hover {
+            background: rgba(255, 215, 0, 0.1);
+            border-radius: 6px;
+            padding: 5px;
+            margin: -5px;
+        }
+
+        .weekly-recap {
+            background: linear-gradient(135deg, #721c24 0%, #b8860b 100%);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .weekly-recap h3 {
+            color: white;
+            margin: 0;
+            font-size: 1.1em;
+        }
+
+        .recap-toggle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .recap-toggle-header:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 5px;
+            margin: -5px;
+        }
+
+        .recap-content {
+            margin-top: 15px;
+        }
+
+        .recap-stat {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .recap-stat-title {
+            font-weight: bold;
+            font-size: 0.95em;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .recap-stat-value {
+            font-size: 0.85em;
+            opacity: 0.95;
+        }
+
+        .recap-emoji {
+            font-size: 1.3em;
+        }
+
+        /* END OF NEW STYLES */
+
+        .sub-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #D4AF37, #B8860B);
+            /* Gold gradient */
+            color: #3D2817;
+            /* Dark brown text */
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(212, 175, 55, 0.6);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+                padding-bottom: 120px;
+            }
+
+            .header {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            .standings-table th,
+            .standings-table td {
+                padding: 8px 4px;
+                font-size: 0.8em;
+            }
+
+            .position-badge {
+                font-size: 0.7em;
+                padding: 1px 4px;
+            }
+
+            .season-overview-table {
+                font-size: 0.7em;
+            }
+
+            .season-overview-table th,
+            .season-overview-table td {
+                padding: 4px 2px;
+                font-size: 0.7em;
+            }
+
+            .info-bar {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <img src="https://raw.githubusercontent.com/hof-codez/brownbell/refs/heads/main/brown-bell-logo.png"
+                    alt="Brown Bell Award" class="header-logo">
+                <div class="header-text">
+                    <h1>Brown Bell Award</h1>
+                    <div class="subtitle">Season Standings - Auto-Updated Daily</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="automation-status" id="automationStatus" style="display: none;">
+            Automatically updated via GitHub Actions
+        </div>
+
+        <div id="loading" class="loading">
+            <div>Loading league data...</div>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="content" style="display: none;">
+            <div class="info-bar">
+                <div class="week-info">Current Week: <span id="currentWeek">-</span></div>
+                <div class="last-updated">Last Updated: <span id="lastUpdated">-</span></div>
+                <button class="refresh-btn" onclick="loadData()">Refresh</button>
+            </div>
+
+            <div id="activeSubs" class="active-subs" style="display: none;">
+                <h3>Active Substitutions</h3>
+                <div id="activeSubsList"></div>
+            </div>
+
+            <div id="weeklyRecap" class="weekly-recap" style="display: none;">
+                <div class="recap-toggle-header" onclick="toggleRecap()">
+                    <div>
+                        <h3>📊 Weekly Recap</h3>
+                        <small id="recapSummary" style="opacity: 0.9;">Click to view stats and storylines</small>
+                    </div>
+                    <span id="recapToggle" style="font-size: 1.2em; user-select: none;">▼</span>
+                </div>
+                <div id="recapContent" class="recap-content" style="display: none;"></div>
+            </div>
+
+            <div class="week-selector" id="weekSelector" style="display: none;">
+                <select id="weekSelect" onchange="updateWeeklyView()">
+                    <option value="current">Current Week</option>
+                </select>
+            </div>
+
+            <!-- Award Toggle -->
+            <div class="award-toggle">
+                <button id="mainAwardBtn" class="main-award active" onclick="toggleAward('main')">Brown Bell
+                    Award</button>
+                <button id="nextUpAwardBtn" class="next-up-award" onclick="toggleAward('nextup')">Next Up Award</button>
+            </div>
+
+            <div class="view-toggle">
+                <button id="weeklyBtn" class="active" onclick="showView('weekly')">Weekly Standings</button>
+                <button id="seasonBtn" onclick="showView('season')">Season Overview</button>
+            </div>
+
+            <div class="card" id="standingsCard">
+                <h2 id="standingsTitle">Weekly Standings</h2>
+                <div class="table-container">
+                    <div id="standingsContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let appData = null;
+        let currentView = 'weekly';
+        let selectedWeek = 'current';
+        let currentAward = 'main';
+
+        // NFL 2025 Bye Weeks by team (CORRECT 2025 SCHEDULE)
+        const byeWeeks = {
+            5: ['ATL', 'CHI', 'GB', 'PIT'],  // Week 5
+            6: ['HOU', 'MIN'],  // Week 6
+            7: ['BAL', 'BUF'],  // Week 7
+            8: ['ARI', 'DET', 'JAX', 'LV', 'LAR', 'SEA'],  // Week 8
+            9: ['CLE', 'NYJ', 'PHI', 'TB'],  // Week 9
+            10: ['CIN', 'DAL', 'KC', 'TEN'],  // Week 10
+            11: ['IND', 'NO'],  // Week 11
+            12: ['DEN', 'LAC', 'MIA', 'WAS'],  // Week 12
+            14: ['CAR', 'NE', 'NYG', 'SF']  // Week 14
+        };
+
+        // NFL team lookup by player (you'll need to expand this with your actual players)
+        const playerTeams = {
+            'Jayden Daniels': 'WAS',
+            'CeeDee Lamb': 'DAL',
+            'Josh Allen': 'BUF',
+            'Derrick Henry': 'BAL',
+            'Justin Herbert': 'LAC',
+            'Josh Jacobs': 'GB',
+            'Christian McCaffrey': 'SF',
+            'Justin Jefferson': 'MIN',
+            'Jordan Love': 'GB',
+            'Hollywood Brown': 'KC',
+            'Lamar Jackson': 'BAL',
+            'Tony Pollard': 'TEN',
+            'Patrick Mahomes': 'KC',
+            'Josh Downs': 'IND',
+            'Jalen Hurts': 'PHI',
+            "Ja'Marr Chase": 'CIN',
+            'Joe Burrow': 'CIN',
+            'Saquon Barkley': 'PHI',
+            'C.J. Stroud': 'HOU',
+            'Jahmyr Gibbs': 'DET',
+            'Jared Goff': 'DET',
+            'Mike Evans': 'TB',
+            'Dak Prescott': 'DAL',
+            'Terry McLaurin': 'WAS',
+            // Add more players as needed
+
+            // Next Up Award Players
+            'Jaxson Dart': 'NYG',
+            'Malik Nabers': 'NYG',
+            'Jayden Higgins': 'HOU',
+            'Bo Nix': 'DEN',
+            'Tetairoa McMillan': 'CAR',
+            'Bucky Irving': 'TB',
+            'Quinshon Judkins': 'CLE',
+            'Jalen Coker': 'CAR',
+            'Emeka Egbuka': 'TB',
+            'J.J. McCarthy': 'MIN',
+            'Ashton Jeanty': 'LV',
+            'Brian Thomas': 'JAX',
+            'Kaleb Johnson': 'PIT',
+            'DeVaughn Vele': 'DEN',
+            'Xavier Legette': 'CAR',
+            'Elic Ayomanor': 'TEN',
+            'Rome Odunze': 'CHI',
+            'Tory Horton': 'SEA',
+            'Trey Benson': 'ARI',
+            'Michael Penix': 'ATL',
+            'Ollie Gordon': 'MIA'
+
+        };
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadData();
+        });
+
+        async function loadData() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const content = document.getElementById('content');
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            content.style.display = 'none';
+
+            try {
+                const response = await fetch('./brown-bell-data.json?' + new Date().getTime());
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load data: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                appData = data;
+
+                if (data.currentAward) {
+                    currentAward = data.currentAward;
+                }
+
+                if (data.lastAutomationRun) {
+                    const statusDiv = document.getElementById('automationStatus');
+                    const lastRun = new Date(data.lastAutomationRun);
+                    statusDiv.innerHTML = `Automatically updated via GitHub Actions - Last run: ${lastRun.toLocaleDateString()} ${lastRun.toLocaleTimeString()}`;
+                    statusDiv.style.display = 'block';
+                }
+
+                updateDisplay();
+                loading.style.display = 'none';
+                content.style.display = 'block';
+
+            } catch (err) {
+                console.error('Error loading data:', err);
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.innerHTML = `
+                    <strong>Unable to load league data.</strong><br>
+                    Error: ${err.message}<br>
+                    <small>If you're viewing this locally, make sure the brown-bell-data.json file is in the same directory.</small>
+                `;
+            }
+        }
+
+        function toggleAward(awardType) {
+            currentAward = awardType;
+            document.getElementById('mainAwardBtn').classList.toggle('active', awardType === 'main');
+            document.getElementById('nextUpAwardBtn').classList.toggle('active', awardType === 'nextup');
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            if (!appData) return;
+
+            // Set award toggle buttons without calling toggleAward
+            document.getElementById('mainAwardBtn').classList.toggle('active', currentAward === 'main');
+            document.getElementById('nextUpAwardBtn').classList.toggle('active', currentAward === 'nextup');
+
+            document.getElementById('currentWeek').textContent = appData.currentWeek || 1;
+
+            if (appData.timestamp) {
+                const date = new Date(appData.timestamp);
+                document.getElementById('lastUpdated').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            }
+
+            const weekSelect = document.getElementById('weekSelect');
+            weekSelect.innerHTML = '<option value="current">Current Week</option>';
+            for (let i = 1; i <= 18; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `Week ${i}`;
+                weekSelect.appendChild(option);
+            }
+            weekSelect.value = 'current'; // Force selection to current week
+
+            updateActiveSubstitutions();
+
+            if (currentView === 'weekly') {
+                updateWeeklyRecap();
+                showWeeklyStandings();
+            } else {
+                showSeasonOverview();
+            }
+        }
+
+        function updateActiveSubstitutions() {
+            const selectedWeekNum = selectedWeek === 'current' ? (appData.currentWeek || 1) : parseInt(selectedWeek);
+
+            // Find substitutions active for the selected week
+            const activeSubs = (appData.substitutions || []).filter(s =>
+                s.awardType === currentAward &&
+                s.startWeek <= selectedWeekNum &&
+                (!s.endWeek || s.endWeek >= selectedWeekNum)
+            );
+
+            const subsCard = document.getElementById('activeSubs');
+
+            if (activeSubs.length === 0) {
+                subsCard.style.display = 'none';
+                return;
+            }
+
+            subsCard.style.display = 'block';
+
+            // ADD THIS SECTION - Create collapsible header with summary
+            const awardLabel = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+            const subCount = activeSubs.length;
+            const summary = activeSubs.map(s => `${s.teamName}: ${s.substituteName}`).join(', ');
+            const shortSummary = summary.length > 60 ? summary.substring(0, 60) + '...' : summary;
+
+            subsCard.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleSubsList()">
+        <div>
+            <h3 style="margin: 0;">Active Substitutions (${subCount})</h3>
+            <small id="subsSummary" style="color: #666;">${shortSummary}</small>
+        </div>
+        <span id="subsToggle" style="font-size: 1.2em; user-select: none;">▼</span>
+    </div>
+    <div id="activeSubsList" style="display: none; margin-top: 10px;"></div>
+`;
+            // END OF ADDED SECTION
+
+            const subsList = document.getElementById('activeSubsList'); // RE-GET the element
+
+            activeSubs.forEach(sub => {
+                const div = document.createElement('div');
+                div.className = 'sub-item';
+
+                const subBadgeClass = sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge';
+                const subBadgeText = sub.autoGenerated ? 'AUTO-SUB' : 'SUB';
+                const reasonText = sub.reason ? ` (${sub.reason})` : '';
+
+                div.innerHTML = `
+            <strong>${sub.teamName}</strong> <small>(${awardLabel})</small>: 
+            <span class="position-badge pos-${sub.substitutePosition}">${sub.substitutePosition}</span>
+            ${sub.substituteName} 
+            <span class="${subBadgeClass}">${subBadgeText} for ${sub.originalName}</span>
+            <br><small>Week ${sub.startWeek}-${sub.endWeek || 'Indefinite'}${reasonText}</small>
+        `;
+                subsList.appendChild(div);
+            });
+        }
+
+        function toggleSubsList() {
+            const subsList = document.getElementById('activeSubsList');
+            const toggle = document.getElementById('subsToggle');
+            const summary = document.getElementById('subsSummary');
+
+            if (subsList.style.display === 'none') {
+                subsList.style.display = 'block';
+                toggle.textContent = '▲';
+                summary.style.display = 'none';
+            } else {
+                subsList.style.display = 'none';
+                toggle.textContent = '▼';
+                summary.style.display = 'block';
+            }
+        }
+
+        function toggleRecap() {
+            const recapContent = document.getElementById('recapContent');
+            const toggle = document.getElementById('recapToggle');
+            const summary = document.getElementById('recapSummary');
+
+            if (recapContent.style.display === 'none') {
+                recapContent.style.display = 'block';
+                toggle.textContent = '▲';
+                summary.style.display = 'none';
+            } else {
+                recapContent.style.display = 'none';
+                toggle.textContent = '▼';
+                summary.style.display = 'block';
+            }
+        }
+
+        function generateWeeklyRecap(week) {
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+
+            if (week < 1) return null;
+
+            const weeklyStats = [];
+            teams.forEach(team => {
+                const teamKey = currentAward === 'main' ? team.name : team.mainTeamName;
+                const thisWeekScores = scoresData?.[teamKey]?.[week] || {};
+                const lastWeekScores = week > 1 ? (scoresData?.[teamKey]?.[week - 1] || {}) : {};
+
+                const thisWeekTotal = (thisWeekScores[0] || 0) + (thisWeekScores[1] || 0);
+                const lastWeekTotal = (lastWeekScores[0] || 0) + (lastWeekScores[1] || 0);
+                const improvement = thisWeekTotal - lastWeekTotal;
+
+                // Calculate season average up to this week
+                let seasonTotal = 0;
+                let weeksPlayed = 0;
+                for (let w = 1; w <= week; w++) {
+                    const weekScores = scoresData?.[teamKey]?.[w] || {};
+                    const weekTotal = (weekScores[0] || 0) + (weekScores[1] || 0);
+                    if (weekTotal > 0) {
+                        seasonTotal += weekTotal;
+                        weeksPlayed++;
+                    }
+                }
+                const seasonAvg = weeksPlayed > 0 ? seasonTotal / weeksPlayed : 0;
+
+                weeklyStats.push({
+                    team: team.name,
+                    thisWeekTotal,
+                    lastWeekTotal,
+                    improvement,
+                    seasonAvg,
+                    variance: thisWeekTotal - seasonAvg
+                });
+            });
+
+            // Find interesting stats
+            const topScorer = [...weeklyStats].sort((a, b) => b.thisWeekTotal - a.thisWeekTotal)[0];
+            const biggestComeback = week > 1 ? [...weeklyStats].sort((a, b) => b.improvement - a.improvement)[0] : null;
+            const biggestUnderperformer = [...weeklyStats].sort((a, b) => a.variance - b.variance)[0];
+            const closestRace = findClosestRace(weeklyStats);
+
+            return {
+                topScorer,
+                biggestComeback,
+                biggestUnderperformer,
+                closestRace,
+                substituteStats: calculateSubstituteStats(week)
+            };
+        }
+
+        function calculateSubstituteStats(week) {
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+            const substitutions = appData.substitutions || [];
+
+            // Find active substitutions for this week
+            const activeSubs = substitutions.filter(s =>
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            if (activeSubs.length === 0) return null;
+
+            const subStats = [];
+
+            activeSubs.forEach(sub => {
+                const teamKey = sub.teamName;
+                const weekScores = scoresData?.[teamKey]?.[week] || {};
+                const subScore = weekScores[sub.playerIndex] || 0;
+
+                // Calculate original player's season average (excluding this week)
+                let originalTotal = 0;
+                let originalWeeks = 0;
+                for (let w = 1; w < week; w++) {
+                    const oldWeekScores = scoresData?.[teamKey]?.[w] || {};
+                    const oldScore = oldWeekScores[sub.playerIndex] || 0;
+                    if (oldScore > 0) {
+                        originalTotal += oldScore;
+                        originalWeeks++;
+                    }
+                }
+                const originalAvg = originalWeeks > 0 ? originalTotal / originalWeeks : 0;
+
+                subStats.push({
+                    teamName: sub.teamName,
+                    substituteName: sub.substituteName,
+                    originalName: sub.originalName,
+                    score: subScore,
+                    originalAvg: originalAvg,
+                    differential: subScore - originalAvg,
+                    reason: sub.reason
+                });
+            });
+
+            // Find best and worst substitutes
+            const bestSub = [...subStats].sort((a, b) => b.score - a.score)[0];
+            const mvpSub = [...subStats].sort((a, b) => b.differential - a.differential)[0];
+            const worstSub = [...subStats].sort((a, b) => a.score - b.score)[0];
+
+            return {
+                totalSubs: subStats.length,
+                bestSub,
+                mvpSub: mvpSub && mvpSub.differential > 5 ? mvpSub : null,
+                worstSub: worstSub && worstSub.score < 5 ? worstSub : null
+            };
+        }
+
+        function updateWeeklyRecap() {
+            const week = selectedWeek === 'current' ? (appData.currentWeek || 1) : parseInt(selectedWeek);
+            const recapCard = document.getElementById('weeklyRecap');
+            const recapContent = document.getElementById('recapContent');
+
+            // Only show for weekly view
+            if (currentView !== 'weekly') {
+                recapCard.style.display = 'none';
+                return;
+            }
+
+            const stats = generateWeeklyRecap(week);
+
+            if (!stats || !stats.topScorer) {
+                recapCard.style.display = 'none';
+                return;
+            }
+
+            recapCard.style.display = 'block';
+
+            let html = '';
+
+            // Top Scorer
+            html += `
+        <div class="recap-stat">
+            <div class="recap-stat-title">
+                <span class="recap-emoji">🏆</span>
+                <span>Champion of the Week</span>
+            </div>
+            <div class="recap-stat-value">
+                <strong>${stats.topScorer.team}</strong> dominated with ${stats.topScorer.thisWeekTotal.toFixed(1)} points!
+            </div>
+        </div>
+    `;
+
+            // Biggest Comeback
+            if (stats.biggestComeback && stats.biggestComeback.improvement > 0) {
+                html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">📈</span>
+                    <span>Biggest Comeback</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${stats.biggestComeback.team}</strong> bounced back with a +${stats.biggestComeback.improvement.toFixed(1)} point improvement from last week!
+                </div>
+            </div>
+        `;
+            }
+
+            // Underperformer
+            if (stats.biggestUnderperformer && stats.biggestUnderperformer.variance < -10) {
+                html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">📉</span>
+                    <span>Underperformer Alert</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${stats.biggestUnderperformer.team}</strong> fell short, scoring ${Math.abs(stats.biggestUnderperformer.variance).toFixed(1)} points below their season average.
+                </div>
+            </div>
+        `;
+            }
+
+            // Closest Race
+            if (stats.closestRace && stats.closestRace.diff < 5) {
+                html += `
+        <div class="recap-stat">
+            <div class="recap-stat-title">
+                <span class="recap-emoji">⚔️</span>
+                <span>Closest Battle</span>
+            </div>
+            <div class="recap-stat-value">
+                <strong>${stats.closestRace.team1}</strong> (${stats.closestRace.score1.toFixed(1)}) barely edged out 
+                <strong>${stats.closestRace.team2}</strong> (${stats.closestRace.score2.toFixed(1)}) by just ${stats.closestRace.diff.toFixed(1)} points!
+            </div>
+        </div>
+    `;
+            }
+
+            // ADD THIS ENTIRE SECTION - SUBSTITUTE STATS
+            if (stats.substituteStats) {
+                const subStats = stats.substituteStats;
+
+                // Best Substitute Performance
+                if (subStats.bestSub && subStats.bestSub.score > 10) {
+                    html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">🌟</span>
+                    <span>Substitute Superstar</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${subStats.bestSub.substituteName}</strong> (filling in for ${subStats.bestSub.originalName}) 
+                    put up ${subStats.bestSub.score.toFixed(1)} points for <strong>${subStats.bestSub.teamName}</strong>!
+                </div>
+            </div>
+        `;
+                }
+
+                // MVP Substitute (outperformed original's average)
+                if (subStats.mvpSub && subStats.mvpSub.differential > 5) {
+                    html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">💎</span>
+                    <span>Diamond in the Rough</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${subStats.mvpSub.substituteName}</strong> exceeded expectations by ${subStats.mvpSub.differential.toFixed(1)} points 
+                    compared to <strong>${subStats.mvpSub.originalName}</strong>'s season average! 
+                    Great pickup by <strong>${subStats.mvpSub.teamName}</strong>!
+                </div>
+            </div>
+        `;
+                }
+
+                // Worst Substitute (bust)
+                if (subStats.worstSub && subStats.worstSub.score < 5) {
+                    html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">😬</span>
+                    <span>Substitute Struggle</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${subStats.worstSub.substituteName}</strong> had a rough outing with only ${subStats.worstSub.score.toFixed(1)} points 
+                    for <strong>${subStats.worstSub.teamName}</strong>. Better luck next week!
+                </div>
+            </div>
+        `;
+                }
+
+                // Total Substitutions Active
+                if (subStats.totalSubs > 0) {
+                    html += `
+            <div class="recap-stat">
+                <div class="recap-stat-title">
+                    <span class="recap-emoji">🔄</span>
+                    <span>Substitution Report</span>
+                </div>
+                <div class="recap-stat-value">
+                    <strong>${subStats.totalSubs}</strong> ${subStats.totalSubs === 1 ? 'substitution was' : 'substitutions were'} 
+                    active this week across the league.
+                </div>
+            </div>
+        `;
+                }
+            }
+            // END OF ADDED SECTION
+
+            recapContent.innerHTML = html;
+        }
+
+        function findClosestRace(stats) {
+            if (stats.length < 2) return null;
+
+            const sorted = [...stats].sort((a, b) => b.thisWeekTotal - a.thisWeekTotal);
+            let closestPair = null;
+            let smallestDiff = Infinity;
+
+            for (let i = 0; i < sorted.length - 1; i++) {
+                const diff = sorted[i].thisWeekTotal - sorted[i + 1].thisWeekTotal;
+                if (diff < smallestDiff && diff > 0) {
+                    smallestDiff = diff;
+                    closestPair = {
+                        team1: sorted[i].team,
+                        score1: sorted[i].thisWeekTotal,
+                        team2: sorted[i + 1].team,
+                        score2: sorted[i + 1].thisWeekTotal,
+                        diff: diff
+                    };
+                }
+            }
+
+            return closestPair;
+        }
+
+        function showView(view) {
+            currentView = view;
+
+            document.getElementById('weeklyBtn').classList.toggle('active', view === 'weekly');
+            document.getElementById('seasonBtn').classList.toggle('active', view === 'season');
+
+            document.getElementById('weekSelector').style.display = view === 'weekly' ? 'flex' : 'none';
+
+            if (view === 'weekly') {
+                updateWeeklyRecap();
+                showWeeklyStandings();
+            } else {
+                showSeasonOverview();
+            }
+        }
+
+        function updateWeeklyView() {
+            selectedWeek = document.getElementById('weekSelect').value;
+            updateActiveSubstitutions(); // Add this line
+            updateWeeklyRecap();
+            showWeeklyStandings();
+        }
+
+        function showWeeklyStandings() {
+            const week = selectedWeek === 'current' ? (appData.currentWeek || 1) : parseInt(selectedWeek);
+            const title = document.getElementById('standingsTitle');
+            const content = document.getElementById('standingsContent');
+
+            const awardName = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+            title.textContent = `Week ${week} Standings - ${awardName}`;
+
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+
+            const weeklyScores = [];
+            teams.forEach(team => {
+                const teamKey = currentAward === 'main' ? team.name : team.mainTeamName;
+                const weekScores = scoresData?.[teamKey]?.[week] || {};
+
+                const p1Score = weekScores[0] || 0;
+                const p2Score = weekScores[1] || 0;
+                const total = p1Score + p2Score;
+
+                weeklyScores.push({
+                    team: team,
+                    p1Score,
+                    p2Score,
+                    total,
+                    week
+                });
+            });
+
+            weeklyScores.sort((a, b) => b.total - a.total);
+
+            let html = '';
+
+            // Add bye week explanation if any byes this week
+            const byeTeams = byeWeeks[week] || [];
+            if (byeTeams.length > 0) {
+                html += `<div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em; border-left: 4px solid #6c757d;">
+        <strong>ℹ️ Bye Week Notice:</strong> 
+        <span class="bye-badge">BYE</span> = Player on bye week. 
+        <span class="bye-sub-badge">BYE-SUB</span> = Substitute played but points don't count (original player on bye).
+    </div>`;
+            }
+
+            // ADD THIS ENTIRE SECTION - Manager change history notice
+            if (appData.managerChanges) {
+                Object.entries(appData.managerChanges).forEach(([teamName, change]) => {
+                    const showingHistoricalWeek = week < change.changeWeek;
+                    if (showingHistoricalWeek) {
+                        html += `<div style="background: #e7f3ff; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.9em; border-left: 4px solid #17a2b8;">
+                <strong>ℹ️ Manager History:</strong> 
+                Week ${week} was managed by <strong>${change.previousManager}</strong>. 
+                <strong>${teamName}</strong> took over Week ${change.changeWeek}.
+            </div>`;
+                    }
+                });
+            }
+            // END OF ADDED SECTION
+
+            html += '<table class="standings-table">';
+            html += '<thead><tr>';
+            html += '<th>Rank</th><th>Team</th><th>Player 1</th><th>Player 2</th><th>Total</th>';
+            html += '</tr></thead><tbody>';
+
+            weeklyScores.forEach((score, idx) => {
+                const rank = idx + 1;
+                let rankClass = '';
+                if (rank === 1) rankClass = 'rank-gold';
+                else if (rank === 2) rankClass = 'rank-silver';
+                else if (rank === 3) rankClass = 'rank-bronze';
+
+                // Check for inactive teams and manager changes
+                const teamName = score.team.name;
+                const isInactive = appData.inactiveTeams && appData.inactiveTeams[teamName];
+                const managerChange = appData.managerChanges && appData.managerChanges[teamName];
+
+                const inactiveBadge = (isInactive && week > isInactive.lastActiveWeek)
+                    ? `<span class="inactive-badge">REMOVED</span>`
+                    : '';
+                const managerChangeBadge = (managerChange && week >= managerChange.changeWeek)
+                    ? `<span class="manager-change-badge">NEW-MGR</span>`
+                    : '';
+                const rowClass = (isInactive && week > isInactive.lastActiveWeek) ? 'inactive-team' : '';
+
+                const p1Display = getPlayerDisplayName(score.team, 0, week);
+                const p2Display = getPlayerDisplayName(score.team, 1, week);
+                const p1ByeBadge = getByeBadge(score.team, 0, week, p1Display);
+                const p2ByeBadge = getByeBadge(score.team, 1, week, p2Display);
+
+                const p1OnBye = isPlayerOnBye(score.team.players[0].name, week);
+                const p2OnBye = isPlayerOnBye(score.team.players[1].name, week);
+
+                const p1ScoreStyle = p1OnBye ? 'style="color: #dc3545; text-decoration: line-through;"' : '';
+                const p2ScoreStyle = p2OnBye ? 'style="color: #dc3545; text-decoration: line-through;"' : '';
+
+                html += `<tr class="${rankClass} ${rowClass}">`;  // MODIFIED
+                html += `<td><strong>${rank}</strong></td>`;
+                html += `<td><strong>${score.team.name}</strong>${inactiveBadge}${managerChangeBadge}</td>`;
+                html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 0, week, p1Display)}${p1ByeBadge}<br><small ${p1ScoreStyle}>${score.p1Score.toFixed(1)} pts</small></td>`;
+                html += `<td>${getPlayerDisplayWithCorrectBadge(score.team, 1, week, p2Display)}${p2ByeBadge}<br><small ${p2ScoreStyle}>${score.p2Score.toFixed(1)} pts</small></td>`;
+                html += `<td><strong>${score.total.toFixed(1)}</strong></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+        }
+
+        function showSeasonOverview() {
+            const title = document.getElementById('standingsTitle');
+            const content = document.getElementById('standingsContent');
+
+            const awardName = currentAward === 'nextup' ? 'Next Up Award' : 'Brown Bell Award';
+            title.textContent = `Season Overview - ${awardName}`;
+
+            const teams = currentAward === 'main' ? (appData.teams || []) : (appData.nextUpTeams || []);
+            const scoresData = currentAward === 'main' ? appData.scores : appData.nextUpScores;
+
+            const seasonTotals = [];
+            teams.forEach(team => {
+                const teamKey = currentAward === 'main' ? team.name : team.mainTeamName;
+                const weeklyTotals = [];
+                let seasonTotal = 0;
+
+                for (let week = 1; week <= 18; week++) {
+                    const weekScores = scoresData?.[teamKey]?.[week] || {};
+                    const p1Score = weekScores[0] || 0;
+                    const p2Score = weekScores[1] || 0;
+                    const total = p1Score + p2Score;
+                    weeklyTotals.push({ p1: p1Score, p2: p2Score, total });
+                    seasonTotal += total;
+                }
+
+                seasonTotals.push({
+                    team,
+                    weeklyTotals,
+                    seasonTotal
+                });
+            });
+
+            seasonTotals.sort((a, b) => b.seasonTotal - a.seasonTotal);
+
+            let html = '<table class="season-overview-table">';
+            html += '<thead><tr>';
+            html += '<th>Rank</th><th>Team</th>';
+            for (let w = 1; w <= 18; w++) {
+                html += `<th>W${w}</th>`;
+            }
+            html += '<th>Total</th>';
+            html += '</tr></thead><tbody>';
+
+            seasonTotals.forEach((data, idx) => {
+                const rank = idx + 1;
+                let rankClass = '';
+                if (rank === 1) rankClass = 'rank-gold';
+                else if (rank === 2) rankClass = 'rank-silver';
+                else if (rank === 3) rankClass = 'rank-bronze';
+
+                const teamRowClass = `team-row-${((idx % 12) + 1)}`;
+
+                // ADD THIS ENTIRE SECTION - CHECK FOR INACTIVE TEAMS
+                const teamName = data.team.name;
+                const isInactive = appData.inactiveTeams && appData.inactiveTeams[teamName];
+                const managerChange = appData.managerChanges && appData.managerChanges[teamName];
+                const lastActiveWeek = isInactive ? isInactive.lastActiveWeek : 18;
+
+                const inactiveBadge = isInactive ? `<span class="inactive-badge">REMOVED W${lastActiveWeek + 1}</span>` : '';
+                const managerChangeBadge = managerChange ? `<span class="manager-change-badge">NEW-MGR</span>` : '';
+
+                // ADD THIS SECTION - Build team display with manager history
+                let teamDisplay = `<strong>${data.team.name}</strong>`;
+                if (managerChange) {
+                    teamDisplay += `<br><small style="color: #666; font-weight: normal;">
+        (${managerChange.previousManager} W1-${managerChange.changeWeek - 1})
+    </small>`;
+                }
+                // END OF ADDED SECTION
+
+                html += `<tr class="${rankClass} ${teamRowClass}">`;
+                html += `<td rowspan="2" style="vertical-align: middle;"><strong>${rank}</strong></td>`;
+                html += `<td class="team-cell" rowspan="2" style="vertical-align: middle;">${teamDisplay}${inactiveBadge}${managerChangeBadge}</td>`;  // CHANGED THIS LINE
+
+                // Player 1 scores
+                for (let w = 1; w <= 18; w++) {
+                    const score = data.weeklyTotals[w - 1].p1;
+                    const player1Name = data.team.players[0].name;
+                    const isBye = isPlayerOnBye(player1Name, w);
+
+                    const afterRemoval = isInactive && w > lastActiveWeek;
+                    const underPreviousManager = managerChange && w < managerChange.changeWeek;  // ADD THIS LINE
+
+                    const displayScore = afterRemoval ? 'X' : (isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-'));
+
+                    // REPLACE THE cellClass SECTION WITH THIS:
+                    let cellClass = '';
+                    if (afterRemoval) {
+                        cellClass = 'style="background-color: #e9ecef; font-weight: bold; color: #dc3545;"';
+                    } else if (isBye) {
+                        cellClass = 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"';
+                    } else if (underPreviousManager && score > 0) {
+                        cellClass = 'style="background-color: #e7f3ff; border-left: 2px solid #17a2b8;"';
+                    }
+
+                    const tooltip = underPreviousManager ? `title="Managed by ${managerChange.previousManager}"` : '';  // ADD THIS LINE
+
+                    html += `<td class="player-cell" ${cellClass} ${tooltip}>${displayScore}</td>`;  // MODIFIED THIS LINE
+                }
+                html += `<td rowspan="2" style="vertical-align: middle;"><strong>${data.seasonTotal.toFixed(1)}</strong></td>`;
+                html += '</tr>';
+
+                // Player 2 scores
+                // Player 2 scores
+                html += `<tr class="${rankClass} ${teamRowClass}">`;
+                for (let w = 1; w <= 18; w++) {
+                    const score = data.weeklyTotals[w - 1].p2;
+                    const player2Name = data.team.players[1].name;
+                    const isBye = isPlayerOnBye(player2Name, w);
+
+                    const afterRemoval = isInactive && w > lastActiveWeek;
+                    const underPreviousManager = managerChange && w < managerChange.changeWeek;  // ADD THIS LINE
+
+                    const displayScore = afterRemoval ? 'X' : (isBye ? 'BYE' : (score > 0 ? score.toFixed(1) : '-'));
+
+                    // REPLACE THE cellClass SECTION WITH THIS:
+                    let cellClass = '';
+                    if (afterRemoval) {
+                        cellClass = 'style="background-color: #e9ecef; font-weight: bold; color: #dc3545;"';
+                    } else if (isBye) {
+                        cellClass = 'style="background-color: #e9ecef; font-weight: bold; color: #6c757d;"';
+                    } else if (underPreviousManager && score > 0) {
+                        cellClass = 'style="background-color: #e7f3ff; border-left: 2px solid #17a2b8;"';
+                    }
+
+                    const tooltip = underPreviousManager ? `title="Managed by ${managerChange.previousManager}"` : '';  // ADD THIS LINE
+
+                    html += `<td class="player-cell" ${cellClass} ${tooltip}>${displayScore}</td>`;  // MODIFIED THIS LINE
+                }
+                html += '</tr>';
+
+                // Add separator after each team
+                if (idx < seasonTotals.length - 1) {
+                    html += `<tr class="team-row-border"><td colspan="21" style="height: 1px; padding: 0; border: none;"></td></tr>`;
+                }
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+        }
+
+        function getPlayerDisplayName(team, playerIndex, week) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            // If NO-SUB scenario, show original player name
+            if (sub && sub.noSubBadge === true) {
+                return team.players[playerIndex].name;
+            }
+
+            return sub ? sub.substituteName : team.players[playerIndex].name;
+        }
+
+        function getSubBadge(team, playerIndex, week) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            if (!sub) return '';
+
+            const badgeClass = sub.autoGenerated ? 'auto-sub-badge' : 'sub-badge';
+            const badgeText = sub.autoGenerated ? 'AUTO-SUB' : 'SUB';
+            return `<span class="${badgeClass}">${badgeText}</span>`;
+        }
+
+        function isPlayerOnBye(playerName, week) {
+            const team = playerTeams[playerName];
+            if (!team) return false;
+
+            const byeTeams = byeWeeks[week] || [];
+            return byeTeams.includes(team);
+        }
+
+        function getByeBadge(team, playerIndex, week, displayName) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+
+            // Check if there's an active substitution
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            // Check if ORIGINAL player is on bye
+            const originalPlayer = team.players[playerIndex].name;
+            const originalOnBye = isPlayerOnBye(originalPlayer, week);
+
+            if (originalOnBye) {
+                // Special case: Original player on bye AND has a substitute
+                if (sub) {
+                    // Don't show BYE-SUB if it's a trade sub
+                    if (sub.isManualSubForTrade === true) {
+                        return ''; // Trade badge will be shown by getPlayerDisplayWithCorrectBadge
+                    }
+                    return '<span class="bye-sub-badge">BYE-SUB</span>';
+                }
+                // Regular bye: Original player on bye, no substitute
+                return '<span class="bye-badge">BYE</span>';
+            }
+
+            return '';
+        }
+
+        function getPlayerDisplayWithCorrectBadge(team, playerIndex, week, displayName) {
+            const teamName = currentAward === 'main' ? team.name : team.mainTeamName;
+            const substitutions = appData.substitutions || [];
+            const sub = substitutions.find(s =>
+                s.teamName === teamName &&
+                s.playerIndex === playerIndex &&
+                s.awardType === currentAward &&
+                s.startWeek <= week &&
+                (!s.endWeek || s.endWeek >= week)
+            );
+
+            // Handle NO-SUB scenario
+            if (sub && sub.noSubBadge === true) {
+                const actualPosition = team.players[playerIndex].position;
+                const positionBadge = `<span class="position-badge pos-${actualPosition}">${actualPosition}</span>`;
+                const noSubBadge = ' <span class="no-sub-badge">NO-SUB</span>';
+                return `${positionBadge} <span style="text-decoration: line-through; color: #999;">${displayName}</span>${noSubBadge}`;
+            }
+
+            // Use substitute's actual position if there's a substitution, otherwise use original player position
+            const actualPosition = sub ? sub.substitutePosition : team.players[playerIndex].position;
+            const positionBadge = `<span class="position-badge pos-${actualPosition}">${actualPosition}</span>`;
+
+            // Determine which badge to show
+            let subBadge = '';
+            if (sub) {
+                if (sub.isManualSubForTrade === true) {
+                    // Trade substitution - highest priority
+                    subBadge = ' <span class="trade-badge">TRADE-SUB</span>';
+                } else if (sub.byeWeekSub === true) {
+                    // Bye week substitution
+                    subBadge = ' <span class="bye-sub-badge">BYE-SUB</span>';
+                } else if (sub.autoGenerated === true) {
+                    // Auto-generated substitution
+                    subBadge = ' <span class="auto-sub-badge">AUTO-SUB</span>';
+                } else {
+                    // Manual substitution
+                    subBadge = ' <span class="sub-badge">SUB</span>';
+                }
+            }
+
+            return `${positionBadge} ${displayName}${subBadge}`;
+        }
+
+        function showRosterChanges() {
+            const title = document.getElementById('standingsTitle');
+            const content = document.getElementById('standingsContent');
+
+            title.textContent = 'Roster Changes (Trades)';
+
+            const rosterChanges = appData.rosterChanges || [];
+
+            if (rosterChanges.length === 0) {
+                content.innerHTML = '<p>No roster changes this season.</p>';
+                return;
+            }
+
+            let html = '<table class="standings-table"><thead><tr>';
+            html += '<th>Week</th><th>Team</th><th>Award</th><th>Player</th><th>Change Type</th><th>Details</th>';
+            html += '</tr></thead><tbody>';
+
+            rosterChanges.forEach(change => {
+                const awardName = change.awardType === 'main' ? 'Brown Bell' : 'Next Up';
+                html += `<tr>
+            <td>${change.changeWeek}</td>
+            <td>${change.teamName}</td>
+            <td>${awardName}</td>
+            <td><span class="position-badge pos-${change.playerPosition || ''}">${change.playerPosition || ''}</span> ${change.playerName}</td>
+            <td><span class="trade-badge">TRADE</span></td>
+            <td>${change.reason}</td>
+        </tr>`;
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+        }
+
+    </script>
+</body>
+
+</html>
