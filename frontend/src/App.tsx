@@ -11,6 +11,9 @@ export default function App() {
   const { status, claimedTeam, claiming, claimError, claim, forget } = useTeamClaim();
   const [showClaimModal, setShowClaimModal] = useState(false);
 
+  const myTeam = claimedTeam ? teams.find(t => t.team.id === claimedTeam.teamId) ?? null : null;
+  const otherTeams = myTeam ? teams.filter(t => t.team.id !== myTeam.team.id) : teams;
+
   return (
     <div className="min-h-screen bg-field">
       <Header season={season} />
@@ -43,12 +46,30 @@ export default function App() {
           </div>
         )}
 
-        {!loading && !error && teams.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {teams.map((teamWithDuos) => (
-              <TeamCard key={teamWithDuos.team.id} teamWithDuos={teamWithDuos} />
-            ))}
-          </div>
+        {!loading && !error && myTeam && (
+          <section className="mb-8">
+            <h2 className="mb-2 font-mono text-xs uppercase tracking-widest text-bell">
+              Your Team
+            </h2>
+            <div className="max-w-sm">
+              <TeamCard teamWithDuos={myTeam} />
+            </div>
+          </section>
+        )}
+
+        {!loading && !error && otherTeams.length > 0 && (
+          <>
+            {myTeam && (
+              <h2 className="mb-2 font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                All Teams
+              </h2>
+            )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {otherTeams.map((teamWithDuos) => (
+                <TeamCard key={teamWithDuos.team.id} teamWithDuos={teamWithDuos} />
+              ))}
+            </div>
+          </>
         )}
       </main>
 
