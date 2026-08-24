@@ -2178,7 +2178,7 @@ class BrownBellAutomator {
         // call only persists cleanupSubstitutions()'s in-memory fixups (e.g. an
         // invalid date range correction) to the existing rows, nothing new.
         await this.dataLayer.saveSubstitutions(cleanedSubstitutions);
-        await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds);
+        await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds, this.playersData);
         if (scheduleSnapshotTeams) {
             await this.dataLayer.saveScheduleSnapshot(currentWeek, scheduleSnapshotTeams, scheduleSnapshotCapturedAt);
             await this.dataLayer.saveScheduleChanges(currentWeek, newlyDetectedChanges);

@@ -1,5 +1,19 @@
 import { useEffect, useState } from 'react';
-import type { AwardType, EligibleRosterResponse } from '../types';
+import type { AwardType, EligibleRosterResponse, EligibleCandidate } from '../types';
+
+const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'K'];
+
+function groupByPosition(candidates: EligibleCandidate[]): [string, EligibleCandidate[]][] {
+    const groups = new Map<string, EligibleCandidate[]>();
+    for (const c of candidates) {
+        const list = groups.get(c.position) || [];
+        list.push(c);
+        groups.set(c.position, list);
+    }
+    return POSITION_ORDER
+        .filter(pos => groups.has(pos))
+        .map(pos => [pos, groups.get(pos)!]);
+}
 
 interface DuoPickerModalProps {
     awardType: AwardType;
@@ -88,17 +102,25 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
                 )}
 
                 {!loading && data && data.candidates.length > 0 && (
-                    <div className="mt-4 space-y-1.5">
-                        {data.candidates.map(c => (
-                            <button
-                                key={c.sleeperPlayerId}
-                                onClick={() => handlePick(c.sleeperPlayerId)}
-                                disabled={saving}
-                                className="flex w-full items-center justify-between rounded border border-panel-line bg-field/40 px-3 py-2 text-left disabled:opacity-50"
-                            >
-                                <span className="font-body text-sm text-chalk">{c.name}</span>
-                                <span className="font-mono text-xs uppercase tracking-wide text-bell">{c.position}</span>
-                            </button>
+                    <div className="mt-4 space-y-4">
+                        {groupByPosition(data.candidates).map(([position, group]) => (
+                            <div key={position}>
+                                <p className="mb-1.5 font-mono text-xs uppercase tracking-widest text-bell">
+                                    {position}
+                                </p>
+                                <div className="space-y-1.5">
+                                    {group.map(c => (
+                                        <button
+                                            key={c.sleeperPlayerId}
+                                            onClick={() => handlePick(c.sleeperPlayerId)}
+                                            disabled={saving}
+                                            className="flex w-full items-center justify-between rounded border border-panel-line bg-field/40 px-3 py-2 text-left disabled:opacity-50"
+                                        >
+                                            <span className="font-body text-sm text-chalk">{c.name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         ))}
                     </div>
                 )}

@@ -22,12 +22,24 @@ export function SeasonRankingsTable({ scores, myTeamId }: SeasonRankingsTablePro
                             key={row.teamId}
                             className={`border-b border-panel-line last:border-0 ${row.teamId === myTeamId ? 'bg-bell/10' : ''}`}
                         >
-                            <td className="px-3 py-2 font-mono text-sm text-chalk-dim">{row.rank}</td>
-                            <td className="px-3 py-2 font-body text-sm text-chalk">
-                                {row.teamName}
-                                {row.teamId === myTeamId && <span className="ml-1.5 text-xs text-bell">(You)</span>}
+                            <td className="px-3 py-2 align-top font-mono text-sm text-chalk-dim">{row.rank}</td>
+                            <td className="px-3 py-2 align-top font-body text-sm text-chalk">
+                                <div>
+                                    {row.teamName}
+                                    {row.teamId === myTeamId && <span className="ml-1.5 text-xs text-bell">(You)</span>}
+                                </div>
+                                {row.players.length > 0 && (
+                                    <div className="mt-0.5 font-mono text-xs text-chalk-dim">
+                                        {row.players.map((p, i) => (
+                                            <span key={p.sleeperPlayerId}>
+                                                {i > 0 && ' \u00b7 '}
+                                                {p.playerName} {p.points.toFixed(1)}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                             </td>
-                            <td className="px-3 py-2 text-right font-mono text-sm font-semibold text-chalk">
+                            <td className="px-3 py-2 text-right align-top font-mono text-sm font-semibold text-chalk">
                                 {row.total.toFixed(1)}
                             </td>
                         </tr>

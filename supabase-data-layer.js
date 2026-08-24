@@ -289,7 +289,7 @@ class SupabaseDataLayer {
 
     // scores/playerIds shape: { [awardType]: { [teamName]: { [week]: { [index]: value } } } }
     // (this matches updateAllScores()'s existing internal structure - see update-standings.js)
-    async saveWeeklyScores(scores, playerIds) {
+    async saveWeeklyScores(scores, playerIds, playersData) {
         const rows = [];
         for (const awardType of ['main', 'nextup']) {
             for (const [teamName, byWeek] of Object.entries(scores[awardType] || {})) {
@@ -300,12 +300,20 @@ class SupabaseDataLayer {
                     for (const [index, points] of Object.entries(byIndex)) {
                         const sleeperPlayerId = playerIds?.[awardType]?.[teamName]?.[week]?.[index];
                         if (!sleeperPlayerId) continue; // nothing to key the row on
+
+                        // Captured at write time, not resolved later from duos, so
+                        // past weeks stay accurate even after a player is swapped.
+                        const player = playersData?.[sleeperPlayerId];
+                        const playerName = player ? `${player.first_name || ''} ${player.last_name || ''}`.trim() : null;
+
                         rows.push({
                             team_id: teamId,
                             award_type: awardType,
                             week: Number(week),
                             sleeper_player_id: sleeperPlayerId,
-                            points: points || 0
+                            points: points || 0,
+                            player_name: playerName || null,
+                            player_position: player?.position || null
                         });
                     }
                 }
