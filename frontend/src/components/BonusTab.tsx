@@ -26,15 +26,22 @@ function PillToggle<T extends string>({ options, value, onChange }: { options: {
 }
 
 export function BonusTab({ teams, myTeamId }: BonusTabProps) {
-    const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error } = useBonusResults(teams);
+    const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
     const [view, setView] = useState<'matchups' | 'season'>('matchups');
     const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
+    // Default to my own next upcoming matchup's week if claimed, otherwise week 1
     useEffect(() => {
-        if (selectedWeek === null && weeksAvailable.length > 0) {
-            setSelectedWeek(weeksAvailable[weeksAvailable.length - 1]);
+        if (selectedWeek !== null || weeksAvailable.length === 0) return;
+        if (myTeamId) {
+            const upcoming = getUpcomingMatchup(myTeamId);
+            if (upcoming) {
+                setSelectedWeek(upcoming.week);
+                return;
+            }
         }
-    }, [weeksAvailable, selectedWeek]);
+        setSelectedWeek(weeksAvailable[0]);
+    }, [weeksAvailable, selectedWeek, myTeamId, getUpcomingMatchup]);
 
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading bonus matchups&hellip;</p>;
@@ -48,8 +55,29 @@ export function BonusTab({ teams, myTeamId }: BonusTabProps) {
         );
     }
 
+    const myUpcoming = myTeamId ? getUpcomingMatchup(myTeamId) : null;
+    const myOpponentId = myUpcoming
+        ? (myUpcoming.teamA.teamId === myTeamId ? myUpcoming.teamB.teamId : myUpcoming.teamA.teamId)
+        : null;
+    const myOpponentName = myUpcoming
+        ? (myUpcoming.teamA.teamId === myTeamId ? myUpcoming.teamB.teamName : myUpcoming.teamA.teamName)
+        : null;
+    const myHeadToHead = myTeamId && myOpponentId ? getHeadToHead(myTeamId, myOpponentId) : null;
+
     return (
         <div>
+            {myUpcoming && myOpponentName && myHeadToHead && (
+                <div className="mb-4 rounded-lg border border-bell/50 bg-bell/10 p-4">
+                    <p className="font-mono text-xs uppercase tracking-widest text-bell">Your next matchup</p>
+                    <p className="mt-1 font-body text-lg text-chalk">
+                        Week {myUpcoming.week} vs <span className="font-semibold">{myOpponentName}</span>
+                    </p>
+                    <p className="mt-1 font-mono text-xs text-chalk-dim">
+                        All-time vs {myOpponentName}: {myHeadToHead.wins}-{myHeadToHead.losses}-{myHeadToHead.ties}
+                    </p>
+                </div>
+            )}
+
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <PillToggle
                     options={[{ id: 'matchups', label: 'Matchups' }, { id: 'season', label: 'Season' }]}
@@ -69,12 +97,6 @@ export function BonusTab({ teams, myTeamId }: BonusTabProps) {
                 )}
             </div>
 
-            {view === 'matchups' && weeksAvailable.length === 0 && (
-                <div className="rounded border border-dashed border-panel-line px-4 py-6 text-center">
-                    <p className="font-body text-sm text-chalk-dim">No bonus matchups recorded yet.</p>
-                </div>
-            )}
-
             {view === 'matchups' && selectedWeek !== null && (
                 <div className="space-y-2">
                     {(matchupsByWeek.get(selectedWeek) ?? []).map((m, i) => {
@@ -87,28 +109,34 @@ export function BonusTab({ teams, myTeamId }: BonusTabProps) {
                                 className={`rounded-lg border border-panel-line p-3 ${involvesMe ? 'bg-bell/10' : 'bg-panel'}`}
                             >
                                 <div className="flex items-center justify-between">
-                                    <p className={`font-body text-sm ${aWins ? 'text-chalk' : 'text-chalk-dim'}`}>
+                                    <p className={`font-body text-sm ${!m.played || aWins ? 'text-chalk' : 'text-chalk-dim'}`}>
                                         {m.teamA.teamName}
                                         {m.teamA.teamId === myTeamId && <span className="ml-1 text-xs text-bell">(You)</span>}
                                     </p>
-                                    <p className={`font-mono text-sm font-semibold ${aWins ? 'text-chalk' : 'text-chalk-dim'}`}>
-                                        {m.teamA.score.toFixed(1)}
-                                    </p>
+                                    {m.played && (
+                                        <p className={`font-mono text-sm font-semibold ${aWins ? 'text-chalk' : 'text-chalk-dim'}`}>
+                                            {m.teamA.score.toFixed(1)}
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="my-1 border-t border-dashed border-panel-line" />
                                 <div className="flex items-center justify-between">
-                                    <p className={`font-body text-sm ${bWins ? 'text-chalk' : 'text-chalk-dim'}`}>
+                                    <p className={`font-body text-sm ${!m.played || bWins ? 'text-chalk' : 'text-chalk-dim'}`}>
                                         {m.teamB.teamName}
                                         {m.teamB.teamId === myTeamId && <span className="ml-1 text-xs text-bell">(You)</span>}
                                     </p>
-                                    <p className={`font-mono text-sm font-semibold ${bWins ? 'text-chalk' : 'text-chalk-dim'}`}>
-                                        {m.teamB.score.toFixed(1)}
-                                    </p>
+                                    {m.played && (
+                                        <p className={`font-mono text-sm font-semibold ${bWins ? 'text-chalk' : 'text-chalk-dim'}`}>
+                                            {m.teamB.score.toFixed(1)}
+                                        </p>
+                                    )}
                                 </div>
                                 <p className="mt-1.5 font-mono text-xs uppercase tracking-widest text-bell">
-                                    {m.outcome === 'tie'
-                                        ? `Tie - Tier ${m.tier} split, +${m.bonusPointsEach.toFixed(2)} each`
-                                        : `Tier ${m.tier} win - +${m.bonusPointsEach.toFixed(2)} bonus`}
+                                    {!m.played
+                                        ? 'Upcoming - not played yet'
+                                        : m.winnerTeamIds.length === 2
+                                            ? `Tie - Tier ${m.tier} split, +${m.bonusPointsEach.toFixed(2)} each`
+                                            : `Final - Tier ${m.tier} win, +${m.bonusPointsEach.toFixed(2)} bonus`}
                                 </p>
                             </div>
                         );

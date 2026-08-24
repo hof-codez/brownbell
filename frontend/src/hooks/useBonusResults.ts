@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Team } from '../types';
+import { getScheduledMatchupsForWeek, REGULAR_SEASON_WEEKS } from '../lib/bonusSchedule';
 
 export interface Matchup {
     week: number;
+    played: boolean; // false = scheduled but no result recorded yet (still upcoming)
     teamA: { teamId: string; teamName: string; score: number };
     teamB: { teamId: string; teamName: string; score: number };
-    outcome: 'win' | 'loss' | 'tie'; // from teamA's perspective isn't meaningful here - see winnerTeamIds
-    winnerTeamIds: string[]; // 1 team normally, 2 on a tie
+    winnerTeamIds: string[]; // empty if not played; 1 team normally, 2 on a tie
     tier: number | null;
-    bonusPointsEach: number; // what each winner (or each tied team) actually receives
+    bonusPointsEach: number;
 }
 
 interface SeasonBonusRanking {
@@ -22,17 +23,26 @@ interface SeasonBonusRanking {
     ties: number;
 }
 
+interface HeadToHeadRecord {
+    wins: number;
+    losses: number;
+    ties: number;
+}
+
 interface UseBonusResultsResult {
     matchupsByWeek: Map<number, Matchup[]>;
-    weeksAvailable: number[];
+    weeksAvailable: number[]; // every scheduled week 1..REGULAR_SEASON_WEEKS, not just played ones
     seasonRankings: SeasonBonusRanking[];
     loading: boolean;
     error: string | null;
+    /** Cumulative record between two teams across every played matchup so far this season. */
+    getHeadToHead: (teamIdA: string, teamIdB: string) => HeadToHeadRecord;
+    /** This team's next unplayed scheduled matchup, if any. */
+    getUpcomingMatchup: (teamId: string) => Matchup | null;
 }
 
 export function useBonusResults(teams: Team[]): UseBonusResultsResult {
     const [matchupsByWeek, setMatchupsByWeek] = useState<Map<number, Matchup[]>>(new Map());
-    const [weeksAvailable, setWeeksAvailable] = useState<number[]>([]);
     const [seasonRankings, setSeasonRankings] = useState<SeasonBonusRanking[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -64,43 +74,52 @@ export function useBonusResults(teams: Team[]): UseBonusResultsResult {
             teams.forEach(t => { teamNameById[t.id] = t.display_name; });
 
             const rows = data ?? [];
-
-            // Each matchup produces 2 rows (one per side) - keep only the row
-            // where team_id < opponent_team_id to show each matchup exactly once.
-            const byWeek = new Map<number, Matchup[]>();
-            const weeksSet = new Set<number>();
-
+            // Quick lookup: for a given week+team, find their recorded result (if played).
+            const resultByWeekAndTeam = new Map<string, typeof rows[number]>();
             for (const row of rows) {
-                if (!row.opponent_team_id || row.team_id >= row.opponent_team_id) continue;
-                weeksSet.add(row.week);
-
-                const opponentRow = rows.find(r => r.team_id === row.opponent_team_id && r.week === row.week);
-                if (!opponentRow) continue; // shouldn't happen, but don't crash if the paired row is missing
-
-                const winnerTeamIds = row.outcome === 'tie'
-                    ? [row.team_id, row.opponent_team_id]
-                    : (row.outcome === 'win' ? [row.team_id] : [row.opponent_team_id]);
-
-                const matchup: Matchup = {
-                    week: row.week,
-                    teamA: { teamId: row.team_id, teamName: teamNameById[row.team_id] || 'Unknown', score: Number(row.team_score) },
-                    teamB: { teamId: row.opponent_team_id, teamName: teamNameById[row.opponent_team_id] || 'Unknown', score: Number(row.opponent_score) },
-                    outcome: row.outcome,
-                    winnerTeamIds,
-                    tier: row.tier,
-                    bonusPointsEach: row.outcome === 'loss' ? Number(opponentRow.bonus_points) : Number(row.bonus_points)
-                };
-
-                const list = byWeek.get(row.week) || [];
-                list.push(matchup);
-                byWeek.set(row.week, list);
+                resultByWeekAndTeam.set(`${row.week}|${row.team_id}`, row);
             }
 
-            for (const list of byWeek.values()) {
-                list.sort((a, b) => (a.tier ?? 99) - (b.tier ?? 99));
+            // Build every scheduled week, 1 through the end of the regular
+            // season - not just weeks that have been played. Unplayed weeks
+            // show the matchup with played=false and no scores yet.
+            const byWeek = new Map<number, Matchup[]>();
+            for (let week = 1; week <= REGULAR_SEASON_WEEKS; week++) {
+                const scheduled = getScheduledMatchupsForWeek(teams, week);
+                const weekMatchups: Matchup[] = scheduled.map(([teamIdA, teamIdB]) => {
+                    const rowA = resultByWeekAndTeam.get(`${week}|${teamIdA}`);
+                    const rowB = resultByWeekAndTeam.get(`${week}|${teamIdB}`);
+
+                    if (!rowA || !rowB) {
+                        return {
+                            week,
+                            played: false,
+                            teamA: { teamId: teamIdA, teamName: teamNameById[teamIdA] || 'Unknown', score: 0 },
+                            teamB: { teamId: teamIdB, teamName: teamNameById[teamIdB] || 'Unknown', score: 0 },
+                            winnerTeamIds: [],
+                            tier: null,
+                            bonusPointsEach: 0
+                        };
+                    }
+
+                    const winnerTeamIds = rowA.outcome === 'tie'
+                        ? [teamIdA, teamIdB]
+                        : (rowA.outcome === 'win' ? [teamIdA] : [teamIdB]);
+
+                    return {
+                        week,
+                        played: true,
+                        teamA: { teamId: teamIdA, teamName: teamNameById[teamIdA] || 'Unknown', score: Number(rowA.team_score) },
+                        teamB: { teamId: teamIdB, teamName: teamNameById[teamIdB] || 'Unknown', score: Number(rowB.team_score) },
+                        winnerTeamIds,
+                        tier: rowA.outcome === 'loss' ? rowB.tier : rowA.tier,
+                        bonusPointsEach: rowA.outcome === 'loss' ? Number(rowB.bonus_points) : Number(rowA.bonus_points)
+                    };
+                });
+                byWeek.set(week, weekMatchups);
             }
 
-            // Season bonus leaderboard - sum of bonus_points per team, plus a W-L-T record
+            // Season bonus leaderboard - only counts PLAYED results.
             const bonusTotals = new Map<string, number>();
             const records = new Map<string, { wins: number; losses: number; ties: number }>();
             for (const t of teams) {
@@ -128,7 +147,6 @@ export function useBonusResults(teams: Team[]): UseBonusResultsResult {
 
             if (!cancelled) {
                 setMatchupsByWeek(byWeek);
-                setWeeksAvailable([...weeksSet].sort((a, b) => a - b));
                 setSeasonRankings(rankings);
                 setLoading(false);
             }
@@ -138,5 +156,33 @@ export function useBonusResults(teams: Team[]): UseBonusResultsResult {
         return () => { cancelled = true; };
     }, [teams]);
 
-    return { matchupsByWeek, weeksAvailable, seasonRankings, loading, error };
+    function getHeadToHead(teamIdA: string, teamIdB: string): HeadToHeadRecord {
+        let wins = 0, losses = 0, ties = 0;
+        for (const matchups of matchupsByWeek.values()) {
+            for (const m of matchups) {
+                if (!m.played) continue;
+                const involvesBoth = (m.teamA.teamId === teamIdA && m.teamB.teamId === teamIdB) ||
+                    (m.teamA.teamId === teamIdB && m.teamB.teamId === teamIdA);
+                if (!involvesBoth) continue;
+
+                if (m.winnerTeamIds.length === 2) ties++;
+                else if (m.winnerTeamIds[0] === teamIdA) wins++;
+                else losses++;
+            }
+        }
+        return { wins, losses, ties };
+    }
+
+    function getUpcomingMatchup(teamId: string): Matchup | null {
+        for (let week = 1; week <= REGULAR_SEASON_WEEKS; week++) {
+            const matchups = matchupsByWeek.get(week) || [];
+            const mine = matchups.find(m => m.teamA.teamId === teamId || m.teamB.teamId === teamId);
+            if (mine && !mine.played) return mine;
+        }
+        return null;
+    }
+
+    const weeksAvailable = Array.from({ length: REGULAR_SEASON_WEEKS }, (_, i) => i + 1);
+
+    return { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup };
 }
