@@ -1,0 +1,70 @@
+# .github/workflows/deploy-frontend.yml
+# Builds the frontend/ app and publishes it to GitHub Pages at
+# hof-codez.github.io/brownbell/ - the same URL used last season.
+#
+# One-time setup required before this works:
+#   1. Repo Settings -> Pages -> Source -> select "GitHub Actions"
+#      (this replaces the old branch-based Pages deploy)
+#   2. Repo Settings -> Secrets and variables -> Actions -> Variables tab ->
+#      add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+#      (the anon key is safe as a plain variable - it ends up embedded in the
+#      public built JS bundle either way, unlike the automation's service
+#      role key, which must never appear here)
+
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build
+        working-directory: frontend
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
