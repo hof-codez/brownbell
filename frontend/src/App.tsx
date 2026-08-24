@@ -11,10 +11,12 @@ import { CountdownBanner } from './components/CountdownBanner';
 import { Tabs } from './components/Tabs';
 import { TeamsView } from './components/TeamsView';
 import { RulesPage } from './components/RulesPage';
+import { LeagueTab } from './components/LeagueTab';
 import type { AwardType } from './types';
 
 const TABS = [
   { id: 'teams', label: 'Teams' },
+  { id: 'league', label: 'League' },
   { id: 'rules', label: 'Rules' }
 ];
 
@@ -57,6 +59,10 @@ export default function App() {
             otherTeams={otherTeams}
             onEditSlot={(awardType, playerIndex) => setEditingSlot({ awardType, playerIndex })}
           />
+        )}
+
+        {activeTab === 'league' && (
+          <LeagueTab teams={teams.map(t => t.team)} myTeamId={claimedTeam?.teamId ?? null} />
         )}
 
         {activeTab === 'rules' && <RulesPage />}
