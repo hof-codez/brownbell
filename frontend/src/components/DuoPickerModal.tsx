@@ -52,9 +52,21 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
                     </p>
                 )}
 
-                {!loading && data && !data.locked && data.candidates.length > 0 && (
+                {!loading && data && data.candidates.length > 0 && (
                     <p className="mt-3 font-mono text-xs uppercase tracking-widest text-chalk-dim">
                         {data.currentPlayer ? 'Eligible swaps' : 'Eligible players'}
+                    </p>
+                )}
+
+                {!loading && data && data.candidates.length > 0 && data.situation === 'temporary' && (
+                    <p className="mt-1 font-body text-xs italic text-chalk-dim">
+                        Temporary - reverts automatically once the original player is healthy again.
+                    </p>
+                )}
+
+                {!loading && data && data.candidates.length > 0 && data.situation === 'permanent' && (
+                    <p className="mt-1 font-body text-xs italic text-chalk-dim">
+                        Permanent swap - no auto-revert, and this uses one of your team&rsquo;s two for the season.
                     </p>
                 )}
 
@@ -62,9 +74,9 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
                     <p className="mt-4 font-body text-sm text-chalk-dim">Loading your roster&hellip;</p>
                 )}
 
-                {!loading && data?.locked && (
+                {!loading && data?.locked && data.permissionReason && data.candidates.length === 0 && (
                     <p className="mt-4 rounded border border-brick/50 bg-brick/10 px-3 py-2 font-body text-sm text-chalk">
-                        This slot is locked - that player&rsquo;s game has already started this week. It&rsquo;ll be swappable again next week.
+                        {data.permissionReason}
                     </p>
                 )}
 
@@ -75,7 +87,7 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
                     </p>
                 )}
 
-                {!loading && data && !data.locked && data.candidates.length > 0 && (
+                {!loading && data && data.candidates.length > 0 && (
                     <div className="mt-4 space-y-1.5">
                         {data.candidates.map(c => (
                             <button

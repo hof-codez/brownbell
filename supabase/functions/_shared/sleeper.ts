@@ -10,6 +10,7 @@ export interface SleeperPlayer {
     position?: string;
     team?: string;
     years_exp?: number;
+    injury_status?: string | null;
 }
 
 export async function fetchAllPlayers(): Promise<Record<string, SleeperPlayer>> {

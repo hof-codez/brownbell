@@ -47,8 +47,12 @@ export interface EligibleCandidate {
   yearsExp: number;
 }
 
+export type SwapSituation = 'healthy-locked' | 'temporary' | 'permanent' | null;
+
 export interface EligibleRosterResponse {
   locked: boolean;
+  situation: SwapSituation;
+  permissionReason?: string;
   currentPlayer: { name: string; position: string } | null;
   otherSlotPlayer: { name: string; position: string } | null;
   candidates: EligibleCandidate[];

@@ -66,26 +66,66 @@ export function RulesPage() {
 
             <RuleSection title="Locking">
                 <p>
-                    A player locks into their slot the moment their own NFL team&rsquo;s game starts that week. Once
-                    locked, that slot can&rsquo;t be changed until the following week &mdash; not even if that player
-                    gets hurt mid-game. Each player locks on their own schedule, so a Thursday-night player locks
-                    earlier in the week than a Monday-night player.
+                    A player locks into their slot permanently for the rest of the season the moment their own NFL
+                    team&rsquo;s first game starts &mdash; not just for that week. Once locked, that slot stays locked
+                    through the end of the season, no matter how the player performs, unless they&rsquo;re later
+                    injured, dropped, or traded (see Substitutions below). Each player locks on their own schedule,
+                    so a Thursday-night player locks earlier than a Sunday or Monday-night player &mdash; but for
+                    everyone, it&rsquo;s a one-time, season-long lock, not something that resets week to week.
                 </p>
             </RuleSection>
 
-            <RuleSection title="Substitutions">
+            <RuleSection title="Injuries - temporary swaps">
                 <p>
-                    If a locked player is later ruled out, injured, dropped, or traded, a replacement becomes
-                    necessary. You can pick your own replacement from your current roster &mdash; anyone eligible
-                    under that award&rsquo;s rules and not already locked into a game this week.
+                    If your locked player is ruled out, doubtful, or placed on IR &mdash; but is still on your
+                    roster &mdash; that&rsquo;s a temporary situation. You can pick a replacement from your current
+                    roster, and there&rsquo;s no limit on how many times this can happen over the season.
+                </p>
+                <p className="mt-2">
+                    The moment the original player is active again, they&rsquo;re <span className="text-chalk">automatically
+                    restored</span> to their slot &mdash; you don&rsquo;t need to remember to swap them back.
+                </p>
+            </RuleSection>
+
+            <RuleSection title="Trades &amp; releases - permanent swaps">
+                <p>
+                    If your locked player is traded away or released &mdash; no longer on your roster at all
+                    &mdash; that&rsquo;s permanent. There&rsquo;s no auto-revert, because there&rsquo;s no original
+                    player left to come back. Each team gets <span className="text-chalk">two</span> of these
+                    permanent swaps per season:
+                </p>
+                <ul className="ml-4 mt-2 list-disc space-y-1">
+                    <li><span className="text-chalk">1st permanent swap:</span> you pick the replacement yourself</li>
+                    <li>
+                        <span className="text-chalk">2nd permanent swap:</span> auto-sub fills it immediately, no
+                        manual pick offered
+                    </li>
+                </ul>
+                <p className="mt-2">
+                    Once that 2nd swap happens, manual control is gone for the rest of the season &mdash; not just
+                    for future trades, but for injuries too. Every gap after that, for either award, is filled by
+                    auto-sub.
+                </p>
+            </RuleSection>
+
+            <RuleSection title="How auto-sub picks a replacement">
+                <p>
+                    Auto-sub looks at everyone currently eligible on your roster, ranks them by their average points
+                    over the last 3 weeks, and picks <span className="text-chalk">randomly among the top 4</span>
+                    &mdash; not always the single highest scorer. That keeps things competitive without making
+                    every auto-sub the same obvious pick.
+                </p>
+                <p className="mt-2">
+                    While a slot is being filled by auto-sub (not a manual pick), it can reshuffle to a different
+                    top-4 candidate week to week as long as the original player is still out. Once you manually pick
+                    someone yourself, that pick stays &mdash; auto-sub won&rsquo;t override it.
                 </p>
             </RuleSection>
 
             <RuleSection title="Setting your picks">
                 <p>
-                    Claim your team once (pick your team, set a PIN) to unlock editing. From there you can set or
-                    swap either duo anytime a slot isn&rsquo;t currently locked &mdash; no need to go through the
-                    commissioner.
+                    Claim your team once (pick your team, set a PIN) to unlock editing. Before a slot locks, you can
+                    set or swap it freely &mdash; no need to go through the commissioner.
                 </p>
             </RuleSection>
         </div>

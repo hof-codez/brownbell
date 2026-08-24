@@ -563,21 +563,20 @@ class BrownBellAutomator {
                 continue;
             }
 
-            // Validate substitution (for Main Award)
-            if (awardType === 'main' && !this.validateSubstitution(teamName, originalDuo, injuredPlayer.index, substitute, awardType)) {
-                continue;
-            }
-
-            // Calculate 3-week total score
+            // Calculate average score over the last 3 weeks (or fewer, early season) -
+            // an average, not a total, so a player with only 1-2 weeks of data isn't
+            // penalized relative to one with a full 3-week window.
             let totalScore = 0;
+            let weeksCounted = 0;
             for (let w = Math.max(1, week - 2); w <= week; w++) {
                 const weekScores = await this.getWeeklyScores(w);
                 if (weekScores[playerId] !== undefined) {
                     totalScore += weekScores[playerId];
+                    weeksCounted++;
                 }
             }
 
-            substitute.score = totalScore;
+            substitute.score = weeksCounted > 0 ? totalScore / weeksCounted : 0;
             eligibleSubs.push(substitute);
         }
 
@@ -594,45 +593,20 @@ class BrownBellAutomator {
             return null;
         }
 
-        // Sort by total score (descending - best first)
+        // Sort by average score (descending - best first)
         eligibleSubs.sort((a, b) => b.score - a.score);
 
-        // Next Up Award: Always select BEST player (smaller pool, harder to find subs)
-        if (awardType === 'nextup') {
-            const selectedSub = eligibleSubs[0];
-            const experienceNote = ` (${selectedSub.yearsExp} yrs, ${selectedSub.position})`;
-            console.log(`Selected ${selectedSub.name}${experienceNote} - BEST available: ${selectedSub.score.toFixed(1)} pts over 3 weeks (${eligibleSubs.length} eligible on roster)`);
-            return selectedSub;
-        }
-
-        // Main Award: Use weighted random selection from top 4
+        // Auto-sub selection (both awards, same rule): take the top 4 by recent
+        // scoring average, pick uniformly at random among them (25% each, not
+        // weighted toward the best) - competitive without being predictable, and
+        // never risks landing on a player who never puts up points at all.
         const topPerformers = eligibleSubs.slice(0, Math.min(4, eligibleSubs.length));
-
-        // Weighted random selection: #1=40%, #2=30%, #3=20%, #4=10%
-        const weights = [0.40, 0.30, 0.20, 0.10];
-        const availableWeights = weights.slice(0, topPerformers.length);
-        const totalWeight = availableWeights.reduce((sum, w) => sum + w, 0);
-
-        // Normalize weights if fewer than 4 players
-        const normalizedWeights = availableWeights.map(w => w / totalWeight);
-
-        // Generate random selection based on weights
-        const random = Math.random();
-        let cumulativeWeight = 0;
-        let selectedIndex = 0;
-
-        for (let i = 0; i < normalizedWeights.length; i++) {
-            cumulativeWeight += normalizedWeights[i];
-            if (random <= cumulativeWeight) {
-                selectedIndex = i;
-                break;
-            }
-        }
-
+        const selectedIndex = Math.floor(Math.random() * topPerformers.length);
         const selectedSub = topPerformers[selectedIndex];
         const rankText = ['1st', '2nd', '3rd', '4th'][selectedIndex];
+        const experienceNote = awardType === 'nextup' ? ` (${selectedSub.yearsExp} yrs, ${selectedSub.position})` : '';
 
-        console.log(`Selected ${selectedSub.name} (${rankText} best: ${selectedSub.score.toFixed(1)} pts over 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
+        console.log(`Selected ${selectedSub.name}${experienceNote} (${rankText} best: ${selectedSub.score.toFixed(1)} avg pts/wk over last 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
 
         return selectedSub;
     }
