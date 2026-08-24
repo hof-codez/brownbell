@@ -1,0 +1,12 @@
+# supabase/config.toml
+# These two functions implement their own PIN-based auth instead of relying
+# on Supabase Auth user sessions, so the default "require a valid user JWT"
+# gate has to be turned off for them - otherwise Supabase's gateway rejects
+# every request before the function code even runs, since this app has no
+# Supabase Auth users at all.
+
+[functions.claim-team]
+verify_jwt = false
+
+[functions.verify-device]
+verify_jwt = false

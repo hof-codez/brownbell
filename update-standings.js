@@ -378,36 +378,16 @@ class BrownBellAutomator {
         return injuredSubs;
     }
 
-    validateDuoCombination(healthyPlayerPosition, substitutePosition, awardType = 'main') {
-        // Main Award: Traditional combos only (QB+RB, QB+WR, RB+WR)
-        if (awardType === 'main') {
-            const validCombos = ['QB+RB', 'QB+WR', 'RB+WR'];
-            const newCombo = [healthyPlayerPosition, substitutePosition].sort().join('+');
-            const isValid = validCombos.includes(newCombo);
-
-            if (!isValid) {
-                console.warn(`Invalid Main Award duo combination: ${healthyPlayerPosition} + ${substitutePosition}`);
-            }
-
-            return isValid;
-        }
-
-        // Next Up Award: Any position combination EXCEPT QB+QB
-        // Valid positions: QB, RB, WR, TE, K
-
-        // Block QB+QB
-        if (healthyPlayerPosition === 'QB' && substitutePosition === 'QB') {
-            console.warn(`Invalid duo combination: QB + QB (no duplicate QBs allowed)`);
-            return false;
-        }
-
-        // All other combinations are valid
-        const validPositions = ['QB', 'RB', 'WR', 'TE', 'K'];
-        const isValid = validPositions.includes(healthyPlayerPosition) &&
-            validPositions.includes(substitutePosition);
+    // Main Award only - Next Up validation lives entirely in isValidNextUpCombo()
+    // now (years of experience + position, checked in findSubstitute and the
+    // weekly scoring loop). This function is never called for Next Up.
+    validateDuoCombination(healthyPlayerPosition, substitutePosition) {
+        const validCombos = ['QB+RB', 'QB+WR', 'RB+WR'];
+        const newCombo = [healthyPlayerPosition, substitutePosition].sort().join('+');
+        const isValid = validCombos.includes(newCombo);
 
         if (!isValid) {
-            console.warn(`Invalid Next Up duo combination: ${healthyPlayerPosition} + ${substitutePosition}`);
+            console.warn(`Invalid Main Award duo combination: ${healthyPlayerPosition} + ${substitutePosition}`);
         }
 
         return isValid;
@@ -419,7 +399,7 @@ class BrownBellAutomator {
         const injuredPlayer = originalDuo[injuredPlayerIndex];
 
         // Check if substitute creates valid duo combination
-        const isValidCombo = this.validateDuoCombination(healthyPlayer.position, substitute.position, awardType);  // ADD awardType HERE
+        const isValidCombo = this.validateDuoCombination(healthyPlayer.position, substitute.position);
 
         if (!isValidCombo) {
             console.warn(`❌ INVALID SUBSTITUTION BLOCKED:
@@ -477,22 +457,22 @@ class BrownBellAutomator {
 
         const eligibleSubs = [];
 
-        // For Next Up Award, determine what experience level is needed
-        let requiredExperience = null;
+        // For Next Up Award, determine what a substitute must NOT match
+        let excludeYears = null;
+        let excludePosition = null;
         if (awardType === 'nextup') {
             const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
             const healthyPlayer = originalDuo[healthyPlayerIndex];
             const healthyExperience = this.resolveNextUpExperience(healthyPlayer, roster);
 
-            // Rule: exactly one rookie (0 yrs) + one junior (1-3 yrs). Whichever the
-            // healthy player already is, the substitute must be the other one.
-            if (healthyExperience === 'rookie') {
-                requiredExperience = 'junior';
-            } else if (healthyExperience === 'junior') {
-                requiredExperience = 'rookie';
+            // Rule (2026): both players must be 0-3 yrs experience, and differ in
+            // BOTH years of experience and position from each other.
+            if (healthyExperience) {
+                excludeYears = healthyExperience.years;
+                excludePosition = healthyExperience.position;
             }
 
-            console.log(`Next Up substitution: Healthy player is ${healthyExperience}, need ${requiredExperience || 'unknown'} substitute`);
+            console.log(`Next Up substitution: Healthy player is ${excludeYears ?? '?'} yrs / ${excludePosition ?? '?'} - substitute must differ in both`);
         }
 
         for (const playerId of roster.players) {
@@ -556,27 +536,26 @@ class BrownBellAutomator {
             // Next Up Award smart eligibility - CHECK THIS FIRST
             if (awardType === 'nextup') {
                 const yearsExp = substitute.yearsExp || 0;
-                const playerExperience = this.classifyNextUpExperience(yearsExp);
 
                 // Hard filter: 4+ years experience is never Next Up eligible
-                if (playerExperience === 'ineligible') {
+                if (!this.isNextUpEligibleExperience(yearsExp)) {
                     continue;
                 }
 
-                // Only include players that match the required experience level
-                if (requiredExperience && playerExperience !== requiredExperience) {
-                    console.log(`Skipping ${substitute.name} (${playerExperience}, ${yearsExp} years) - need ${requiredExperience} to pair with ${originalDuo[injuredPlayer.index === 0 ? 1 : 0].name}`);
+                // Must differ from the healthy player in BOTH years of experience
+                // and position (2026 rule) - this also covers what used to be a
+                // separate "no QB+QB" carve-out, since same-position is excluded
+                // generally now, not just for quarterbacks.
+                if (excludeYears !== null && yearsExp === excludeYears) {
+                    console.log(`Skipping ${substitute.name} (${yearsExp} years) - same experience year as ${originalDuo[injuredPlayer.index === 0 ? 1 : 0].name}`);
+                    continue;
+                }
+                if (excludePosition !== null && substitute.position === excludePosition) {
+                    console.log(`Skipping ${substitute.name} (${substitute.position}) - same position as ${originalDuo[injuredPlayer.index === 0 ? 1 : 0].name}`);
                     continue;
                 }
 
-                console.log(`${substitute.name} is eligible: ${playerExperience} (${yearsExp} years)`);
-
-                // NEXT UP SPECIFIC POSITION RULE: No QB+QB combinations allowed
-                const healthyPlayerForPosition = originalDuo[injuredPlayer.index === 0 ? 1 : 0];
-                if (substitute.position === 'QB' && healthyPlayerForPosition.position === 'QB') {
-                    console.log(`Skipping ${substitute.name} (QB) - cannot have QB+QB duo in Next Up Award`);
-                    continue;
-                }
+                console.log(`${substitute.name} is eligible: ${yearsExp} years, ${substitute.position}`);
             }
 
             // Validate substitution for Main Award only
@@ -607,8 +586,10 @@ class BrownBellAutomator {
                 const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
                 const healthyPlayer = originalDuo[healthyPlayerIndex];
                 const healthyExperience = this.resolveNextUpExperience(healthyPlayer, roster);
-                const needed = healthyExperience === 'rookie' ? 'a 1-3 year junior' : 'a rookie';
-                console.log(`❌ NO ELIGIBLE SUBSTITUTES: Need ${needed} to pair with ${healthyPlayer.name} (${healthyExperience}). No valid candidates available on roster.`);
+                const needed = healthyExperience
+                    ? `0-3 yrs experience, not ${healthyExperience.years} yrs, not ${healthyExperience.position}`
+                    : '0-3 yrs experience, differing years and position from the healthy player';
+                console.log(`❌ NO ELIGIBLE SUBSTITUTES: Need ${needed} to pair with ${healthyPlayer.name}. No valid candidates available on roster.`);
             }
             return null;
         }
@@ -619,7 +600,7 @@ class BrownBellAutomator {
         // Next Up Award: Always select BEST player (smaller pool, harder to find subs)
         if (awardType === 'nextup') {
             const selectedSub = eligibleSubs[0];
-            const experienceNote = ` (${this.classifyNextUpExperience(selectedSub.yearsExp)})`;
+            const experienceNote = ` (${selectedSub.yearsExp} yrs, ${selectedSub.position})`;
             console.log(`Selected ${selectedSub.name}${experienceNote} - BEST available: ${selectedSub.score.toFixed(1)} pts over 3 weeks (${eligibleSubs.length} eligible on roster)`);
             return selectedSub;
         }
@@ -1754,22 +1735,21 @@ class BrownBellAutomator {
 
                     // Validate Next Up Award combinations after scores are set
                     if (awardType === 'nextup') {
-                        // Get both players' experience levels for this week
+                        // Get both players' current { years, position } for this week
                         const player1Experience = this.getPlayerExperienceForWeek(teamName, 0, week, existingSubstitutions);
                         const player2Experience = this.getPlayerExperienceForWeek(teamName, 1, week, existingSubstitutions);
 
-                        // Valid combo: exactly one true rookie (0 yrs) + one player with 1-3 yrs
-                        // experience ('junior'). Two rookies, two juniors, or anyone 4+ years
-                        // ('ineligible') is invalid. Unresolved ('unknown') experience isn't
-                        // flagged here - there's no live player data to judge it against yet.
-                        const bothResolved = player1Experience !== 'unknown' && player2Experience !== 'unknown';
-                        const validCombo =
-                            (player1Experience === 'rookie' && player2Experience === 'junior') ||
-                            (player1Experience === 'junior' && player2Experience === 'rookie');
+                        // Valid combo (2026 rule): both players individually eligible (0-3 yrs
+                        // experience) AND they differ in both years of experience and position.
+                        // Two rookies, two players at the same experience year, two players at
+                        // the same position, or anyone 4+ years, are all invalid. A null result
+                        // means one/both couldn't be resolved at all - not flagged, since there's
+                        // no live data to judge against yet (distinct from a resolved-but-invalid combo).
+                        const combo = this.isValidNextUpCombo(player1Experience, player2Experience);
 
-                        if (bothResolved && !validCombo) {
+                        if (combo === false) {
 
-                            console.log(`Invalid Next Up combination for ${teamName} Week ${week}: ${player1Experience} + ${player2Experience}`);
+                            console.log(`Invalid Next Up combination for ${teamName} Week ${week}: ${JSON.stringify(player1Experience)} + ${JSON.stringify(player2Experience)}`);
 
                             // Only zero the substitute's score, not the original player's score
                             const player1Sub = existingSubstitutions.find(sub =>
@@ -1801,7 +1781,7 @@ class BrownBellAutomator {
 
     getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions) {
         const originalDuo = this.knownDuos.nextup[teamName];
-        if (!originalDuo) return 'unknown';
+        if (!originalDuo) return null;
 
         // Check for active substitution
         const activeSub = existingSubstitutions.find(sub =>
@@ -1814,33 +1794,46 @@ class BrownBellAutomator {
 
         if (activeSub && activeSub.substitutePlayerId) {
             const player = this.playersData?.[activeSub.substitutePlayerId];
-            const experience = this.classifyNextUpExperience(player?.years_exp);
-            console.log(`Substitute ${activeSub.substituteName} experience: ${experience}`);
-            return experience;
+            if (!player) return null;
+            const resolved = { years: player.years_exp || 0, position: player.position };
+            console.log(`Substitute ${activeSub.substituteName} experience: ${resolved.years} yrs, ${resolved.position}`);
+            return resolved;
         }
 
         const roster = this.leagueData?.rosters?.find(r => this.leagueData.userMap[r.owner_id] === teamName);
         return this.resolveNextUpExperience(originalDuo[playerIndex], roster);
     }
 
-    // Next Up Award eligibility rule (2026): a valid duo needs exactly one true rookie
-    // (0 years NFL experience) paired with exactly one player who has 1-3 years
-    // experience. A player with 4+ years is never Next Up eligible, regardless of who
-    // they'd pair with. Computed live from years_exp - no per-player hardcoding.
-    classifyNextUpExperience(yearsExp) {
+    // Next Up Award eligibility rule (2026 revision): any player with 0-3 years NFL
+    // experience is individually eligible, at QB/RB/WR/TE/K. A valid PAIR additionally
+    // needs the two players to differ in BOTH years of experience and position - two
+    // rookies, two 2nd-years, or two players at the same position (even with
+    // different experience) are all invalid. Computed live from years_exp - no
+    // per-player hardcoding.
+    isNextUpEligibleExperience(yearsExp) {
         const exp = yearsExp || 0;
-        if (exp === 0) return 'rookie';
-        if (exp <= 3) return 'junior';
-        return 'ineligible';
+        return exp >= 0 && exp <= 3;
     }
 
-    // Resolves a duo slot's live years-of-experience classification, whether it's the
-    // original drafted player or a currently active substitute in that slot.
+    // true/false when both players are resolvable, null when one/both can't be
+    // determined at all (caller should skip validation in that case, same as the
+    // old 'unknown' handling).
+    isValidNextUpCombo(a, b) {
+        if (!a || !b) return null;
+        if (!this.isNextUpEligibleExperience(a.years) || !this.isNextUpEligibleExperience(b.years)) return false;
+        if (a.years === b.years) return false;
+        if (a.position === b.position) return false;
+        return true;
+    }
+
+    // Resolves a duo slot's live { years, position }, whether it's the original
+    // drafted player or a currently active substitute in that slot. Returns null
+    // if the player can't be resolved at all (not a null "years" - see above).
     resolveNextUpExperience(duoPlayer, roster) {
         const playerId = duoPlayer.sleeperId || (roster ? this.findPlayerInRoster(duoPlayer, roster) : null);
         const player = playerId ? this.playersData?.[playerId] : null;
-        if (!player) return 'unknown';
-        return this.classifyNextUpExperience(player.years_exp);
+        if (!player) return null;
+        return { years: player.years_exp || 0, position: player.position };
     }
 
     async loadKnownDuos() {

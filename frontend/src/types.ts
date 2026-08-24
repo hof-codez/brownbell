@@ -31,3 +31,11 @@ export interface TeamWithDuos {
   main: DuoSlots;
   nextup: DuoSlots;
 }
+
+/** What's stored in localStorage after a successful claim - proves nothing on
+ * its own; every write action must still confirm this server-side. */
+export interface CachedClaim {
+  teamId: string;
+  teamName: string;
+  deviceToken: string;
+}

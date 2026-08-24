@@ -1,13 +1,26 @@
+import { useState } from 'react';
 import { useSeasonData } from './hooks/useSeasonData';
+import { useTeamClaim } from './hooks/useTeamClaim';
 import { Header } from './components/Header';
 import { TeamCard } from './components/TeamCard';
+import { ClaimStatusBar } from './components/ClaimStatusBar';
+import { ClaimTeamModal } from './components/ClaimTeamModal';
 
 export default function App() {
   const { loading, error, season, teams } = useSeasonData();
+  const { status, claimedTeam, claiming, claimError, claim, forget } = useTeamClaim();
+  const [showClaimModal, setShowClaimModal] = useState(false);
 
   return (
     <div className="min-h-screen bg-field">
       <Header season={season} />
+
+      <ClaimStatusBar
+        status={status}
+        claimedTeamName={claimedTeam?.teamName ?? null}
+        onOpenClaim={() => setShowClaimModal(true)}
+        onForget={forget}
+      />
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
         {loading && (
@@ -38,6 +51,16 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {showClaimModal && (
+        <ClaimTeamModal
+          teams={teams.map(t => t.team)}
+          claiming={claiming}
+          claimError={claimError}
+          onClaim={claim}
+          onClose={() => setShowClaimModal(false)}
+        />
+      )}
     </div>
   );
 }
