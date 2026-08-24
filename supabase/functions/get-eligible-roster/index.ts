@@ -1,10 +1,12 @@
 // get-eligible-roster/index.ts
 // POST { teamId, awardType, playerIndex } ->
-//   { locked, lockedReason?, currentPlayer, otherSlotPlayer, candidates: [...] }
+//   { locked, situation, permissionReason, currentPlayer, otherSlotPlayer, candidates: [...] }
 //
 // Read-only. Shows an owner what they could pick for one slot, computed the
 // exact same way set-duo validates a real pick - so nothing shown here as
-// "eligible" could ever be rejected when they actually submit it.
+// "eligible" could ever be rejected when they actually submit it. This
+// includes the full lock/injury/permanent-swap state, not just a plain
+// locked/unlocked flag - see _shared/swapStatus.ts for the actual rule.
 //
 // verify_jwt must be OFF for this function (see ../../config.toml).
 
@@ -12,7 +14,8 @@ import { corsHeaders, handleCorsPreflightRequest } from '../_shared/cors.ts';
 import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
 import { hasTeamGameStarted } from '../_shared/nflSchedule.ts';
-import { isValidMainCombo, isValidNextUpCombo, MAIN_POSITIONS, NEXTUP_POSITIONS } from '../_shared/eligibility.ts';
+import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS } from '../_shared/eligibility.ts';
+import { classifySwapSituation, checkSwapPermission } from '../_shared/swapStatus.ts';
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -28,7 +31,7 @@ Deno.serve(async (req: Request) => {
         const supabase = createAdminClient();
 
         const { data: team, error: teamError } = await supabase
-            .from('teams').select('id, sleeper_roster_id, season_id').eq('id', teamId).maybeSingle();
+            .from('teams').select('id, sleeper_roster_id, season_id, permanent_swaps_used, manual_privilege').eq('id', teamId).maybeSingle();
         if (teamError || !team) {
             return jsonResponse({ error: 'Team not found' }, 404);
         }
@@ -54,14 +57,26 @@ Deno.serve(async (req: Request) => {
             fetchRosterPlayerIds(season.sleeper_league_id, team.sleeper_roster_id)
         ]);
 
-        // Lock check: is the CURRENT player in this slot already mid/post-game
-        // this week? If so, this slot can't be changed right now at all.
+        // Lock check: has the current occupant's own Week 1 game already happened?
+        // If not, nothing below applies yet - the slot is freely editable, same as
+        // pre-season. Locks are for the SEASON (week 1 specifically), not the week.
         let locked = false;
         if (currentPlayer?.sleeper_player_id) {
             const p = allPlayers[currentPlayer.sleeper_player_id];
             if (p?.team) {
-                locked = await hasTeamGameStarted(p.team, season.current_week, String(season.year));
+                locked = await hasTeamGameStarted(p.team, 1, String(season.year));
             }
+        }
+
+        let situation: 'healthy-locked' | 'temporary' | 'permanent' | null = null;
+        let permissionReason: string | undefined;
+        let allowSwap = true;
+
+        if (locked) {
+            situation = classifySwapSituation(currentPlayer?.sleeper_player_id ?? null, rosterPlayerIds, allPlayers);
+            const permission = checkSwapPermission(situation, team.manual_privilege, team.permanent_swaps_used);
+            allowSwap = permission.allowed;
+            permissionReason = permission.reason;
         }
 
         const validPositions = awardType === 'nextup' ? NEXTUP_POSITIONS : MAIN_POSITIONS;
@@ -69,13 +84,20 @@ Deno.serve(async (req: Request) => {
             ? { position: allPlayers[otherSlotPlayer.sleeper_player_id]?.position || otherSlotPlayer.player_position, yearsExp: allPlayers[otherSlotPlayer.sleeper_player_id]?.years_exp || 0 }
             : null;
 
-        const candidates = rosterPlayerIds
+        const candidates = !allowSwap ? [] : rosterPlayerIds
             .filter(id => id !== otherSlotPlayer?.sleeper_player_id) // can't pick the same player twice
             .filter(id => id !== currentPlayer?.sleeper_player_id) // re-picking the current player isn't a "swap"
             .map(id => ({ id, player: allPlayers[id] }))
             .filter(({ player }) => player?.position && validPositions.has(player.position))
             .filter(({ player }) => {
-                if (!otherPlayerInfo) return true; // other slot empty - no pairing constraint yet
+                // Individual eligibility applies regardless of whether the other slot
+                // is filled - a 10-year veteran is never Next Up eligible, empty
+                // other slot or not. This must run even with no pairing partner yet.
+                if (awardType === 'nextup' && !isNextUpEligibleExperience(player!.years_exp || 0)) return false;
+                return true;
+            })
+            .filter(({ player }) => {
+                if (!otherPlayerInfo) return true; // other slot empty - no pairing constraint to check yet
                 const candidateInfo = { position: player!.position!, yearsExp: player!.years_exp || 0 };
                 return awardType === 'main'
                     ? isValidMainCombo(otherPlayerInfo, candidateInfo)
@@ -90,6 +112,8 @@ Deno.serve(async (req: Request) => {
 
         return jsonResponse({
             locked,
+            situation,
+            permissionReason,
             currentPlayer: currentPlayer ? { name: currentPlayer.player_name, position: currentPlayer.player_position } : null,
             otherSlotPlayer: otherSlotPlayer ? { name: otherSlotPlayer.player_name, position: otherSlotPlayer.player_position } : null,
             candidates

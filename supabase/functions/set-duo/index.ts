@@ -4,10 +4,10 @@
 //
 // Every check here is authoritative - nothing from the client is trusted.
 // The device token proves who's asking; the player must actually be on that
-// team's live Sleeper roster; the slot must not be locked; the pairing must
-// satisfy the award's rule. All of it re-verified here even though the
-// picker UI already filtered to "eligible" candidates, since a client-side
-// filter is a UX convenience, never a security boundary.
+// team's live Sleeper roster; the slot's lock/swap situation (healthy-locked,
+// temporary injury, or permanent trade/release) is classified from live
+// Sleeper data via _shared/swapStatus.ts, and the team's manual-swap budget
+// is enforced from the teams table - never from anything the client sends.
 //
 // verify_jwt must be OFF for this function (see ../../config.toml).
 
@@ -15,7 +15,8 @@ import { corsHeaders, handleCorsPreflightRequest } from '../_shared/cors.ts';
 import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
 import { hasTeamGameStarted } from '../_shared/nflSchedule.ts';
-import { isValidMainCombo, isValidNextUpCombo, MAIN_POSITIONS, NEXTUP_POSITIONS } from '../_shared/eligibility.ts';
+import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS } from '../_shared/eligibility.ts';
+import { classifySwapSituation, checkSwapPermission } from '../_shared/swapStatus.ts';
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -42,7 +43,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const { data: team, error: teamError } = await supabase
-            .from('teams').select('id, sleeper_roster_id, season_id').eq('id', teamId).maybeSingle();
+            .from('teams').select('id, sleeper_roster_id, season_id, permanent_swaps_used, manual_privilege').eq('id', teamId).maybeSingle();
         if (teamError || !team) {
             return jsonResponse({ success: false, error: 'Team not found' }, 404);
         }
@@ -68,14 +69,23 @@ Deno.serve(async (req: Request) => {
             fetchRosterPlayerIds(season.sleeper_league_id, team.sleeper_roster_id)
         ]);
 
-        // Lock check - can't change a slot whose current player's game already started
+        // Lock + swap-permission check. Locks are for the SEASON (week 1
+        // specifically), not the week - see get-eligible-roster's matching comment.
+        let locked = false;
+        let isPermanentSwap = false;
         if (currentPlayer?.sleeper_player_id) {
             const currentP = allPlayers[currentPlayer.sleeper_player_id];
             if (currentP?.team) {
-                const locked = await hasTeamGameStarted(currentP.team, season.current_week, String(season.year));
-                if (locked) {
-                    return jsonResponse({ success: false, error: 'This slot is locked - that game has already started this week' }, 409);
+                locked = await hasTeamGameStarted(currentP.team, 1, String(season.year));
+            }
+
+            if (locked) {
+                const situation = classifySwapSituation(currentPlayer.sleeper_player_id, rosterPlayerIds, allPlayers);
+                const permission = checkSwapPermission(situation, team.manual_privilege, team.permanent_swaps_used);
+                if (!permission.allowed) {
+                    return jsonResponse({ success: false, error: permission.reason || 'This change is not allowed right now' }, 409);
                 }
+                isPermanentSwap = situation === 'permanent';
             }
         }
 
@@ -92,6 +102,12 @@ Deno.serve(async (req: Request) => {
         const validPositions = awardType === 'nextup' ? NEXTUP_POSITIONS : MAIN_POSITIONS;
         if (!validPositions.has(newPlayer.position)) {
             return jsonResponse({ success: false, error: `${newPlayer.position} is not eligible for ${awardType === 'nextup' ? 'Next Up' : 'the Main Award'}` }, 400);
+        }
+
+        // Individual Next Up eligibility (0-3 yrs) applies regardless of whether the
+        // other slot is filled - this must be checked even with no pairing partner yet.
+        if (awardType === 'nextup' && !isNextUpEligibleExperience(newPlayer.years_exp || 0)) {
+            return jsonResponse({ success: false, error: `${newPlayer.first_name} ${newPlayer.last_name} has too many years of experience for Next Up` }, 400);
         }
 
         if (otherSlotPlayer?.sleeper_player_id === sleeperPlayerId) {
@@ -116,11 +132,26 @@ Deno.serve(async (req: Request) => {
             player_index: playerIndex,
             player_name: `${newPlayer.first_name || ''} ${newPlayer.last_name || ''}`.trim(),
             player_position: newPlayer.position,
-            sleeper_player_id: sleeperPlayerId
+            sleeper_player_id: sleeperPlayerId,
+            source: 'owner'
         }, { onConflict: 'team_id,award_type,player_index' });
 
         if (upsertError) {
             return jsonResponse({ success: false, error: 'Failed to save' }, 500);
+        }
+
+        // Only a genuinely permanent (trade/release) swap consumes the season's
+        // 2-swap budget - temporary injury swaps never touch this counter.
+        if (isPermanentSwap) {
+            const { error: teamUpdateError } = await supabase
+                .from('teams')
+                .update({ permanent_swaps_used: team.permanent_swaps_used + 1 })
+                .eq('id', teamId);
+            if (teamUpdateError) {
+                // The duo write already succeeded - log this but don't fail the
+                // whole request over a bookkeeping update.
+                console.error('Failed to increment permanent_swaps_used:', teamUpdateError);
+            }
         }
 
         return jsonResponse({ success: true });
