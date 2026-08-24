@@ -22,7 +22,13 @@ class BrownBellAutomator {
 
     async fetchJson(url) {
         return new Promise((resolve, reject) => {
-            https.get(url, (res) => {
+            const options = {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; BrownBellAutomation/2.0; +https://github.com/hof-codez/brownbell)',
+                    'Accept': 'application/json'
+                }
+            };
+            https.get(url, options, (res) => {
                 let data = '';
                 res.on('data', chunk => data += chunk);
                 res.on('end', () => {
@@ -1118,7 +1124,7 @@ class BrownBellAutomator {
             // actual broadcast schedule (flex moves, weather reschedules, etc), unlike the
             // old approach of regex-scraping the NFL.com operations page HTML, which was
             // fragile and hardcoded to the 2025 season page.
-            const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&year=${season}`;
+            const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&dates=${season}`;
             const data = await this.fetchJson(url);
 
             const weekSchedule = this.parseEspnSchedule(data);
