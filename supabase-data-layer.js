@@ -329,6 +329,37 @@ class SupabaseDataLayer {
         if (error) throw new Error(`Failed to save weekly scores: ${error.message}`);
     }
 
+    // Brown Bell weekly bonus matchup results - one row per team per week
+    // (a matchup between A and B produces 2 rows, one from each side).
+    // resultsByTeamName: { teamName: { opponent, teamScore, opponentScore, outcome, tier, bonusPoints } }
+    async saveBonusResults(week, resultsByTeamName) {
+        const rows = [];
+        for (const [teamName, result] of Object.entries(resultsByTeamName)) {
+            const teamId = this.teamIdByName[teamName];
+            if (!teamId) continue;
+            const opponentId = result.opponent ? this.teamIdByName[result.opponent] : null;
+
+            rows.push({
+                team_id: teamId,
+                week,
+                opponent_team_id: opponentId || null,
+                team_score: result.teamScore,
+                opponent_score: result.opponentScore,
+                outcome: result.outcome,
+                tier: result.tier,
+                bonus_points: result.bonusPoints
+            });
+        }
+
+        if (rows.length === 0) return;
+
+        const { error } = await this.supabase
+            .from('bonus_results')
+            .upsert(rows, { onConflict: 'team_id,week' });
+
+        if (error) throw new Error(`Failed to save bonus results: ${error.message}`);
+    }
+
     async loadRosterChanges() {
         const { data, error } = await this.supabase
             .from('roster_changes')

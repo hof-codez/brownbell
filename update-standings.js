@@ -693,6 +693,107 @@ class BrownBellAutomator {
         return selected;
     }
 
+    // Bonus values, tier 1 (best-scoring winner that week) through tier 6
+    // (worst-scoring winner). Ranges 3-15, with a deliberate gap at the top
+    // (6 points between 1st and 2nd) so a standout week is clearly rewarded,
+    // then a smoother taper down to the floor.
+    static BONUS_TIERS = [15, 9, 7, 5, 4, 3];
+
+    // Bonus matchups are a regular-season-only mechanic - the league's regular
+    // season runs 14 weeks before playoffs begin. No matchups are generated
+    // for week 15+.
+    static REGULAR_SEASON_WEEKS = 14;
+
+    // Standard round-robin "circle method": fixes one team, rotates the rest
+    // around it across N-1 rounds. Every team plays every other team exactly
+    // once per full cycle. This schedule is entirely separate from the real
+    // Sleeper league's own matchups - built specifically for this bonus game.
+    generateRoundRobinSchedule(teamNames) {
+        const teams = [...teamNames];
+        if (teams.length % 2 !== 0) teams.push(null); // odd team count - one bye per round
+        const n = teams.length;
+        if (n < 2) return [];
+
+        const rounds = [];
+        const fixed = teams[0];
+        let rotating = teams.slice(1);
+
+        for (let r = 0; r < n - 1; r++) {
+            const roundPairs = [];
+            const current = [fixed, ...rotating];
+            for (let i = 0; i < n / 2; i++) {
+                const a = current[i];
+                const b = current[n - 1 - i];
+                if (a !== null && b !== null) roundPairs.push([a, b]);
+            }
+            rounds.push(roundPairs);
+            rotating.unshift(rotating.pop());
+        }
+        return rounds;
+    }
+
+    // Which 6 matchups are live for a given week. Sorted by roster_id (a
+    // stable numeric ID within the league), not display_name - so a mid-season
+    // team rename can never reshuffle the schedule. Cycles back to round 1
+    // after a full round-robin (11 weeks for 12 teams) if the regular season
+    // runs longer than that - but never generates matchups past the regular
+    // season's final week (see REGULAR_SEASON_WEEKS). This is a regular-season
+    // mechanic; it doesn't carry into playoffs.
+    getBrownBellMatchupsForWeek(week) {
+        if (week > BrownBellAutomator.REGULAR_SEASON_WEEKS) return [];
+
+        const sortedTeamNames = [...(this.leagueData?.rosters || [])]
+            .sort((a, b) => a.roster_id - b.roster_id)
+            .map(r => this.leagueData.userMap[r.owner_id])
+            .filter(Boolean);
+
+        const schedule = this.generateRoundRobinSchedule(sortedTeamNames);
+        if (schedule.length === 0) return [];
+
+        const roundIndex = (week - 1) % schedule.length;
+        return schedule[roundIndex];
+    }
+
+    // Given this week's matchups and each team's Main Award total for the
+    // week, ranks the 6 winning (or tied) scores into tiers 1-6 and assigns
+    // bonus points. A tie means both teams "win" their matchup and split that
+    // tier's bonus evenly - never a coin flip, never zero for either side.
+    computeBrownBellBonuses(matchups, weekTotalsByTeam) {
+        const outcomes = matchups.map(([teamA, teamB]) => {
+            const scoreA = weekTotalsByTeam[teamA] ?? 0;
+            const scoreB = weekTotalsByTeam[teamB] ?? 0;
+            if (scoreA > scoreB) return { teamA, teamB, winners: [teamA], score: scoreA, tied: false };
+            if (scoreB > scoreA) return { teamA, teamB, winners: [teamB], score: scoreB, tied: false };
+            return { teamA, teamB, winners: [teamA, teamB], score: scoreA, tied: true };
+        });
+
+        const ranked = [...outcomes].sort((x, y) => y.score - x.score);
+        const resultsByTeam = {};
+
+        ranked.forEach((outcome, i) => {
+            const tier = i + 1;
+            const tierBonus = BrownBellAutomator.BONUS_TIERS[i];
+
+            for (const team of [outcome.teamA, outcome.teamB]) {
+                const opponent = team === outcome.teamA ? outcome.teamB : outcome.teamA;
+                const teamScore = weekTotalsByTeam[team] ?? 0;
+                const opponentScore = weekTotalsByTeam[opponent] ?? 0;
+                const isWinner = outcome.winners.includes(team);
+
+                resultsByTeam[team] = {
+                    opponent,
+                    teamScore,
+                    opponentScore,
+                    outcome: outcome.tied ? 'tie' : (isWinner ? 'win' : 'loss'),
+                    tier: isWinner ? tier : null,
+                    bonusPoints: !isWinner ? 0 : (outcome.tied ? tierBonus / 2 : tierBonus)
+                };
+            }
+        });
+
+        return resultsByTeam;
+    }
+
     // The core decision engine for the duos-as-source-of-truth model. For every
     // duo slot: skip if not locked yet (pre-lock is fully owner-editable, the
     // automation stays out of it entirely). Once locked, freeze the original
@@ -2165,6 +2266,19 @@ class BrownBellAutomator {
             slotEvents = await this.processDuoSlots(currentWeek);
             console.log(`${checkpointType}: ${slotEvents.length} duo slot change(s) this run`);
         }
+
+        // Brown Bell weekly bonus matchups - a separate round-robin schedule,
+        // scored off this week's Main Award totals (already computed above).
+        // Recomputed every run so bonus standings update live through the week,
+        // same as everything else - not locked until some explicit finalization step.
+        const brownBellWeekTotals = {};
+        for (const [teamName, byWeek] of Object.entries(allScores.main || {})) {
+            const byIndex = byWeek[currentWeek] || {};
+            brownBellWeekTotals[teamName] = Object.values(byIndex).reduce((sum, p) => sum + (p || 0), 0);
+        }
+        const brownBellMatchups = this.getBrownBellMatchupsForWeek(currentWeek);
+        const brownBellBonuses = this.computeBrownBellBonuses(brownBellMatchups, brownBellWeekTotals);
+        await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses);
 
         // Persist everything to Supabase - this replaces the single JSON file write.
         // Substitutions and scores are the actual core of the automation and should

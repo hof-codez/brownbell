@@ -40,6 +40,24 @@ export function RulesPage() {
                 </p>
             </RuleSection>
 
+            <RuleSection title="Weekly bonus matchups">
+                <p>
+                    Every week, your Main Award duo goes head-to-head against another team&rsquo;s &mdash; a
+                    separate schedule from anything in Sleeper itself, rotating through every possible opponent
+                    before repeating. Win your matchup (score more combined points than your opponent&rsquo;s duo
+                    that week) and you&rsquo;re eligible for a bonus. Lose, and there&rsquo;s no bonus that week,
+                    but it doesn&rsquo;t affect your actual Main Award total either.
+                </p>
+                <p className="mt-2">
+                    Among that week&rsquo;s six winners, bonuses range from <span className="text-chalk">15</span> points
+                    for the highest-scoring winner down to <span className="text-chalk">3</span> for the lowest &mdash;
+                    with a deliberate gap between 1st and 2nd, so a standout week really stands out. A tie splits
+                    that tier&rsquo;s bonus evenly between both teams rather than picking one over the other. Still,
+                    your season-long Main Award total is what really matters &mdash; these are a fun weekly wrinkle,
+                    not a replacement for it.
+                </p>
+            </RuleSection>
+
             <section className="rounded-lg border border-panel-line bg-panel p-5">
                 <div className="flex items-center gap-2">
                     <SproutIcon className="h-5 w-5 text-bell" />

@@ -12,11 +12,13 @@ import { Tabs } from './components/Tabs';
 import { TeamsView } from './components/TeamsView';
 import { RulesPage } from './components/RulesPage';
 import { LeagueTab } from './components/LeagueTab';
+import { BonusTab } from './components/BonusTab';
 import type { AwardType } from './types';
 
 const TABS = [
   { id: 'teams', label: 'Teams' },
   { id: 'league', label: 'League' },
+  { id: 'bonus', label: 'Bonus' },
   { id: 'rules', label: 'Rules' }
 ];
 
@@ -63,6 +65,10 @@ export default function App() {
 
         {activeTab === 'league' && (
           <LeagueTab teams={teams} myTeamId={claimedTeam?.teamId ?? null} />
+        )}
+
+        {activeTab === 'bonus' && (
+          <BonusTab teams={teams.map(t => t.team)} myTeamId={claimedTeam?.teamId ?? null} />
         )}
 
         {activeTab === 'rules' && <RulesPage />}
