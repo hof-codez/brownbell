@@ -12,7 +12,7 @@ import { corsHeaders, handleCorsPreflightRequest } from '../_shared/cors.ts';
 import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
 import { hasTeamGameStarted } from '../_shared/nflSchedule.ts';
-import { isValidMainCombo, isValidNextUpCombo, MAIN_POSITIONS, NEXTUP_POSITIONS } from '../_shared/eligibility.ts';
+import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS } from '../_shared/eligibility.ts';
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -75,7 +75,14 @@ Deno.serve(async (req: Request) => {
             .map(id => ({ id, player: allPlayers[id] }))
             .filter(({ player }) => player?.position && validPositions.has(player.position))
             .filter(({ player }) => {
-                if (!otherPlayerInfo) return true; // other slot empty - no pairing constraint yet
+                // Individual eligibility applies regardless of whether the other slot
+                // is filled - a 10-year veteran is never Next Up eligible, empty
+                // other slot or not. This must run even with no pairing partner yet.
+                if (awardType === 'nextup' && !isNextUpEligibleExperience(player!.years_exp || 0)) return false;
+                return true;
+            })
+            .filter(({ player }) => {
+                if (!otherPlayerInfo) return true; // other slot empty - no pairing constraint to check yet
                 const candidateInfo = { position: player!.position!, yearsExp: player!.years_exp || 0 };
                 return awardType === 'main'
                     ? isValidMainCombo(otherPlayerInfo, candidateInfo)

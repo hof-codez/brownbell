@@ -52,6 +52,12 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
                     </p>
                 )}
 
+                {!loading && data && !data.locked && data.candidates.length > 0 && (
+                    <p className="mt-3 font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                        {data.currentPlayer ? 'Eligible swaps' : 'Eligible players'}
+                    </p>
+                )}
+
                 {loading && (
                     <p className="mt-4 font-body text-sm text-chalk-dim">Loading your roster&hellip;</p>
                 )}
