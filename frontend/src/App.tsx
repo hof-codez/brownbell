@@ -62,7 +62,7 @@ export default function App() {
         )}
 
         {activeTab === 'league' && (
-          <LeagueTab teams={teams.map(t => t.team)} myTeamId={claimedTeam?.teamId ?? null} />
+          <LeagueTab teams={teams} myTeamId={claimedTeam?.teamId ?? null} />
         )}
 
         {activeTab === 'rules' && <RulesPage />}

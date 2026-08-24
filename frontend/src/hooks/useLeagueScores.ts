@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Team, AwardType } from '../types';
+import type { TeamWithDuos, AwardType } from '../types';
 
 export interface PlayerScore {
     sleeperPlayerId: string;
@@ -22,7 +22,7 @@ interface SeasonRanking {
     teamId: string;
     teamName: string;
     total: number;
-    players: PlayerScore[]; // each player's SEASON total, not a single week
+    players: PlayerScore[]; // the team's CURRENT duo picks, each with their own season total so far (0 if none yet)
 }
 
 export interface AwardScores {
@@ -38,7 +38,7 @@ interface UseLeagueScoresResult {
     error: string | null;
 }
 
-export function useLeagueScores(teams: Team[]): UseLeagueScoresResult {
+export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
     const [main, setMain] = useState<AwardScores | null>(null);
     const [nextup, setNextup] = useState<AwardScores | null>(null);
     const [loading, setLoading] = useState(true);
@@ -53,7 +53,7 @@ export function useLeagueScores(teams: Team[]): UseLeagueScoresResult {
         let cancelled = false;
 
         async function load() {
-            const teamIds = teams.map(t => t.id);
+            const teamIds = teams.map(t => t.team.id);
             const { data, error: fetchError } = await supabase
                 .from('weekly_scores')
                 .select('team_id, award_type, week, sleeper_player_id, points, player_name, player_position')
@@ -68,13 +68,15 @@ export function useLeagueScores(teams: Team[]): UseLeagueScoresResult {
             }
 
             const teamNameById: Record<string, string> = {};
-            teams.forEach(t => { teamNameById[t.id] = t.display_name; });
+            teams.forEach(t => { teamNameById[t.team.id] = t.team.display_name; });
 
             function buildAward(awardType: AwardType): AwardScores {
                 const rows = (data ?? []).filter(r => r.award_type === awardType);
 
                 // Team total per week = sum of the duo's 2 player rows, but we
-                // also keep each individual player's row alongside it.
+                // also keep each individual player's row alongside it. Weekly
+                // history is only ever built from actually-recorded scores -
+                // there's nothing to show for a week that hasn't been played yet.
                 const byTeamWeek = new Map<string, { total: number; players: PlayerScore[] }>();
                 for (const row of rows) {
                     const key = `${row.team_id}|${row.week}`;
@@ -98,40 +100,41 @@ export function useLeagueScores(teams: Team[]): UseLeagueScoresResult {
                     weekly.push({ week, teamId, teamName: teamNameById[teamId] || 'Unknown', points: entry.total, players: entry.players });
                 }
 
-                // Season totals: sum per team, AND sum per individual player
-                // (a player's season total across every week they scored).
+                // Season total per team = full sum of every recorded row, no
+                // matter who scored it - unaffected by any later swap.
                 const seasonTotals = new Map<string, number>();
-                const playerSeasonTotals = new Map<string, Map<string, PlayerScore>>(); // teamId -> sleeperPlayerId -> accumulating score
-                for (const t of teams) {
-                    seasonTotals.set(t.id, 0);
-                    playerSeasonTotals.set(t.id, new Map());
-                }
-
+                for (const t of teams) seasonTotals.set(t.team.id, 0);
                 for (const row of rows) {
                     seasonTotals.set(row.team_id, (seasonTotals.get(row.team_id) || 0) + Number(row.points));
-
-                    const teamPlayers = playerSeasonTotals.get(row.team_id) || new Map();
-                    const existing = teamPlayers.get(row.sleeper_player_id);
-                    if (existing) {
-                        existing.points += Number(row.points);
-                    } else {
-                        teamPlayers.set(row.sleeper_player_id, {
-                            sleeperPlayerId: row.sleeper_player_id,
-                            playerName: row.player_name || 'Unknown player',
-                            playerPosition: row.player_position || '',
-                            points: Number(row.points)
-                        });
-                    }
-                    playerSeasonTotals.set(row.team_id, teamPlayers);
                 }
 
-                const seasonRankings: SeasonRanking[] = [...seasonTotals.entries()]
-                    .map(([teamId, total]) => ({
-                        teamId,
-                        teamName: teamNameById[teamId] || 'Unknown',
-                        total,
-                        players: [...(playerSeasonTotals.get(teamId)?.values() ?? [])]
-                    }))
+                // Per-player season total, keyed by team+player - used to look
+                // up each CURRENT pick's own accumulated points below.
+                const playerSeasonTotals = new Map<string, number>(); // `${teamId}|${sleeperPlayerId}` -> points
+                for (const row of rows) {
+                    const key = `${row.team_id}|${row.sleeper_player_id}`;
+                    playerSeasonTotals.set(key, (playerSeasonTotals.get(key) || 0) + Number(row.points));
+                }
+
+                const seasonRankings: SeasonRanking[] = teams
+                    .map(t => {
+                        const slots = awardType === 'main' ? t.main : t.nextup;
+                        const players: PlayerScore[] = slots
+                            .filter((s): s is NonNullable<typeof s> => s !== null && !!s.sleeper_player_id)
+                            .map(s => ({
+                                sleeperPlayerId: s.sleeper_player_id!,
+                                playerName: s.player_name,
+                                playerPosition: s.player_position,
+                                points: playerSeasonTotals.get(`${t.team.id}|${s.sleeper_player_id}`) || 0
+                            }));
+
+                        return {
+                            teamId: t.team.id,
+                            teamName: teamNameById[t.team.id] || 'Unknown',
+                            total: seasonTotals.get(t.team.id) || 0,
+                            players
+                        };
+                    })
                     .sort((a, b) => b.total - a.total)
                     .map((t, i) => ({ ...t, rank: i + 1 }));
 

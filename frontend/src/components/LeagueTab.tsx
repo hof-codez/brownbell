@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useLeagueScores } from '../hooks/useLeagueScores';
 import { SeasonRankingsTable } from './SeasonRankingsTable';
 import { WeeklyScoresTable } from './WeeklyScoresTable';
-import type { Team, AwardType } from '../types';
+import type { TeamWithDuos, AwardType } from '../types';
 
 interface LeagueTabProps {
-    teams: Team[];
+    teams: TeamWithDuos[];
     myTeamId?: string | null;
 }
 
