@@ -611,6 +611,238 @@ class BrownBellAutomator {
         return selectedSub;
     }
 
+    // True if this specific Sleeper player is on this team's LIVE roster right now.
+    isPlayerOnTeamRoster(teamName, sleeperPlayerId) {
+        const roster = this.leagueData.rosters.find(r => this.leagueData.userMap[r.owner_id] === teamName);
+        return !!roster && !!sleeperPlayerId && roster.players.includes(sleeperPlayerId);
+    }
+
+    // Flat-model replacement selection: same top-4, flat-random-by-3-week-average
+    // logic already verified for the old model (see findSubstitute), adapted to
+    // take direct team/award/exclusion inputs instead of the old injuredPlayer/
+    // originalDuo shapes duos no longer needs.
+    async selectAutoReplacement(teamName, awardType, week, excludeSleeperIds, otherSlotInfo) {
+        const roster = this.leagueData.rosters.find(r => this.leagueData.userMap[r.owner_id] === teamName);
+        if (!roster) {
+            console.warn(`No roster found for ${teamName} - cannot select a replacement`);
+            return null;
+        }
+
+        const validPositions = awardType === 'nextup'
+            ? ['QB', 'RB', 'WR', 'TE', 'K']
+            : ['QB', 'RB', 'WR'];
+
+        const eligibleCandidates = [];
+
+        for (const playerId of roster.players) {
+            if (excludeSleeperIds.includes(playerId)) continue;
+
+            const player = this.playersData[playerId];
+            if (!player || !validPositions.includes(player.position)) continue;
+
+            if (player.injury_status) {
+                const status = player.injury_status.toLowerCase();
+                if (['out', 'doubtful', 'ir', 'pup'].includes(status)) continue;
+            }
+
+            if (await this.isPlayerOnBye(playerId, week)) continue;
+
+            // Can't add someone whose own game for this week has already started
+            if (await this.hasPlayerGameStarted(playerId, week)) continue;
+
+            if (awardType === 'nextup' && !this.isNextUpEligibleExperience(player.years_exp || 0)) continue;
+
+            if (otherSlotInfo) {
+                const candidateInfo = { position: player.position, yearsExp: player.years_exp || 0 };
+                const valid = awardType === 'main'
+                    ? this.validateDuoCombination(otherSlotInfo.position, candidateInfo.position)
+                    : this.isValidNextUpCombo(otherSlotInfo, candidateInfo);
+                if (!valid) continue;
+            }
+
+            let totalScore = 0;
+            let weeksCounted = 0;
+            for (let w = Math.max(1, week - 2); w <= week; w++) {
+                const weekScores = await this.getWeeklyScores(w);
+                if (weekScores[playerId] !== undefined) {
+                    totalScore += weekScores[playerId];
+                    weeksCounted++;
+                }
+            }
+
+            eligibleCandidates.push({
+                id: playerId,
+                name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
+                position: player.position,
+                yearsExp: player.years_exp || 0,
+                score: weeksCounted > 0 ? totalScore / weeksCounted : 0
+            });
+        }
+
+        if (eligibleCandidates.length === 0) {
+            console.warn(`No eligible replacement found for ${teamName}/${awardType}`);
+            return null;
+        }
+
+        eligibleCandidates.sort((a, b) => b.score - a.score);
+        const topPerformers = eligibleCandidates.slice(0, Math.min(4, eligibleCandidates.length));
+        const selectedIndex = Math.floor(Math.random() * topPerformers.length);
+        const selected = topPerformers[selectedIndex];
+
+        console.log(`Auto-selected ${selected.name} (${selected.score.toFixed(1)} avg pts/wk) for ${teamName}/${awardType} from top ${topPerformers.length}`);
+        return selected;
+    }
+
+    // The core decision engine for the duos-as-source-of-truth model. For every
+    // duo slot: skip if not locked yet (pre-lock is fully owner-editable, the
+    // automation stays out of it entirely). Once locked, freeze the original
+    // player one time. Then classify: still rostered + healthy -> do nothing;
+    // still rostered + genuinely injured -> temporary (unconditional, unlimited,
+    // auto-reverts to the frozen original once they're healthy again); not on
+    // the roster at all -> permanent (trade/release), gated by the team's
+    // 2-swap season budget - 1st time leaves the slot open for the owner, 2nd
+    // time auto-fills immediately and revokes manual privilege for the rest of
+    // the season.
+    async processDuoSlots(week) {
+        const duoRows = await this.dataLayer.loadDuoRows();
+        const events = [];
+
+        const byTeamAward = {};
+        for (const row of duoRows) {
+            const key = `${row.teamName}|${row.awardType}`;
+            byTeamAward[key] = byTeamAward[key] || {};
+            byTeamAward[key][row.playerIndex] = row;
+        }
+
+        for (const row of duoRows) {
+            if (!row.sleeperPlayerId) continue;
+
+            const player = this.playersData[row.sleeperPlayerId];
+            if (!player) {
+                console.warn(`Could not resolve player ${row.sleeperPlayerId} for ${row.teamName}/${row.awardType}`);
+                continue;
+            }
+
+            // Locks are for the SEASON - always checked against week 1, matching
+            // the Edge Functions (get-eligible-roster/set-duo) exactly.
+            const locked = await this.hasPlayerGameStarted(row.sleeperPlayerId, 1);
+            if (!locked) continue;
+
+            if (!row.originalSleeperPlayerId) {
+                await this.dataLayer.freezeOriginalPlayer(row.rowId, row.sleeperPlayerId);
+                row.originalSleeperPlayerId = row.sleeperPlayerId;
+            }
+
+            const pairRow = byTeamAward[`${row.teamName}|${row.awardType}`]?.[row.playerIndex === 0 ? 1 : 0];
+            const otherSlotInfo = pairRow?.sleeperPlayerId
+                ? {
+                    position: this.playersData[pairRow.sleeperPlayerId]?.position || pairRow.playerPosition,
+                    yearsExp: this.playersData[pairRow.sleeperPlayerId]?.years_exp || 0
+                }
+                : null;
+            const excludeIds = [row.sleeperPlayerId, pairRow?.sleeperPlayerId].filter(Boolean);
+
+            const onRoster = this.isPlayerOnTeamRoster(row.teamName, row.sleeperPlayerId);
+
+            if (onRoster) {
+                // Auto-revert check FIRST, whenever we're currently covering with
+                // someone other than the frozen original - regardless of whether
+                // that stand-in is themselves fine right now. A working stand-in
+                // must never block restoring the true original once they're back.
+                if (row.sleeperPlayerId !== row.originalSleeperPlayerId) {
+                    const originalPlayer = this.playersData[row.originalSleeperPlayerId];
+                    const originalOnRoster = this.isPlayerOnTeamRoster(row.teamName, row.originalSleeperPlayerId);
+                    const originalStatus = (originalPlayer?.injury_status || '').toLowerCase();
+                    const originalHealthy = originalOnRoster && !['out', 'doubtful', 'ir', 'pup'].includes(originalStatus);
+
+                    if (originalHealthy) {
+                        const originalName = `${originalPlayer.first_name || ''} ${originalPlayer.last_name || ''}`.trim();
+                        await this.dataLayer.upsertDuoSlot({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            playerName: originalName, playerPosition: originalPlayer.position,
+                            sleeperPlayerId: row.originalSleeperPlayerId, source: 'auto'
+                        });
+                        await this.dataLayer.logSubstitution({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            originalName: row.playerName, originalPosition: row.playerPosition,
+                            substituteName: originalName, substitutePlayerId: row.originalSleeperPlayerId, substitutePosition: originalPlayer.position,
+                            week, source: 'auto', reason: 'Reverted to original player - healthy again'
+                        });
+                        events.push({ type: 'reverted', teamName: row.teamName, awardType: row.awardType });
+                        continue;
+                    }
+                }
+
+                // Current occupant (whoever it is - original or a stand-in) still
+                // needs to genuinely be out to warrant any further action.
+                const status = (player.injury_status || '').toLowerCase();
+                const qualifyingInjury = ['out', 'doubtful', 'ir', 'pup'].includes(status);
+                if (!qualifyingInjury) continue;
+
+                const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo);
+                if (replacement) {
+                    await this.dataLayer.upsertDuoSlot({
+                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                        playerName: replacement.name, playerPosition: replacement.position,
+                        sleeperPlayerId: replacement.id, source: 'auto'
+                    });
+                    await this.dataLayer.logSubstitution({
+                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                        originalName: row.playerName, originalPosition: row.playerPosition,
+                        substituteName: replacement.name, substitutePlayerId: replacement.id, substitutePosition: replacement.position,
+                        week, source: 'auto', reason: `Temporary - ${player.first_name} ${player.last_name} is ${status}`
+                    });
+                    events.push({ type: 'temporary-fill', teamName: row.teamName, awardType: row.awardType, replacement: replacement.name });
+                }
+
+            } else {
+                // PERMANENT - not on roster at all (traded or released)
+                const swapState = this.dataLayer.getTeamSwapState(row.teamName);
+
+                if (!swapState.manualPrivilege || swapState.permanentSwapsUsed >= 1) {
+                    // Privilege already gone, OR this is the 2nd permanent departure -
+                    // auto-fill immediately either way.
+                    const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo);
+                    if (replacement) {
+                        await this.dataLayer.upsertDuoSlot({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            playerName: replacement.name, playerPosition: replacement.position,
+                            sleeperPlayerId: replacement.id, source: 'auto'
+                        });
+
+                        const wasPrivilegeLoss = swapState.manualPrivilege && swapState.permanentSwapsUsed >= 1;
+                        if (wasPrivilegeLoss) {
+                            await this.dataLayer.updateTeamSwapState(row.teamName, { permanentSwapsUsed: 2, manualPrivilege: false });
+                        }
+
+                        await this.dataLayer.logSubstitution({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            originalName: row.playerName, originalPosition: row.playerPosition,
+                            substituteName: replacement.name, substitutePlayerId: replacement.id, substitutePosition: replacement.position,
+                            week, source: 'auto',
+                            reason: wasPrivilegeLoss
+                                ? 'Permanent departure - 2nd of the season, auto-filled, manual privilege revoked for rest of season'
+                                : 'Permanent departure - manual privilege already used up, auto-filled'
+                        });
+                        events.push({ type: wasPrivilegeLoss ? 'permanent-auto-fill-privilege-revoked' : 'permanent-auto-fill', teamName: row.teamName, awardType: row.awardType });
+                    }
+                } else {
+                    // 1st permanent departure of the season - leave it open for the owner
+                    await this.dataLayer.clearDuoSlot(row.teamName, row.awardType, row.playerIndex);
+                    await this.dataLayer.logSubstitution({
+                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                        originalName: row.playerName, originalPosition: row.playerPosition,
+                        substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                        week, source: 'auto', reason: 'Permanent departure - slot cleared, awaiting owner pick (1st permanent swap of the season)'
+                    });
+                    events.push({ type: 'permanent-cleared-for-owner', teamName: row.teamName, awardType: row.awardType });
+                }
+            }
+        }
+
+        return events;
+    }
+
     hasActiveSubstitution(teamName, playerIndex, week, awardType, existingSubstitutions) {
         return existingSubstitutions.some(sub =>
             sub.teamName === teamName &&
@@ -1922,20 +2154,16 @@ class BrownBellAutomator {
         const existingScoresForFallback = { main: {}, nextup: {} }; // inactive-team historical fallback; see updateAllScores
         const { scores: allScores, playerIds: allPlayerIds } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
 
-        // Generate new substitutions
-        let newSubstitutions = [];
+        // Process every duo slot: pre-lock slots are skipped entirely (fully
+        // owner-editable), locked slots get the full healthy/temporary/permanent
+        // decision tree. This runs the same way regardless of checkpoint type -
+        // the old checkpoint-specific dispatch (deep vs light check) belonged to
+        // the previous substitutions-layered model and no longer applies now
+        // that duos is the single source of truth.
+        let slotEvents = [];
         if (shouldRunSubstitutions) {
-            if (checkpointType === 'INTERNATIONAL_CHECK' || checkpointType === 'SATURDAY_INTERNATIONAL_PREP' || checkpointType === 'SUNDAY_INTERNATIONAL_CHECK') {
-                // Use the international game check
-                newSubstitutions = await this.checkInternationalGameInjuries(cleanedSubstitutions);
-            } else if (checkpointType === 'PREGAME_CHECK' || checkpointType === 'SUNDAY_PREGAME_CHECK') {
-                // Use the enhanced pre-game check
-                newSubstitutions = await this.checkGameTimeInjuries(cleanedSubstitutions);
-            } else {
-                // Use regular weekly substitution logic
-                newSubstitutions = await this.generateWeeklySubstitutions(currentWeek, cleanedSubstitutions);
-            }
-            console.log(`${checkpointType}: Generated ${newSubstitutions.length} new substitutions`);
+            slotEvents = await this.processDuoSlots(currentWeek);
+            console.log(`${checkpointType}: ${slotEvents.length} duo slot change(s) this run`);
         }
 
         // Persist everything to Supabase - this replaces the single JSON file write.
@@ -1944,7 +2172,12 @@ class BrownBellAutomator {
         // if the schedule fetch failed entirely (network blip, external API hiccup),
         // that should never take down the whole run, so it's skipped gracefully here
         // rather than trying to save a null snapshot (which the DB correctly rejects).
-        await this.dataLayer.saveSubstitutions([...cleanedSubstitutions, ...newSubstitutions]);
+        //
+        // Note: processDuoSlots() above already wrote any new substitution log
+        // entries directly via dataLayer.logSubstitution() as they happened - this
+        // call only persists cleanupSubstitutions()'s in-memory fixups (e.g. an
+        // invalid date range correction) to the existing rows, nothing new.
+        await this.dataLayer.saveSubstitutions(cleanedSubstitutions);
         await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds);
         if (scheduleSnapshotTeams) {
             await this.dataLayer.saveScheduleSnapshot(currentWeek, scheduleSnapshotTeams, scheduleSnapshotCapturedAt);
@@ -1964,8 +2197,7 @@ class BrownBellAutomator {
             lastCheckpointType: checkpointType || 'ROUTINE_UPDATE',
             automationStats: {
                 scoresUpdated: Object.keys(allScores.main).length + Object.keys(allScores.nextup).length,
-                newSubstitutions: newSubstitutions.length,
-                totalSubstitutions: cleanedSubstitutions.length + newSubstitutions.length,
+                duoSlotChanges: slotEvents.length,
                 scheduleChangesThisWeek: existingWeekChanges.length + newlyDetectedChanges.length
             }
         };
@@ -2040,7 +2272,7 @@ class BrownBellAutomator {
 
             console.log('✅ Automation complete!');
             console.log(`📊 Updated ${data.automationStats.scoresUpdated} team scores`);
-            console.log(`🔄 Generated ${data.automationStats.newSubstitutions} new substitutions`);
+            console.log(`🔄 ${data.automationStats.duoSlotChanges} duo slot change(s) this run`);
             console.log(`📅 Schedule changes flagged this week: ${data.automationStats.scheduleChangesThisWeek}`);
             console.log(`📅 Current week: ${data.currentWeek}`);
 

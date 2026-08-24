@@ -35,19 +35,43 @@ class SupabaseDataLayer {
 
         const { data: teams, error: teamsError } = await this.supabase
             .from('teams')
-            .select('id, display_name')
+            .select('id, display_name, permanent_swaps_used, manual_privilege')
             .eq('season_id', this.seasonId);
 
         if (teamsError) throw new Error(`Failed to load teams: ${teamsError.message}`);
 
         this.teamIdByName = {};
         this.teamNameById = {};
+        this.teamSwapStateByName = {};
         for (const t of teams) {
             this.teamIdByName[t.display_name] = t.id;
             this.teamNameById[t.id] = t.display_name;
+            this.teamSwapStateByName[t.display_name] = {
+                permanentSwapsUsed: t.permanent_swaps_used,
+                manualPrivilege: t.manual_privilege
+            };
         }
 
         return { seasonId: this.seasonId, currentWeek: season.current_week, sleeperLeagueId: season.sleeper_league_id };
+    }
+
+    // Season-long swap budget for a team - read from the cache loadSeason
+    // already populated, no extra round trip.
+    getTeamSwapState(teamName) {
+        return this.teamSwapStateByName[teamName] || { permanentSwapsUsed: 0, manualPrivilege: true };
+    }
+
+    async updateTeamSwapState(teamName, { permanentSwapsUsed, manualPrivilege }) {
+        const teamId = this.teamIdByName[teamName];
+        if (!teamId) throw new Error(`Unknown team: ${teamName}`);
+
+        const { error } = await this.supabase
+            .from('teams')
+            .update({ permanent_swaps_used: permanentSwapsUsed, manual_privilege: manualPrivilege })
+            .eq('id', teamId);
+
+        if (error) throw new Error(`Failed to update swap state for ${teamName}: ${error.message}`);
+        this.teamSwapStateByName[teamName] = { permanentSwapsUsed, manualPrivilege };
     }
 
     async setCurrentWeek(week) {
@@ -91,6 +115,109 @@ class SupabaseDataLayer {
         }
 
         return knownDuos;
+    }
+
+    // Raw duo rows, ungrouped and including incomplete slots - used by the
+    // automation's per-slot processing, which needs to see (and potentially
+    // fill) an empty slot, not just complete pairs like loadKnownDuos() returns.
+    async loadDuoRows() {
+        const { data, error } = await this.supabase
+            .from('duos')
+            .select('id, team_id, award_type, player_index, player_name, player_position, sleeper_player_id, source, original_sleeper_player_id')
+            .in('team_id', Object.values(this.teamIdByName));
+
+        if (error) throw new Error(`Failed to load duo rows: ${error.message}`);
+
+        return data.map(row => ({
+            rowId: row.id,
+            teamName: this.teamNameById[row.team_id],
+            awardType: row.award_type,
+            playerIndex: row.player_index,
+            playerName: row.player_name,
+            playerPosition: row.player_position,
+            sleeperPlayerId: row.sleeper_player_id,
+            source: row.source,
+            originalSleeperPlayerId: row.original_sleeper_player_id
+        })).filter(row => row.teamName); // drop rows for a team not in this season's roster
+    }
+
+    // Direct write to duos - the automation's own auto-fill/lock-freeze/revert
+    // path. Owner-driven writes go through set-duo (the Edge Function), not here.
+    async upsertDuoSlot({ teamName, awardType, playerIndex, playerName, playerPosition, sleeperPlayerId, source, originalSleeperPlayerId }) {
+        const teamId = this.teamIdByName[teamName];
+        if (!teamId) throw new Error(`Unknown team: ${teamName}`);
+
+        const row = {
+            team_id: teamId,
+            award_type: awardType,
+            player_index: playerIndex,
+            player_name: playerName,
+            player_position: playerPosition,
+            sleeper_player_id: sleeperPlayerId,
+            source
+        };
+        if (originalSleeperPlayerId !== undefined) row.original_sleeper_player_id = originalSleeperPlayerId;
+
+        const { error } = await this.supabase
+            .from('duos')
+            .upsert(row, { onConflict: 'team_id,award_type,player_index' });
+
+        if (error) throw new Error(`Failed to upsert duo slot for ${teamName}/${awardType}/${playerIndex}: ${error.message}`);
+    }
+
+    // Stamps original_sleeper_player_id without touching anything else - the
+    // one-time freeze that happens the moment a slot's occupant locks in.
+    async freezeOriginalPlayer(rowId, sleeperPlayerId) {
+        const { error } = await this.supabase
+            .from('duos')
+            .update({ original_sleeper_player_id: sleeperPlayerId })
+            .eq('id', rowId);
+        if (error) throw new Error(`Failed to freeze original player: ${error.message}`);
+    }
+
+    // Leaves a slot genuinely empty - the "1st permanent departure, awaiting
+    // owner pick" case. The frontend already renders a missing row as "Not set yet".
+    async clearDuoSlot(teamName, awardType, playerIndex) {
+        const teamId = this.teamIdByName[teamName];
+        if (!teamId) throw new Error(`Unknown team: ${teamName}`);
+
+        const { error } = await this.supabase
+            .from('duos')
+            .delete()
+            .eq('team_id', teamId)
+            .eq('award_type', awardType)
+            .eq('player_index', playerIndex);
+
+        if (error) throw new Error(`Failed to clear duo slot for ${teamName}: ${error.message}`);
+    }
+
+    // Pure history log now - substitutions no longer determines who's
+    // currently playing (duos does), this just records that a change happened.
+    // Never throws - a failed log entry shouldn't take down the actual change.
+    async logSubstitution({ teamName, awardType, playerIndex, originalName, originalPosition, substituteName, substitutePlayerId, substitutePosition, week, source, reason }) {
+        const teamId = this.teamIdByName[teamName];
+        if (!teamId) {
+            console.warn(`Skipping substitution log - unknown team: ${teamName}`);
+            return;
+        }
+
+        const { error } = await this.supabase.from('substitutions').insert({
+            team_id: teamId,
+            award_type: awardType,
+            player_index: playerIndex,
+            original_name: originalName,
+            original_position: originalPosition,
+            substitute_name: substituteName,
+            substitute_player_id: substitutePlayerId,
+            substitute_position: substitutePosition,
+            start_week: week,
+            end_week: null,
+            active: true,
+            source,
+            reason
+        });
+
+        if (error) console.error(`Failed to log substitution (non-fatal): ${error.message}`);
     }
 
     // Returns substitutions in the same shape the automation has always used internally,
