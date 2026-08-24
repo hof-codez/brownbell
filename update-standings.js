@@ -1,6 +1,6 @@
 // update-standings.js - GitHub Actions automation script
-const fs = require('fs');
 const https = require('https');
+const SupabaseDataLayer = require('./supabase-data-layer');
 
 class BrownBellAutomator {
     constructor(leagueId) {
@@ -8,126 +8,16 @@ class BrownBellAutomator {
         this.playersData = null;
         this.leagueData = null;
         this.cachedSchedule = {};
+        this.dataLayer = new SupabaseDataLayer();
 
-        // NFL 2025 Bye Weeks by team (CORRECT 2025 SCHEDULE)
-        this.byeWeeks = {
-            5: ['ATL', 'CHI', 'GB', 'PIT'],
-            6: ['HOU', 'MIN'],
-            7: ['BAL', 'BUF'],
-            8: ['ARI', 'DET', 'JAX', 'LV', 'LAR', 'SEA'],
-            9: ['CLE', 'NYJ', 'PHI', 'TB'],
-            10: ['CIN', 'DAL', 'KC', 'TEN'],
-            11: ['IND', 'NO'],
-            12: ['DEN', 'LAC', 'MIA', 'WAS'],
-            14: ['CAR', 'NE', 'NYG', 'SF']
-        };
+        // Populated from Supabase via loadKnownDuos() before any run - no hardcoded
+        // team/player data lives in this file. See supabase-data-layer.js.
+        this.knownDuos = { main: {}, nextup: {} };
+        this.inactiveTeams = {};
+        this.managerChanges = {};
 
         // Exclusion list: prevent auto-substitutions for specific scenarios
         this.substitutionExclusions = [];
-
-        // Teams that left the league - show historical data only
-        this.inactiveTeams = {};  // Empty now since tigollbiddiez is being replaced
-
-        // Manager changes - track when ownership transferred
-        this.managerChanges = {
-            'Dcastro90': {  // Replace with actual Sleeper username
-                previousManager: 'tigollbiddiez',
-                changeWeek: 6,
-                reason: 'Manager Replaced'
-            }
-        };
-
-        // Known duos from your tracker
-        this.knownDuos = {
-            main: {
-                'Un14wfulBandit': [
-                    { name: 'Josh Allen', position: 'QB' },
-                    { name: 'Derrick Henry', position: 'RB' }
-                ],
-                'Chief1025': [
-                    { name: 'Justin Herbert', position: 'QB' },
-                    { name: 'Josh Jacobs', position: 'RB' }
-                ],
-                'HofDimez': [
-                    { name: 'Christian McCaffrey', position: 'RB' },
-                    { name: 'Justin Jefferson', position: 'WR' }
-                ],
-                'fsmrubix': [
-                    { name: 'Jayden Daniels', position: 'QB' },
-                    { name: 'CeeDee Lamb', position: 'WR' }
-                ],
-                'KnowItAllJankyJew': [
-                    { name: 'Jordan Love', position: 'QB' },
-                    { name: 'Hollywood Brown', position: 'WR' }
-                ],
-                'FelixR08': [
-                    { name: 'Lamar Jackson', position: 'QB' },
-                    { name: 'Tony Pollard', position: 'RB' }
-                ],
-                '713Born501Raised': [
-                    { name: 'Patrick Mahomes', position: 'QB' },
-                    { name: 'Josh Downs', position: 'WR' }
-                ],
-                'Justin274447': [
-                    { name: 'Jalen Hurts', position: 'QB' },
-                    { name: 'Ja\'Marr Chase', position: 'WR' }
-                ],
-                'Kenyatta93': [
-                    { name: 'Joe Burrow', position: 'QB' },
-                    { name: 'Saquon Barkley', position: 'RB' }
-                ],
-                'Dcastro90': [
-                    { name: 'C.J. Stroud', position: 'QB' },
-                    { name: 'Jahmyr Gibbs', position: 'RB' }
-                ],
-                'Ch3r0k33zY': [
-                    { name: 'Jared Goff', position: 'QB' },
-                    { name: 'Mike Evans', position: 'WR' }
-                ],
-                'FLYB33ZY': [
-                    { name: 'Dak Prescott', position: 'QB' },
-                    { name: 'Terry McLaurin', position: 'WR' }
-                ]
-            },
-            nextup: {
-                'fsmrubix': [
-                    { name: 'Jaxson Dart', position: 'QB', experience: 'rookie' },
-                    { name: 'Malik Nabers', position: 'WR', experience: 'second_year' }
-                ],
-                '713Born501Raised': [
-                    { name: 'Jayden Higgins', position: 'WR', experience: 'rookie' },
-                    { name: 'Bo Nix', position: 'QB', experience: 'second_year' }
-                ],
-                'Ch3r0k33zY': [
-                    { name: 'Tetairoa McMillan', position: 'WR', experience: 'rookie' },
-                    { name: 'Bucky Irving', position: 'RB', experience: 'second_year' }
-                ],
-                'KnowItAllJankyJew': [
-                    { name: 'Quinshon Judkins', position: 'RB', experience: 'rookie' },
-                    { name: 'Jalen Coker', position: 'WR', experience: 'second_year' }
-                ],
-                'HofDimez': [
-                    { name: 'Emeka Egbuka', position: 'WR', experience: 'rookie' },
-                    { name: 'J.J. McCarthy', position: 'QB', experience: 'second_year' }
-                ],
-                'Un14wfulBandit': [
-                    { name: 'Ashton Jeanty', position: 'RB', experience: 'rookie' },
-                    { name: 'Brian Thomas', position: 'WR', experience: 'second_year' }
-                ],
-                'Kenyatta93': [
-                    { name: 'Kaleb Johnson', position: 'RB', experience: 'rookie' },
-                    { name: 'DeVaughn Vele', position: 'WR', experience: 'second_year' }
-                ],
-                'FelixR08': [
-                    { name: 'Elic Ayomanor', position: 'WR', experience: 'rookie' },
-                    { name: 'Rome Odunze', position: 'WR', experience: 'second_year' }
-                ],
-                'FLYB33ZY': [
-                    { name: 'Tory Horton', position: 'WR', experience: 'rookie' },
-                    { name: 'Trey Benson', position: 'RB', experience: 'second_year' }
-                ]
-            }
-        };
     }
 
     async fetchJson(url) {
@@ -455,7 +345,7 @@ class BrownBellAutomator {
             }
 
             // CHECK 4: Check if on bye
-            if (this.isPlayerOnBye(playerId, week)) {
+            if (await this.isPlayerOnBye(playerId, week)) {
                 isInjured = true;
                 console.log(`🚨 SUBSTITUTE ON BYE: ${sub.substituteName} for ${sub.teamName} (${awardLabel})`);
             }
@@ -475,38 +365,6 @@ class BrownBellAutomator {
         }
 
         return injuredSubs;
-    }
-
-
-    async runAutomationCheckpoint(checkpointType) {
-        console.log(`Running ${checkpointType} injury checkpoint...`);
-
-        const currentWeek = await this.getCurrentWeek();
-        let existingData = { substitutions: [] };
-
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
-            }
-        } catch (error) {
-            console.log('No existing data found');
-        }
-
-        const cleanedSubstitutions = this.cleanupSubstitutions(existingData.substitutions, currentWeek);
-        const newSubstitutions = await this.generateWeeklySubstitutions(currentWeek, cleanedSubstitutions);
-
-        if (newSubstitutions.length > 0) {
-            console.log(`${checkpointType}: Generated ${newSubstitutions.length} new substitutions`);
-
-            // Update the data file with new substitutions
-            const updatedData = await this.generateCompleteData();
-            require('fs').writeFileSync('brown-bell-data.json', JSON.stringify(updatedData, null, 2));
-
-            return newSubstitutions;
-        } else {
-            console.log(`${checkpointType}: No new substitutions needed`);
-            return [];
-        }
     }
 
     validateDuoCombination(healthyPlayerPosition, substitutePosition, awardType = 'main') {
@@ -659,7 +517,7 @@ class BrownBellAutomator {
             }
 
             // Skip if substitute is on bye this week
-            if (this.isPlayerOnBye(playerId, week)) {
+            if (await this.isPlayerOnBye(playerId, week)) {
                 console.log(`Skipping ${player.first_name} ${player.last_name} - on bye week ${week}`);
                 continue;
             }
@@ -808,28 +666,19 @@ class BrownBellAutomator {
         );
     }
 
-    async generateWeeklySubstitutions(week, existingSubstitutions) {
-        console.log(`🔄 Generating weekly substitutions for week ${week}...`);
-
-        const weeklySubstitutions = [];
-
-        // NEW: Check if any existing substitutes are now injured
+    // Shared by every checkpoint path (Tuesday/Thursday full check, Sunday pregame,
+    // and international game check) so a dropped/injured substitute is always caught
+    // and always actually replaced, no matter which checkpoint happens to run.
+    // Mutates matching objects inside existingSubstitutions in place (endWeek), and
+    // returns the injuredSubs list plus any forced replacement/no-replacement records.
+    async resolveDroppedOrInjuredSubs(week, existingSubstitutions) {
         const injuredSubs = await this.detectSubstituteInjuries(week, existingSubstitutions);
+        const forcedSubstitutions = [];
 
-        // Remove injured substitutes from existingSubstitutions
         if (injuredSubs.length > 0) {
-            console.log(`⚠️ Found ${injuredSubs.length} injured substitutes - will replace them`);
-            existingSubstitutions = existingSubstitutions.filter(sub =>
-                !injuredSubs.some(injured =>
-                    injured.teamName === sub.teamName &&
-                    injured.playerIndex === sub.playerIndex &&
-                    injured.awardType === sub.awardType &&
-                    injured.startWeek === sub.startWeek
-                )
-            );
+            console.log(`⚠️ Found ${injuredSubs.length} injured/dropped substitutes - will replace them`);
         }
 
-        // Force replacements for dropped/injured substitutes
         for (const injuredSub of injuredSubs) {
             console.log(`\n🔄 FORCING REPLACEMENT for dropped substitute: ${injuredSub.substituteName} (${injuredSub.teamName} - ${injuredSub.awardType})`);
             console.log(`   Substitute: ${injuredSub.substituteName} (ID: ${injuredSub.substitutePlayerId})`);
@@ -861,7 +710,7 @@ class BrownBellAutomator {
                     }
 
                     // Also check if on bye
-                    if (this.isPlayerOnBye(originalPlayerId, week)) {
+                    if (await this.isPlayerOnBye(originalPlayerId, week)) {
                         stillNeedsSub = true;
                     }
 
@@ -907,29 +756,45 @@ class BrownBellAutomator {
                 injuredSub.awardType
             );
 
+            // End the dropped/injured sub regardless of whether we find a replacement -
+            // it must never keep counting as the active substitute past this point.
+            const oldSubInList = existingSubstitutions.find(s =>
+                s.teamName === injuredSub.teamName &&
+                s.playerIndex === injuredSub.playerIndex &&
+                s.awardType === injuredSub.awardType &&
+                s.startWeek === injuredSub.startWeek
+            );
+
+            if (oldSubInList && !oldSubInList.endWeek) {
+                console.log(`📅 Ending dropped/injured substitution: ${injuredSub.substituteName} at Week ${week - 1}`);
+                oldSubInList.endWeek = week - 1;
+            }
+
             if (newSubstitute) {
                 console.log(`✅ Found replacement: ${newSubstitute.name}`);
 
-                // ... existing code to create sub ...
+                forcedSubstitutions.push({
+                    teamName: injuredSub.teamName,
+                    playerIndex: injuredSub.playerIndex,
+                    awardType: injuredSub.awardType,
+                    originalName: injuredSub.originalName,
+                    originalPosition: injuredSub.originalPosition,
+                    substituteName: newSubstitute.name,
+                    substitutePlayerId: newSubstitute.id,
+                    substitutePosition: newSubstitute.position,
+                    startWeek: week,
+                    endWeek: injuredSub.awardType === 'main' ? week : null,
+                    active: true,
+                    autoGenerated: true,
+                    reason: `Substitute Replaced (was dropped/injured): ${injuredSub.substituteName} \u2192 ${newSubstitute.name}`
+                });
 
+                console.log(`✅ Replacement recorded: ${injuredSub.teamName} ${injuredSub.awardType} - ${newSubstitute.name} for ${injuredSub.originalName}`);
             } else {
                 console.log(`❌ No replacement found for ${injuredSub.substituteName}`);
 
-                // End the injured/dropped sub and mark as "no replacement available"
-                const oldSubInList = existingSubstitutions.find(s =>
-                    s.teamName === injuredSub.teamName &&
-                    s.playerIndex === injuredSub.playerIndex &&
-                    s.awardType === injuredSub.awardType &&
-                    s.startWeek === injuredSub.startWeek
-                );
-
-                if (oldSubInList && !oldSubInList.endWeek) {
-                    console.log(`📅 Ending substitution: ${injuredSub.substituteName} at Week ${week - 1} - no replacement available`);
-                    oldSubInList.endWeek = week - 1;
-                }
-
                 // Create a "no replacement" marker
-                weeklySubstitutions.push({
+                forcedSubstitutions.push({
                     teamName: injuredSub.teamName,
                     playerIndex: injuredSub.playerIndex,
                     awardType: injuredSub.awardType,
@@ -950,6 +815,17 @@ class BrownBellAutomator {
                 console.log(`⚠️ Marked ${injuredSub.teamName} ${injuredSub.awardType} as having no available replacement`);
             }
         }
+
+        return { injuredSubs, forcedSubstitutions };
+    }
+
+    async generateWeeklySubstitutions(week, existingSubstitutions) {
+        console.log(`🔄 Generating weekly substitutions for week ${week}...`);
+
+        const weeklySubstitutions = [];
+
+        const { injuredSubs, forcedSubstitutions } = await this.resolveDroppedOrInjuredSubs(week, existingSubstitutions);
+        weeklySubstitutions.push(...forcedSubstitutions);
 
         const injuries = await this.detectInjuries(week);
 
@@ -977,7 +853,7 @@ class BrownBellAutomator {
                     }
 
                     // Check if injured player is on bye week - allow sub but mark it
-                    const isOnBye = this.isPlayerOnBye(injury.playerId, week);
+                    const isOnBye = await this.isPlayerOnBye(injury.playerId, week);
                     if (isOnBye) {
                         console.log(`⚠️ ${injury.originalPlayer.name} is on bye week ${week} - will mark substitute with Bye-Sub badge`);
                     }
@@ -1011,12 +887,18 @@ class BrownBellAutomator {
                             : `Injury Checkpoint (3) - ${injury.status}`;
 
                         // NEW: Check if we're replacing a sub due to bye week (temporary replacement)
-                        const replacingSubDueToBye = injuredSubs.some(injured =>
-                            injured.teamName === teamName &&
-                            injured.playerIndex === injury.index &&
-                            injured.awardType === awardType &&
-                            this.isPlayerOnBye(injured.substitutePlayerId, week)
-                        );
+                        // (explicit loop, not .some() - isPlayerOnBye is async and .some()
+                        // can't await, a Promise is always truthy so .some() would short-circuit wrong)
+                        let replacingSubDueToBye = false;
+                        for (const injured of injuredSubs) {
+                            if (injured.teamName === teamName &&
+                                injured.playerIndex === injury.index &&
+                                injured.awardType === awardType &&
+                                await this.isPlayerOnBye(injured.substitutePlayerId, week)) {
+                                replacingSubDueToBye = true;
+                                break;
+                            }
+                        }
 
                         // If replacing a sub, handle differently based on why
                         if (wasReplacingSub) {
@@ -1173,19 +1055,25 @@ class BrownBellAutomator {
         return isInDuo;
     }
 
-    isPlayerOnBye(playerId, week) {
+    async isPlayerOnBye(playerId, week) {
         const player = this.playersData[playerId];
         if (!player || !player.team) return false;
 
-        const teamByeWeek = Object.entries(this.byeWeeks).find(([byeWeek, teams]) =>
-            teams.includes(player.team) && parseInt(byeWeek) === week
-        );
+        // Live schedule data (same source hasPlayerGameStarted uses) instead of a
+        // hand-maintained per-season bye table - see parseEspnSchedule's explicit
+        // bye-marking for any team missing from that week's events.
+        if (!this.cachedSchedule || !this.cachedSchedule[week]) {
+            await this.fetchNFLSchedule(week);
+        }
 
-        if (teamByeWeek) {
+        const teamGame = this.cachedSchedule?.[week]?.[player.team];
+        const onBye = !!teamGame && teamGame.date === null;
+
+        if (onBye) {
             console.log(`${player.first_name} ${player.last_name} (${player.team}) is on bye week ${week}`);
         }
 
-        return !!teamByeWeek;
+        return onBye;
     }
 
     async hasPlayerGameStarted(playerId, week) {
@@ -1231,14 +1119,18 @@ class BrownBellAutomator {
         console.log(`📅 Fetching NFL schedule for Week ${week}...`);
 
         try {
-            // Fetch the official NFL schedule page
-            const url = 'https://operations.nfl.com/gameday/nfl-schedule/2025-nfl-schedule/';
-            const html = await this.fetchHtml(url);
+            const season = process.env.NFL_SEASON_YEAR || '2026';
+            // ESPN's public scoreboard endpoint - structured JSON, kept live in sync with
+            // actual broadcast schedule (flex moves, weather reschedules, etc), unlike the
+            // old approach of regex-scraping the NFL.com operations page HTML, which was
+            // fragile and hardcoded to the 2025 season page.
+            const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&year=${season}`;
+            const data = await this.fetchJson(url);
 
-            // Parse the schedule for the specific week
-            const weekSchedule = this.parseNFLSchedule(html, week);
+            const weekSchedule = this.parseEspnSchedule(data);
 
-            // Cache it for this week
+            // Cache it for this run only (a fresh process runs on every checkpoint, so this
+            // never goes stale across checkpoints - each run re-fetches live).
             this.cachedSchedule = this.cachedSchedule || {};
             this.cachedSchedule[week] = weekSchedule;
 
@@ -1250,6 +1142,153 @@ class BrownBellAutomator {
             console.log('Falling back to manual schedule data');
             return null;
         }
+    }
+
+    // ESPN uses a couple of team abbreviations that differ from the ones used elsewhere in
+    // this file (byeWeeks, knownDuos, roster/player data, etc). Normalize here.
+    static ESPN_ABBR_FIX = { WSH: 'WAS' };
+
+    // Full 32-team list, in the same abbreviation convention used elsewhere in this file
+    // (byeWeeks, knownDuos, etc). Used to detect byes explicitly, since ESPN's scoreboard
+    // simply omits a bye team rather than listing them - a team missing from `events` is
+    // otherwise indistinguishable from "the fetch failed."
+    static ALL_NFL_TEAMS = [
+        'ARI', 'ATL', 'BAL', 'BUF', 'CAR', 'CHI', 'CIN', 'CLE', 'DAL', 'DEN', 'DET', 'GB',
+        'HOU', 'IND', 'JAX', 'KC', 'LV', 'LAC', 'LAR', 'MIA', 'MIN', 'NE', 'NO', 'NYG',
+        'NYJ', 'PHI', 'PIT', 'SF', 'SEA', 'TB', 'TEN', 'WAS'
+    ];
+
+    parseEspnSchedule(espnData) {
+        const schedule = {};
+        const events = (espnData && espnData.events) || [];
+        const teamsWithGames = new Set();
+
+        for (const event of events) {
+            const competition = event.competitions && event.competitions[0];
+            if (!competition) continue;
+
+            const gameDate = new Date(event.date); // ESPN returns ISO 8601 UTC already
+            if (isNaN(gameDate.getTime())) continue;
+
+            const competitors = competition.competitors || [];
+            const teams = competitors
+                .map(c => {
+                    let abbr = c.team && c.team.abbreviation;
+                    if (abbr && BrownBellAutomator.ESPN_ABBR_FIX[abbr]) {
+                        abbr = BrownBellAutomator.ESPN_ABBR_FIX[abbr];
+                    }
+                    return abbr;
+                })
+                .filter(Boolean);
+
+            if (teams.length !== 2) continue;
+
+            const [team1, team2] = teams;
+            const statusState = competition.status?.type?.state; // 'pre' | 'in' | 'post'
+            const statusDetail = competition.status?.type?.shortDetail;
+
+            // Venue country tells us if this is an international game (London, Berlin,
+            // Sao Paulo, Madrid, etc) - live-derived instead of a hand-maintained list.
+            const venue = competition.venue;
+            const venueCountry = venue?.address?.country;
+            const isInternational = !!venueCountry && !['USA', 'US', 'United States'].includes(venueCountry);
+            const venueInfo = venue ? {
+                name: venue.fullName,
+                city: venue.address?.city,
+                country: venueCountry || 'USA'
+            } : null;
+
+            const gameInfo = { date: gameDate, opponent: null, status: statusState, statusDetail, international: isInternational, venue: venueInfo };
+
+            schedule[team1] = { ...gameInfo, opponent: team2 };
+            schedule[team2] = { ...gameInfo, opponent: team1 };
+            teamsWithGames.add(team1);
+            teamsWithGames.add(team2);
+        }
+
+        // Any team not found in this week's events is on bye - mark it explicitly rather
+        // than leaving it absent, which hasPlayerGameStarted() would otherwise mistake for
+        // a failed fetch and fall back to a much cruder heuristic.
+        for (const team of BrownBellAutomator.ALL_NFL_TEAMS) {
+            if (!teamsWithGames.has(team)) {
+                schedule[team] = { date: null, opponent: null, status: 'bye', statusDetail: 'BYE', international: false, venue: null };
+            }
+        }
+
+        return schedule;
+    }
+
+    // Weekly check: compares this week's live schedule against the snapshot taken earlier
+    // in the week (stored via Supabase's schedule_snapshots table) and flags any game whose kickoff time
+    // moved - flex scheduling, weather reschedule, etc. This is purely for visibility -
+    // hasPlayerGameStarted() already fetches the live schedule fresh on every checkpoint,
+    // so locking behavior is correct regardless. This just surfaces the change so you don't
+    // have to notice it by digging through Action logs.
+    async checkForScheduleChanges(week, previousSnapshot) {
+        const currentSchedule = await this.fetchNFLSchedule(week);
+        if (!currentSchedule) {
+            return { snapshot: previousSnapshot || null, changes: [] };
+        }
+
+        const changes = [];
+
+        if (previousSnapshot) {
+            for (const [team, currentGame] of Object.entries(currentSchedule)) {
+                const previousGame = previousSnapshot[team];
+                if (!previousGame) continue; // team wasn't in the prior snapshot (bye -> game, etc)
+
+                const prevDate = previousGame.date ? new Date(previousGame.date) : null;
+                const currDate = currentGame.date;
+
+                // Bye -> scheduled, or scheduled -> bye
+                if (!prevDate && currDate) {
+                    changes.push({ team, opponent: currentGame.opponent, type: 'ADDED_FROM_BYE', newTime: currDate.toISOString() });
+                    continue;
+                }
+                if (prevDate && !currDate) {
+                    changes.push({ team, opponent: previousGame.opponent, type: 'MOVED_TO_BYE', previousTime: prevDate.toISOString() });
+                    continue;
+                }
+                if (!prevDate || !currDate) continue;
+
+                const diffMinutes = Math.abs(currDate.getTime() - prevDate.getTime()) / 60000;
+                if (diffMinutes >= 15) { // ignore trivial rounding, catch real flex/reschedule moves
+                    changes.push({
+                        team,
+                        opponent: currentGame.opponent,
+                        type: 'TIME_CHANGED',
+                        previousTime: prevDate.toISOString(),
+                        newTime: currDate.toISOString(),
+                        diffMinutes: Math.round(diffMinutes)
+                    });
+                }
+            }
+
+            if (changes.length > 0) {
+                console.warn(`🚨 SCHEDULE CHANGE DETECTED for Week ${week}:`);
+                changes.forEach(c => {
+                    if (c.type === 'TIME_CHANGED') {
+                        console.warn(`   ${c.team} vs ${c.opponent}: ${c.previousTime} → ${c.newTime} (moved ${c.diffMinutes} min)`);
+                    } else {
+                        console.warn(`   ${c.team}: ${c.type}`);
+                    }
+                });
+            } else {
+                console.log(`✅ No schedule changes detected for Week ${week} since last snapshot`);
+            }
+        }
+
+        // Store as plain serializable objects (Date -> ISO string) for the JSON snapshot
+        const serializedSnapshot = {};
+        for (const [team, game] of Object.entries(currentSchedule)) {
+            serializedSnapshot[team] = {
+                date: game.date ? game.date.toISOString() : null,
+                opponent: game.opponent,
+                status: game.status
+            };
+        }
+
+        return { snapshot: serializedSnapshot, changes };
     }
 
     async fetchHtml(url) {
@@ -1456,29 +1495,23 @@ class BrownBellAutomator {
         }
     }
 
-    async checkGameTimeInjuries() {
+    async checkGameTimeInjuries(existingSubstitutions) {
         console.log('Checking for last-minute injury updates...');
 
-        // Get current time info
-        const now = new Date();
         const currentWeek = await this.getCurrentWeek();
 
-        // For now, we'll do a general pre-game check
-        // Future enhancement: integrate with NFL schedule API for specific game times
+        // existingSubstitutions must be the SAME array/object-references generateCompleteData
+        // is already holding (cleanedSubstitutions), not a fresh independent read of the file -
+        // otherwise any endWeek mutation made here gets silently discarded on write-out.
+        existingSubstitutions = existingSubstitutions || [];
+
+        // Always re-check active substitutes against the live roster first. This used to only
+        // run on the Tuesday/Thursday full checkpoint, so a substitute dropped mid-week could
+        // sit "active" through every Sunday pregame check until the next Tuesday/Thursday run.
+        const { forcedSubstitutions } = await this.resolveDroppedOrInjuredSubs(currentWeek, existingSubstitutions);
+        const newSubstitutions = [...forcedSubstitutions];
 
         const injuries = await this.detectInjuries(currentWeek);
-        const newSubstitutions = [];
-
-        // Load existing substitutions
-        let existingSubstitutions = [];
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                const existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
-                existingSubstitutions = existingData.substitutions || [];
-            }
-        } catch (error) {
-            console.log('No existing substitutions found');
-        }
 
         for (const awardType of ['main', 'nextup']) {
             for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
@@ -1518,47 +1551,39 @@ class BrownBellAutomator {
         return newSubstitutions;
     }
 
-    async checkInternationalGameInjuries() {
+    async checkInternationalGameInjuries(existingSubstitutions) {
         console.log('Checking for international game injury updates...');
 
-        const now = new Date();
         const currentWeek = await this.getCurrentWeek();
 
-        // International game weeks for 2025 (you'll need to update these annually)
-        const internationalWeeks = {
-            1: ['Chiefs', 'Chargers'], // Brazil - Friday night
-            4: ['Steelers', 'Vikings'], // Dublin - Sunday 9:30 AM ET
-            5: ['Vikings', 'Browns'], // London - Sunday 9:30 AM ET  
-            6: ['Broncos', 'Jets'], // London - Sunday 9:30 AM ET
-            7: ['Rams', 'Jaguars'], // London - Sunday 9:30 AM ET
-            10: ['Falcons', 'Colts'], // Berlin - Sunday 9:30 AM ET
-            11: ['Dolphins', 'Commanders'] // Madrid - Sunday 9:30 AM ET
-        };
+        // existingSubstitutions must be the SAME array/object-references generateCompleteData
+        // is already holding (cleanedSubstitutions), not a fresh independent read of the file -
+        // otherwise any endWeek mutation made here gets silently discarded on write-out.
+        existingSubstitutions = existingSubstitutions || [];
 
-        // Check if current week has international games
-        const teamsInInternationalGames = internationalWeeks[currentWeek] || [];
+        // Roster-drop check always runs first, regardless of whether this week has an
+        // international game - a dropped substitute needs replacing either way.
+        const { forcedSubstitutions } = await this.resolveDroppedOrInjuredSubs(currentWeek, existingSubstitutions);
+
+        // Which teams (if any) are playing internationally this week - derived live from
+        // the schedule's venue data (see parseEspnSchedule), not a hand-maintained list.
+        // No separate fetch needed: resolveDroppedOrInjuredSubs already populated
+        // this.cachedSchedule[currentWeek] via hasPlayerGameStarted's schedule lookups.
+        const weekSchedule = this.cachedSchedule?.[currentWeek] || await this.fetchNFLSchedule(currentWeek) || {};
+        const teamsInInternationalGames = Object.entries(weekSchedule)
+            .filter(([, game]) => game.international)
+            .map(([team]) => team);
 
         if (teamsInInternationalGames.length === 0) {
             console.log(`No international games in Week ${currentWeek}`);
-            return [];
+            return forcedSubstitutions;
         }
 
-        console.log(`International games this week: ${teamsInInternationalGames.join(' vs ')}`);
+        console.log(`International games this week: ${teamsInInternationalGames.join(', ')}`);
 
         // Enhanced injury detection for international game teams
         const injuries = await this.detectInjuries(currentWeek);
-        const newSubstitutions = [];
-
-        // Load existing substitutions
-        let existingSubstitutions = [];
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                const existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
-                existingSubstitutions = existingData.substitutions || [];
-            }
-        } catch (error) {
-            console.log('No existing substitutions found');
-        }
+        const newSubstitutions = [...forcedSubstitutions];
 
         for (const awardType of ['main', 'nextup']) {
             for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
@@ -1598,23 +1623,17 @@ class BrownBellAutomator {
         return newSubstitutions;
     }
 
-    async updateAllScores() {
+    async updateAllScores(existingSubstitutions, rosterChanges, existingScores) {
         console.log('Updating all weekly scores...');
 
         const currentWeek = await this.getCurrentWeek();
         const scores = { main: {}, nextup: {} };
+        const playerIds = { main: {}, nextup: {} };
 
-        // Load existing data and substitutions
-        let existingSubstitutions = [];
-        let existingData = { scores: {}, nextUpScores: {}, substitutions: [] };  // ADD THIS LINE
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));  // MODIFIED
-                existingSubstitutions = existingData.substitutions || [];
-            }
-        } catch (error) {
-            console.log('No existing substitutions found');
-        }
+        existingSubstitutions = existingSubstitutions || [];
+        rosterChanges = rosterChanges || [];
+        // Fallback source for inactive teams' historical weeks only - see PRIORITY 3 below.
+        existingScores = existingScores || { main: {}, nextup: {} };
 
         // Process each award type
         for (const awardType of ['main', 'nextup']) {
@@ -1622,12 +1641,12 @@ class BrownBellAutomator {
 
             for (const [teamName, originalDuo] of Object.entries(duos)) {
                 scores[awardType][teamName] = {};
+                playerIds[awardType][teamName] = {};
 
                 const roster = this.leagueData.rosters.find(r =>
                     this.leagueData.userMap[r.owner_id] === teamName
                 );
 
-                // ADD THIS ENTIRE SECTION - CHECK FOR INACTIVE TEAMS
                 const inactiveTeam = this.inactiveTeams[teamName];
                 const teamLastWeek = inactiveTeam ? inactiveTeam.lastActiveWeek : currentWeek;
 
@@ -1642,17 +1661,15 @@ class BrownBellAutomator {
                         continue; // Skip if no roster and not a known inactive team
                     }
                 }
-                // END OF ADDED SECTION
 
                 // Get scores for each week up to current OR last active week
                 for (let week = 1; week <= Math.min(currentWeek, teamLastWeek); week++) {
                     const weekScores = await this.getWeeklyScores(week);
                     scores[awardType][teamName][week] = {};
+                    playerIds[awardType][teamName][week] = {};
 
-                    // ADD THIS SECTION HERE - Check for roster changes
-                    const rosterChanges = existingData.rosterChanges || [];
-
-                    originalDuo.forEach((originalPlayer, index) => {
+                    for (let index = 0; index < originalDuo.length; index++) {
+                        const originalPlayer = originalDuo[index];
                         // Check if this player was traded
                         const tradeInfo = rosterChanges.find(rc =>
                             rc.teamName === teamName &&
@@ -1703,17 +1720,21 @@ class BrownBellAutomator {
                         // PRIORITY 3: Normal active roster
                         else {
                             if (!roster) {
-                                // No roster available (inactive team) - load from existing data
-                                const awardScores = awardType === 'main' ? existingData.scores : existingData.nextUpScores;
+                                // No roster available (inactive team) - fall back to previously
+                                // recorded scores for this frozen historical week
+                                const awardScores = existingScores[awardType];
                                 scores[awardType][teamName][week][index] = awardScores?.[teamName]?.[week]?.[index] || 0;
-                                return;
+                                playerIds[awardType][teamName][week][index] = null;
+                                continue;
                             }
                             playerId = this.findPlayerInRoster(originalPlayer, roster);
                         }
 
+                        playerIds[awardType][teamName][week][index] = playerId || null;
+
                         if (playerId && weekScores[playerId] !== undefined) {
                             // Check if this player is on bye this week
-                            if (this.isPlayerOnBye(playerId, week)) {
+                            if (await this.isPlayerOnBye(playerId, week)) {
                                 scores[awardType][teamName][week][index] = 0;
                                 const playerName = activeSub ? activeSub.substituteName : originalPlayer.name;
                                 console.log(`${playerName} on bye week ${week} - 0 points`);
@@ -1724,26 +1745,12 @@ class BrownBellAutomator {
                                 }
                             }
                         } else {
-                            // Manual override for DeVaughn Vele's historical scores
-                            if (teamName === 'Kenyatta93' && awardType === 'nextup' &&
-                                originalPlayer.name === 'DeVaughn Vele') {
-                                if (week === 1) {
-                                    scores[awardType][teamName][week][index] = 2.3;
-                                    console.log(`Manual override: DeVaughn Vele Week 1 = 2.3 points`);
-                                } else if (week === 2) {
-                                    scores[awardType][teamName][week][index] = 7.3;
-                                    console.log(`Manual override: DeVaughn Vele Week 2 = 7.3 points`);
-                                } else {
-                                    scores[awardType][teamName][week][index] = 0;
-                                }
-                            } else {
-                                scores[awardType][teamName][week][index] = 0;
-                                if (activeSub) {
-                                    console.log(`No score found for substitute ${activeSub.substituteName} (${playerId})`);
-                                }
+                            scores[awardType][teamName][week][index] = 0;
+                            if (activeSub) {
+                                console.log(`No score found for substitute ${activeSub.substituteName} (${playerId})`);
                             }
                         }
-                    });
+                    }
 
                     // Validate Next Up Award combinations after scores are set
                     if (awardType === 'nextup') {
@@ -1782,7 +1789,7 @@ class BrownBellAutomator {
             }
         }
 
-        return scores;
+        return { scores, playerIds };
     }
 
     getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions) {
@@ -1828,14 +1835,42 @@ class BrownBellAutomator {
         return [];
     }
 
+    async loadKnownDuos() {
+        this.knownDuos = await this.dataLayer.loadKnownDuos();
+    }
+
     async generateCompleteData() {
         await this.initializeLeagueData();
+
+        const seasonYear = Number(process.env.NFL_SEASON_YEAR || '2026');
+        const { currentWeek: storedWeek } = await this.dataLayer.loadSeason(seasonYear, this.leagueId);
+        await this.loadKnownDuos();
 
         const currentWeek = await this.getCurrentWeek();
         const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday
         const currentHour = new Date().getHours();
 
-        // Determine checkpoint type - REPLACE THIS ENTIRE SECTION
+        // Determine checkpoint type. Each cron line in the workflow maps to an explicit
+        // checkpoint below via CRON_SCHEDULE (github.event.schedule, passed through by the
+        // workflow) - this avoids re-deriving "which checkpoint is this" from the runner's
+        // server-local day/hour, which is UTC on GitHub Actions and does not line up with the
+        // Arizona-time comments the cron schedule was written against. Several scheduled runs
+        // (Saturday prep, early Sunday, both Monday slots) previously fell through this check
+        // entirely and skipped substitution processing for that run without any error.
+        const CRON_CHECKPOINTS = {
+            '0 14 * * 2': 'TUESDAY_CHECK',                 // Tue 10am ET / 7am AZ
+            '30 14 * * 4': 'THURSDAY_CHECK',                // Thu 2:30pm AZ - injury checkpoint
+            '0 3 * * 5': 'THURSDAY_CHECK',                  // Thu 8pm AZ - post-TNF scores
+            '0 11 * * 6': 'SATURDAY_INTERNATIONAL_PREP',    // Sat 4am AZ - international prep
+            '0 11 * * 0': 'SUNDAY_INTERNATIONAL_CHECK',     // Sun 4am AZ - pre-international
+            '0 16 * * 0': 'SUNDAY_INTERNATIONAL_CHECK',     // Sun 9am AZ - pre-AM games
+            '5 19 * * 0': 'SUNDAY_PREGAME_CHECK',           // Sun 12:05pm AZ - post-AM games
+            '0 23 * * 0': 'SUNDAY_PREGAME_CHECK',           // Sun 4pm AZ - post-evening games
+            '0 4 * * 1': 'MONDAY_CHECK',                    // Sun 9pm AZ - post-SNF
+            '30 14 * * 1': 'MONDAY_CHECK',                  // Mon 2:30pm AZ - post-game cleanup
+            '0 3 * * 2': 'MONDAY_CHECK'                     // Mon 8pm AZ - post-MNF scores
+        };
+
         let checkpointType = null;
         let shouldRunSubstitutions = false;
 
@@ -1848,57 +1883,79 @@ class BrownBellAutomator {
         } else if (process.env.PREGAME_CHECK === 'true') {
             checkpointType = 'PREGAME_CHECK';
             shouldRunSubstitutions = true;
-        } else if (currentDay === 2) { // Tuesday
-            checkpointType = 'TUESDAY_CHECK';
+        } else if (process.env.CRON_SCHEDULE && CRON_CHECKPOINTS[process.env.CRON_SCHEDULE]) {
+            checkpointType = CRON_CHECKPOINTS[process.env.CRON_SCHEDULE];
             shouldRunSubstitutions = true;
-        } else if (currentDay === 4) { // Thursday
-            checkpointType = 'THURSDAY_CHECK';
-            shouldRunSubstitutions = true;
-        } else if (currentDay === 6 && currentHour >= 7) { // Saturday 7 AM - International prep
-            checkpointType = 'SATURDAY_INTERNATIONAL_PREP';
-            shouldRunSubstitutions = true;
-        } else if (currentDay === 0 && currentHour >= 7 && currentHour < 11) { // Sunday 7-11 AM - International games
-            checkpointType = 'SUNDAY_INTERNATIONAL_CHECK';
-            shouldRunSubstitutions = true;
-        } else if (currentDay === 0 && currentHour >= 11) { // Sunday after 11 AM - Regular games
-            checkpointType = 'SUNDAY_PREGAME_CHECK';
-            shouldRunSubstitutions = true;
+        } else if (process.env.CRON_SCHEDULE) {
+            // A scheduled run fired with a cron string we don't recognize (e.g. the
+            // workflow's cron list changed but this map wasn't updated) - fail loudly
+            // instead of silently skipping substitution processing for the run.
+            console.warn(`\u26a0\ufe0f Unrecognized CRON_SCHEDULE "${process.env.CRON_SCHEDULE}" - falling back to day/hour heuristic`);
+        }
+
+        // Fallback for manual/local runs with no CRON_SCHEDULE set (e.g. `node update-standings.js`
+        // on your machine). Arizona does not observe DST, so AZ = UTC-7 year-round; this mirrors
+        // the same slots as CRON_CHECKPOINTS above, corrected to actually cover every day.
+        if (!checkpointType) {
+            if (currentDay === 2) {
+                checkpointType = 'TUESDAY_CHECK';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 4) {
+                checkpointType = 'THURSDAY_CHECK';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 1) {
+                checkpointType = 'MONDAY_CHECK';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 6) {
+                checkpointType = 'SATURDAY_INTERNATIONAL_PREP';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 0 && currentHour < 16) { // roughly before ~9am AZ
+                checkpointType = 'SUNDAY_INTERNATIONAL_CHECK';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 0) {
+                checkpointType = 'SUNDAY_PREGAME_CHECK';
+                shouldRunSubstitutions = true;
+            }
         }
 
         console.log(`Current week: ${currentWeek}, Checkpoint: ${checkpointType || 'ROUTINE_UPDATE'}`);
 
-        // Load existing data - KEEP THIS SECTION AS IS
-        let existingData = {
-            teams: [],
-            nextUpTeams: [],
-            scores: {},
-            nextUpScores: {},
-            substitutions: []
-        };
+        // Load existing state from Supabase (replaces the old file-based JSON read)
+        const cleanedSubstitutionsRaw = await this.dataLayer.loadSubstitutions();
+        const cleanedSubstitutions = this.cleanupSubstitutions(cleanedSubstitutionsRaw, currentWeek);
+        const rosterChanges = await this.dataLayer.loadRosterChanges();
+        this.managerChanges = await this.dataLayer.loadManagerChanges();
 
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
-            }
-        } catch (error) {
-            console.log('No existing data found, creating fresh dataset');
-        }
+        // Weekly schedule-change check: compares this week's live schedule against the
+        // baseline captured at the first checkpoint of the week, flagging any game whose
+        // kickoff time moved since (flex scheduling, weather reschedule, etc). This is purely
+        // informational - hasPlayerGameStarted() already fetches live schedule data on every
+        // checkpoint regardless, so locking behavior doesn't depend on this. It just surfaces
+        // the change here instead of you having to notice it in the Action logs.
+        const priorSnapshotRecord = await this.dataLayer.loadScheduleSnapshot(currentWeek);
+        const priorSnapshotForWeek = priorSnapshotRecord ? priorSnapshotRecord.teams : null;
+        const scheduleCheck = await this.checkForScheduleChanges(currentWeek, priorSnapshotForWeek);
+        const scheduleSnapshotTeams = priorSnapshotForWeek || scheduleCheck.snapshot;
+        const scheduleSnapshotCapturedAt = priorSnapshotRecord ? priorSnapshotRecord.capturedAt : new Date().toISOString();
 
-        // Clean up existing substitutions - KEEP THIS SECTION AS IS
-        const cleanedSubstitutions = this.cleanupSubstitutions(existingData.substitutions, currentWeek);
+        const existingWeekChanges = await this.dataLayer.loadScheduleChanges(currentWeek);
+        const changeKey = c => `${c.team}|${c.type}|${c.newTime || ''}`;
+        const existingChangeKeys = new Set(existingWeekChanges.map(changeKey));
+        const newlyDetectedChanges = scheduleCheck.changes.filter(c => !existingChangeKeys.has(changeKey(c)));
 
-        // Update scores (always do this) - KEEP THIS SECTION AS IS
-        const allScores = await this.updateAllScores();
+        // Update scores
+        const existingScoresForFallback = { main: {}, nextup: {} }; // inactive-team historical fallback; see updateAllScores
+        const { scores: allScores, playerIds: allPlayerIds } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
 
-        // Generate new substitutions - REPLACE THIS SECTION
+        // Generate new substitutions
         let newSubstitutions = [];
         if (shouldRunSubstitutions) {
             if (checkpointType === 'INTERNATIONAL_CHECK' || checkpointType === 'SATURDAY_INTERNATIONAL_PREP' || checkpointType === 'SUNDAY_INTERNATIONAL_CHECK') {
                 // Use the international game check
-                newSubstitutions = await this.checkInternationalGameInjuries();
+                newSubstitutions = await this.checkInternationalGameInjuries(cleanedSubstitutions);
             } else if (checkpointType === 'PREGAME_CHECK' || checkpointType === 'SUNDAY_PREGAME_CHECK') {
                 // Use the enhanced pre-game check
-                newSubstitutions = await this.checkGameTimeInjuries();
+                newSubstitutions = await this.checkGameTimeInjuries(cleanedSubstitutions);
             } else {
                 // Use regular weekly substitution logic
                 newSubstitutions = await this.generateWeeklySubstitutions(currentWeek, cleanedSubstitutions);
@@ -1906,68 +1963,30 @@ class BrownBellAutomator {
             console.log(`${checkpointType}: Generated ${newSubstitutions.length} new substitutions`);
         }
 
-        // Build teams data structure - KEEP THE REST OF THE METHOD AS IS
-        const teams = [];
-        const nextUpTeams = [];
+        // Persist everything to Supabase - this replaces the single JSON file write
+        await this.dataLayer.saveSubstitutions([...cleanedSubstitutions, ...newSubstitutions]);
+        await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds);
+        await this.dataLayer.saveScheduleSnapshot(currentWeek, scheduleSnapshotTeams, scheduleSnapshotCapturedAt);
+        await this.dataLayer.saveScheduleChanges(currentWeek, newlyDetectedChanges);
+        if (currentWeek !== storedWeek) {
+            await this.dataLayer.setCurrentWeek(currentWeek);
+        }
 
-
-        Object.entries(this.knownDuos.main).forEach(([teamName, duo]) => {
-            const roster = this.leagueData.rosters.find(r =>
-                this.leagueData.userMap[r.owner_id] === teamName
-            );
-
-            teams.push({
-                name: teamName,
-                players: duo.map(player => ({
-                    ...player,
-                    sleeperId: roster ? this.findPlayerInRoster(player, roster, true) : null  // ADD 'true' HERE
-                })),
-                sleeper_roster_id: roster ? roster.roster_id : null
-            });
-        });
-
-        Object.entries(this.knownDuos.nextup).forEach(([teamName, duo]) => {
-            const roster = this.leagueData.rosters.find(r =>
-                this.leagueData.userMap[r.owner_id] === teamName
-            );
-
-            nextUpTeams.push({
-                mainTeamName: teamName,
-                name: `${teamName} (Next Up)`,
-                players: duo.map(player => ({
-                    ...player,
-                    sleeperId: roster ? this.findPlayerInRoster(player, roster, true) : null  // ADD 'true' HERE
-                })),
-                sleeper_roster_id: roster ? roster.roster_id : null
-            });
-        });
-
-        const updatedData = {
-            version: '2.0',
+        const summary = {
+            version: '3.0',
             timestamp: new Date().toISOString(),
             currentWeek,
-            currentAward: 'main',
-            teams,
-            nextUpTeams,
-            scores: allScores.main,
-            nextUpScores: allScores.nextup,
-            substitutions: [...cleanedSubstitutions, ...newSubstitutions],
-            rosterChanges: existingData.rosterChanges || [],
-            manualSubsUsed: existingData.manualSubsUsed || {},
-            inactiveTeams: this.inactiveTeams,
-            managerChanges: this.managerChanges,  // ADD THIS LINE
             sleeperLeagueId: this.leagueId,
-            lastAutomationRun: new Date().toISOString(),
             lastCheckpointType: checkpointType || 'ROUTINE_UPDATE',
             automationStats: {
                 scoresUpdated: Object.keys(allScores.main).length + Object.keys(allScores.nextup).length,
                 newSubstitutions: newSubstitutions.length,
                 totalSubstitutions: cleanedSubstitutions.length + newSubstitutions.length,
-                cleanedSubstitutions: existingData.substitutions.length - cleanedSubstitutions.length
+                scheduleChangesThisWeek: existingWeekChanges.length + newlyDetectedChanges.length
             }
         };
 
-        return updatedData;
+        return summary;
     }
 
     async testScheduleFetch(week) {
@@ -2031,15 +2050,14 @@ class BrownBellAutomator {
         try {
             console.log('🏈 Starting Brown Bell automation...');
 
+            // generateCompleteData() persists everything to Supabase itself - there is
+            // no file to write here anymore, just the run summary for the Action log.
             const data = await this.generateCompleteData();
-
-            // Write to file
-            fs.writeFileSync('brown-bell-data.json', JSON.stringify(data, null, 2));
 
             console.log('✅ Automation complete!');
             console.log(`📊 Updated ${data.automationStats.scoresUpdated} team scores`);
             console.log(`🔄 Generated ${data.automationStats.newSubstitutions} new substitutions`);
-            console.log(`🧹 Cleaned up ${data.automationStats.cleanedSubstitutions} invalid substitutions`);
+            console.log(`📅 Schedule changes flagged this week: ${data.automationStats.scheduleChangesThisWeek}`);
             console.log(`📅 Current week: ${data.currentWeek}`);
 
             return data;
@@ -2052,7 +2070,7 @@ class BrownBellAutomator {
 }
 
 // Run automation
-const leagueId = process.env.SLEEPER_LEAGUE_ID || '1180184775406903296';
+const leagueId = process.env.SLEEPER_LEAGUE_ID || '1313661584425385984'; // 2026 season
 const automator = new BrownBellAutomator(leagueId);
 
 if (require.main === module) {

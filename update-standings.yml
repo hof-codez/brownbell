@@ -1,0 +1,78 @@
+# .github/workflows/update-standings.yml
+# Runs the automation on its usual checkpoint schedule. As of the 2026 rebuild, the
+# automation writes directly to Supabase - there's no data file to commit back to the
+# repo and no GitHub Pages deploy step, since the frontend is a separate React app on
+# Netlify that reads from Supabase itself.
+name: Update Brown Bell Standings
+
+on:
+  schedule:
+    # Tuesday at 10 AM ET (7 AM AZ) - 2 PM UTC
+    - cron: '0 14 * * 2'
+    # Thursday at 2:30 PM AZ (9:30 PM UTC) - injury checkpoint + scores
+    - cron: '30 14 * * 4'
+    # Thursday at 8 PM AZ (3 AM UTC Friday) - post-TNF scores
+    - cron: '0 3 * * 5'
+    # Saturday at 4 AM AZ (11 AM UTC) - international game prep
+    - cron: '0 11 * * 6'
+    # Sunday at 4 AM AZ (11 AM UTC) - pre-international games
+    - cron: '0 11 * * 0'
+    # Sunday at 9 AM AZ (4 PM UTC) - pre-AM games
+    - cron: '0 16 * * 0'
+    # Sunday at 12:05 PM AZ (7:05 PM UTC) - post-AM games
+    - cron: '5 19 * * 0'
+    # Sunday at 4 PM AZ (11 PM UTC) - post-evening games
+    - cron: '0 23 * * 0'
+    # Sunday at 9 PM AZ (4 AM UTC Monday) - post-SNF
+    - cron: '0 4 * * 1'
+    # Monday at 2:30 PM AZ (9:30 PM UTC) - post-game cleanup
+    - cron: '30 14 * * 1'
+    # Monday at 8 PM AZ (3 AM UTC Tuesday) - post-MNF scores
+    - cron: '0 3 * * 2'
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      force_substitutions:
+        description: 'Force generate substitutions'
+        required: false
+        default: false
+        type: boolean
+      pregame_check:
+        description: 'Run pre-game injury check'
+        required: false
+        default: false
+        type: boolean
+      international_check:
+        description: 'Run international game injury check'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  update-standings:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Run automation
+      env:
+        SLEEPER_LEAGUE_ID: ${{ secrets.SLEEPER_LEAGUE_ID }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        NFL_SEASON_YEAR: ${{ vars.NFL_SEASON_YEAR }}
+        FORCE_SUBSTITUTIONS: ${{ inputs.force_substitutions }}
+        PREGAME_CHECK: ${{ inputs.pregame_check }}
+        INTERNATIONAL_CHECK: ${{ inputs.international_check }}
+        CRON_SCHEDULE: ${{ github.event.schedule }}
+      run: node update-standings.js

@@ -1,14 +1,16 @@
 {
   "name": "brown-bell-automation",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Automated Brown Bell Award standings updater",
   "main": "update-standings.js",
   "scripts": {
     "update": "node update-standings.js",
-    "test": "node -e \"console.log('Testing automation...'); const BrownBellAutomator = require('./update-standings.js'); const automator = new BrownBellAutomator('test'); console.log('✅ Automation script loaded successfully');\"",
+    "test": "node -e \"console.log('Testing automation...'); const BrownBellAutomator = require('./update-standings.js'); if (typeof BrownBellAutomator !== 'function') throw new Error('module did not export the class'); console.log('✅ Automation module loaded successfully (constructor needs SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY at runtime to instantiate)');\"",
     "start": "node update-standings.js"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
   "devDependencies": {},
   "engines": {
     "node": ">=18.0.0"
@@ -23,9 +25,10 @@
     "automation",
     "brown-bell-award",
     "nfl",
-    "github-actions"
+    "github-actions",
+    "supabase"
   ],
-  "author": "Your Name",
+  "author": "Justin Fells",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/hof-codez/brownbell/issues"
