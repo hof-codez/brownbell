@@ -59,8 +59,12 @@ class BrownBellAutomator {
     }
 
     async getCurrentWeek() {
-        // NFL 2025 season starts Thursday, September 4, 2025
-        const seasonStart = new Date('2025-09-04T00:00:00Z'); // Thursday of Week 1
+        // NFL 2026 season starts Wednesday, September 9, 2026.
+        // NOTE: this date needs updating every season - it's only used as a fallback
+        // when Sleeper's own league.leg isn't yet reporting a valid week (e.g. before
+        // the season has started), so an out-of-date value here mostly just affects
+        // preseason runs, not in-season accuracy.
+        const seasonStart = new Date('2026-09-09T00:00:00Z');
         const now = new Date();
 
         // Calculate days since season start
@@ -73,7 +77,8 @@ class BrownBellAutomator {
         // Cap between 1 and 18 (NFL regular season)
         calculatedWeek = Math.max(1, Math.min(18, calculatedWeek));
 
-        // Use Sleeper's league.leg if available and reasonable, otherwise use calculation
+        // Prefer Sleeper's own live league.leg when it's reporting a real in-season
+        // value - it's the actual source of truth, not a date calculation.
         const sleeperWeek = this.leagueData?.league?.leg;
         if (sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18) {
             console.log(`Using Sleeper week: ${sleeperWeek}, Calculated week: ${calculatedWeek}`);
@@ -471,16 +476,17 @@ class BrownBellAutomator {
         if (awardType === 'nextup') {
             const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
             const healthyPlayer = originalDuo[healthyPlayerIndex];
-            const healthyExperience = healthyPlayer.experience === 'second_year' ? 'sophomore' : healthyPlayer.experience;
+            const healthyExperience = this.resolveNextUpExperience(healthyPlayer, roster);
 
-            // Determine required experience to maintain rookie+sophomore rule
+            // Rule: exactly one rookie (0 yrs) + one junior (1-3 yrs). Whichever the
+            // healthy player already is, the substitute must be the other one.
             if (healthyExperience === 'rookie') {
-                requiredExperience = 'sophomore';
-            } else if (healthyExperience === 'sophomore') {
+                requiredExperience = 'junior';
+            } else if (healthyExperience === 'junior') {
                 requiredExperience = 'rookie';
             }
 
-            console.log(`Next Up substitution: Healthy player is ${healthyExperience}, need ${requiredExperience} substitute`);
+            console.log(`Next Up substitution: Healthy player is ${healthyExperience}, need ${requiredExperience || 'unknown'} substitute`);
         }
 
         for (const playerId of roster.players) {
@@ -544,36 +550,24 @@ class BrownBellAutomator {
             // Next Up Award smart eligibility - CHECK THIS FIRST
             if (awardType === 'nextup') {
                 const yearsExp = substitute.yearsExp || 0;
+                const playerExperience = this.classifyNextUpExperience(yearsExp);
 
-                // Hard filter: Must be 0 or 1 years experience
-                if (yearsExp > 1) {
-                    continue; // Skip veterans immediately
-                }
-
-                const playerExperience = yearsExp === 0 ? 'rookie' : 'sophomore';
-
-                // Determine required experience level
-                const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
-                const healthyPlayer = originalDuo[healthyPlayerIndex];
-                const healthyExperience = healthyPlayer.experience === 'second_year' ? 'sophomore' : healthyPlayer.experience;
-
-                let requiredExperience = null;
-                if (healthyExperience === 'rookie') {
-                    requiredExperience = 'sophomore';
-                } else if (healthyExperience === 'sophomore') {
-                    requiredExperience = 'rookie';
+                // Hard filter: 4+ years experience is never Next Up eligible
+                if (playerExperience === 'ineligible') {
+                    continue;
                 }
 
                 // Only include players that match the required experience level
                 if (requiredExperience && playerExperience !== requiredExperience) {
-                    console.log(`Skipping ${substitute.name} (${playerExperience}, ${yearsExp} years) - need ${requiredExperience} to pair with ${healthyPlayer.name}`);
+                    console.log(`Skipping ${substitute.name} (${playerExperience}, ${yearsExp} years) - need ${requiredExperience} to pair with ${originalDuo[injuredPlayer.index === 0 ? 1 : 0].name}`);
                     continue;
                 }
 
-                console.log(`${substitute.name} is eligible: ${playerExperience} (${yearsExp} years) pairs with ${healthyPlayer.name} (${healthyExperience})`);
+                console.log(`${substitute.name} is eligible: ${playerExperience} (${yearsExp} years)`);
 
                 // NEXT UP SPECIFIC POSITION RULE: No QB+QB combinations allowed
-                if (substitute.position === 'QB' && healthyPlayer.position === 'QB') {
+                const healthyPlayerForPosition = originalDuo[injuredPlayer.index === 0 ? 1 : 0];
+                if (substitute.position === 'QB' && healthyPlayerForPosition.position === 'QB') {
                     console.log(`Skipping ${substitute.name} (QB) - cannot have QB+QB duo in Next Up Award`);
                     continue;
                 }
@@ -606,9 +600,9 @@ class BrownBellAutomator {
             if (awardType === 'nextup') {
                 const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
                 const healthyPlayer = originalDuo[healthyPlayerIndex];
-                const healthyExperience = healthyPlayer.experience === 'second_year' ? 'sophomore' : healthyPlayer.experience;
-                const needed = healthyExperience === 'rookie' ? 'sophomore' : 'rookie';
-                console.log(`❌ NO ELIGIBLE SUBSTITUTES: Need ${needed} player to pair with ${healthyPlayer.name} (${healthyExperience}). No valid candidates available on roster.`);
+                const healthyExperience = this.resolveNextUpExperience(healthyPlayer, roster);
+                const needed = healthyExperience === 'rookie' ? 'a 1-3 year junior' : 'a rookie';
+                console.log(`❌ NO ELIGIBLE SUBSTITUTES: Need ${needed} to pair with ${healthyPlayer.name} (${healthyExperience}). No valid candidates available on roster.`);
             }
             return null;
         }
@@ -619,7 +613,7 @@ class BrownBellAutomator {
         // Next Up Award: Always select BEST player (smaller pool, harder to find subs)
         if (awardType === 'nextup') {
             const selectedSub = eligibleSubs[0];
-            const experienceNote = ` (${selectedSub.yearsExp <= 0 ? 'rookie' : 'sophomore'})`;
+            const experienceNote = ` (${this.classifyNextUpExperience(selectedSub.yearsExp)})`;
             console.log(`Selected ${selectedSub.name}${experienceNote} - BEST available: ${selectedSub.score.toFixed(1)} pts over 3 weeks (${eligibleSubs.length} eligible on roster)`);
             return selectedSub;
         }
@@ -1758,9 +1752,16 @@ class BrownBellAutomator {
                         const player1Experience = this.getPlayerExperienceForWeek(teamName, 0, week, existingSubstitutions);
                         const player2Experience = this.getPlayerExperienceForWeek(teamName, 1, week, existingSubstitutions);
 
-                        // Check if combination violates rookie+sophomore rule
-                        if ((player1Experience === 'rookie' && player2Experience === 'rookie') ||
-                            (player1Experience === 'sophomore' && player2Experience === 'sophomore')) {
+                        // Valid combo: exactly one true rookie (0 yrs) + one player with 1-3 yrs
+                        // experience ('junior'). Two rookies, two juniors, or anyone 4+ years
+                        // ('ineligible') is invalid. Unresolved ('unknown') experience isn't
+                        // flagged here - there's no live player data to judge it against yet.
+                        const bothResolved = player1Experience !== 'unknown' && player2Experience !== 'unknown';
+                        const validCombo =
+                            (player1Experience === 'rookie' && player2Experience === 'junior') ||
+                            (player1Experience === 'junior' && player2Experience === 'rookie');
+
+                        if (bothResolved && !validCombo) {
 
                             console.log(`Invalid Next Up combination for ${teamName} Week ${week}: ${player1Experience} + ${player2Experience}`);
 
@@ -1805,34 +1806,35 @@ class BrownBellAutomator {
             (!sub.endWeek || sub.endWeek >= week)
         );
 
-        if (activeSub) {
-            // Map substitute to experience level
-            const substituteExperience = this.getSubstituteExperience(activeSub.substituteName);
-            console.log(`Substitute ${activeSub.substituteName} experience: ${substituteExperience}`);
-            return substituteExperience;
-        } else {
-            // Use original player's experience
-            return originalDuo[playerIndex].experience === 'second_year' ? 'sophomore' : originalDuo[playerIndex].experience;
+        if (activeSub && activeSub.substitutePlayerId) {
+            const player = this.playersData?.[activeSub.substitutePlayerId];
+            const experience = this.classifyNextUpExperience(player?.years_exp);
+            console.log(`Substitute ${activeSub.substituteName} experience: ${experience}`);
+            return experience;
         }
+
+        const roster = this.leagueData?.rosters?.find(r => this.leagueData.userMap[r.owner_id] === teamName);
+        return this.resolveNextUpExperience(originalDuo[playerIndex], roster);
     }
 
-    getSubstituteExperience(playerName) {
-        // Map known substitutes to their experience levels
-        const substituteMap = {
-            'Michael Penix': 'sophomore',
-            'Ollie Gordon': 'rookie',
-            // Add other substitutes as needed
-        };
-
-        return substituteMap[playerName] || 'unknown';
+    // Next Up Award eligibility rule (2026): a valid duo needs exactly one true rookie
+    // (0 years NFL experience) paired with exactly one player who has 1-3 years
+    // experience. A player with 4+ years is never Next Up eligible, regardless of who
+    // they'd pair with. Computed live from years_exp - no per-player hardcoding.
+    classifyNextUpExperience(yearsExp) {
+        const exp = yearsExp || 0;
+        if (exp === 0) return 'rookie';
+        if (exp <= 3) return 'junior';
+        return 'ineligible';
     }
 
-    // Add this helper method
-    getActiveSubstitutionsForWeek(teamName, week, awardType) {
-        // This would use the existing substitutions from your data
-        // For now, return empty array since substitutions are handled elsewhere
-        // You'll need to load existing substitutions here
-        return [];
+    // Resolves a duo slot's live years-of-experience classification, whether it's the
+    // original drafted player or a currently active substitute in that slot.
+    resolveNextUpExperience(duoPlayer, roster) {
+        const playerId = duoPlayer.sleeperId || (roster ? this.findPlayerInRoster(duoPlayer, roster) : null);
+        const player = playerId ? this.playersData?.[playerId] : null;
+        if (!player) return 'unknown';
+        return this.classifyNextUpExperience(player.years_exp);
     }
 
     async loadKnownDuos() {
@@ -1963,11 +1965,20 @@ class BrownBellAutomator {
             console.log(`${checkpointType}: Generated ${newSubstitutions.length} new substitutions`);
         }
 
-        // Persist everything to Supabase - this replaces the single JSON file write
+        // Persist everything to Supabase - this replaces the single JSON file write.
+        // Substitutions and scores are the actual core of the automation and should
+        // always be saved. The schedule-change check is informational on top of that -
+        // if the schedule fetch failed entirely (network blip, external API hiccup),
+        // that should never take down the whole run, so it's skipped gracefully here
+        // rather than trying to save a null snapshot (which the DB correctly rejects).
         await this.dataLayer.saveSubstitutions([...cleanedSubstitutions, ...newSubstitutions]);
         await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds);
-        await this.dataLayer.saveScheduleSnapshot(currentWeek, scheduleSnapshotTeams, scheduleSnapshotCapturedAt);
-        await this.dataLayer.saveScheduleChanges(currentWeek, newlyDetectedChanges);
+        if (scheduleSnapshotTeams) {
+            await this.dataLayer.saveScheduleSnapshot(currentWeek, scheduleSnapshotTeams, scheduleSnapshotCapturedAt);
+            await this.dataLayer.saveScheduleChanges(currentWeek, newlyDetectedChanges);
+        } else {
+            console.warn('⚠️ Skipping schedule snapshot/change save - schedule fetch returned no data this run');
+        }
         if (currentWeek !== storedWeek) {
             await this.dataLayer.setCurrentWeek(currentWeek);
         }
