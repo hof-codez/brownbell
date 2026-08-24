@@ -76,7 +76,7 @@ const PICKS = [
     {
         team: 'MikeLarry25',
         main: ['Kenneth Walker', 'George Pickens'], // roster-scoped match resolves this alone now
-        nextup: ['Caleb Williams', 'Malik Washington']
+        nextup: ['Caleb Williams', 'Omar Cooper'] // owner swapped out Malik Washington
     },
     { team: 'Ch3r0k33zY', main: [null, null], nextup: [null, null] }, // awaiting submission
     { team: 'mibues', main: [null, null], nextup: [null, null] } // awaiting submission

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Season, Team, DuoRow, TeamWithDuos } from '../types';
 
@@ -9,13 +9,20 @@ interface SeasonDataState {
   teams: TeamWithDuos[];
 }
 
-export function useSeasonData(): SeasonDataState {
+interface UseSeasonDataResult extends SeasonDataState {
+  refetch: () => void;
+}
+
+export function useSeasonData(): UseSeasonDataResult {
   const [state, setState] = useState<SeasonDataState>({
     loading: true,
     error: null,
     season: null,
     teams: []
   });
+  const [refetchTick, setRefetchTick] = useState(0);
+
+  const refetch = useCallback(() => setRefetchTick(t => t + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +95,7 @@ export function useSeasonData(): SeasonDataState {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refetchTick]);
 
-  return state;
+  return { ...state, refetch };
 }

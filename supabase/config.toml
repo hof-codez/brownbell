@@ -10,3 +10,9 @@ verify_jwt = false
 
 [functions.verify-device]
 verify_jwt = false
+
+[functions.get-eligible-roster]
+verify_jwt = false
+
+[functions.set-duo]
+verify_jwt = false

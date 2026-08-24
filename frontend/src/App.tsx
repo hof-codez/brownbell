@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { useSeasonData } from './hooks/useSeasonData';
 import { useTeamClaim } from './hooks/useTeamClaim';
+import { useDuoPicker } from './hooks/useDuoPicker';
 import { Header } from './components/Header';
 import { TeamCard } from './components/TeamCard';
 import { ClaimStatusBar } from './components/ClaimStatusBar';
 import { ClaimTeamModal } from './components/ClaimTeamModal';
+import { DuoPickerModal } from './components/DuoPickerModal';
+import type { AwardType } from './types';
 
 export default function App() {
-  const { loading, error, season, teams } = useSeasonData();
+  const { loading, error, season, teams, refetch } = useSeasonData();
   const { status, claimedTeam, claiming, claimError, claim, forget } = useTeamClaim();
   const [showClaimModal, setShowClaimModal] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
 
   const myTeam = claimedTeam ? teams.find(t => t.team.id === claimedTeam.teamId) ?? null : null;
   const otherTeams = myTeam ? teams.filter(t => t.team.id !== myTeam.team.id) : teams;
+
+  // Only constructed when there's a claimed team - the hook needs a real
+  // teamId/deviceToken, and there's nothing to edit without one.
+  const picker = useDuoPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
 
   return (
     <div className="min-h-screen bg-field">
@@ -52,7 +60,10 @@ export default function App() {
               Your Team
             </h2>
             <div className="max-w-sm">
-              <TeamCard teamWithDuos={myTeam} />
+              <TeamCard
+                teamWithDuos={myTeam}
+                onEditSlot={(awardType, playerIndex) => setEditingSlot({ awardType, playerIndex })}
+              />
             </div>
           </section>
         )}
@@ -80,6 +91,21 @@ export default function App() {
           claimError={claimError}
           onClaim={claim}
           onClose={() => setShowClaimModal(false)}
+        />
+      )}
+
+      {editingSlot && myTeam && (
+        <DuoPickerModal
+          awardType={editingSlot.awardType}
+          playerIndex={editingSlot.playerIndex}
+          fetchEligible={picker.fetchEligible}
+          setDuo={picker.setDuo}
+          saving={picker.saving}
+          onDone={() => {
+            setEditingSlot(null);
+            refetch();
+          }}
+          onClose={() => setEditingSlot(null)}
         />
       )}
     </div>

@@ -39,3 +39,18 @@ export interface CachedClaim {
   teamName: string;
   deviceToken: string;
 }
+
+export interface EligibleCandidate {
+  sleeperPlayerId: string;
+  name: string;
+  position: string;
+  yearsExp: number;
+}
+
+export interface EligibleRosterResponse {
+  locked: boolean;
+  currentPlayer: { name: string; position: string } | null;
+  otherSlotPlayer: { name: string; position: string } | null;
+  candidates: EligibleCandidate[];
+  error?: string;
+}
