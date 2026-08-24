@@ -9,9 +9,11 @@ export interface PlayerInfo {
     yearsExp: number;
 }
 
-// Main Award: only QB+RB, QB+WR, RB+WR - no same-position pairs, no other combos.
+// Main Award: any two DIFFERENT positions among QB/RB/WR/TE - no same-position
+// pairs. TE was added later in the season (2026) so a team's best player being
+// a TE isn't shut out of the award.
 export function isValidMainCombo(a: PlayerInfo, b: PlayerInfo): boolean {
-    const validCombos = ['QB+RB', 'QB+WR', 'RB+WR'];
+    const validCombos = ['QB+RB', 'QB+TE', 'QB+WR', 'RB+TE', 'RB+WR', 'TE+WR'];
     const combo = [a.position, b.position].sort().join('+');
     return validCombos.includes(combo);
 }
@@ -30,5 +32,5 @@ export function isValidNextUpCombo(a: PlayerInfo, b: PlayerInfo): boolean {
     return true;
 }
 
-export const MAIN_POSITIONS = new Set(['QB', 'RB', 'WR']);
+export const MAIN_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
 export const NEXTUP_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE', 'K']);

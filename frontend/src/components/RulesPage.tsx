@@ -26,9 +26,10 @@ export function RulesPage() {
 
             <RuleSection title="Duo format">
                 <p>
-                    Your Main Award duo must be one of three combinations: <span className="text-chalk">QB + RB</span>,{' '}
-                    <span className="text-chalk">QB + WR</span>, or <span className="text-chalk">RB + WR</span>. Two
-                    players at the same position &mdash; two RBs, two WRs, two QBs &mdash; is never a valid pairing.
+                    Your Main Award duo can be any two <span className="text-chalk">different</span> positions among{' '}
+                    <span className="text-chalk">QB, RB, WR, and TE</span>. Two players at the same position &mdash;
+                    two RBs, two WRs, two TEs, two QBs &mdash; is never a valid pairing. Kickers aren&rsquo;t eligible
+                    for this award.
                 </p>
             </RuleSection>
 

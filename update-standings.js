@@ -382,7 +382,7 @@ class BrownBellAutomator {
     // now (years of experience + position, checked in findSubstitute and the
     // weekly scoring loop). This function is never called for Next Up.
     validateDuoCombination(healthyPlayerPosition, substitutePosition) {
-        const validCombos = ['QB+RB', 'QB+WR', 'RB+WR'];
+        const validCombos = ['QB+RB', 'QB+TE', 'QB+WR', 'RB+TE', 'RB+WR', 'TE+WR'];
         const newCombo = [healthyPlayerPosition, substitutePosition].sort().join('+');
         const isValid = validCombos.includes(newCombo);
 
@@ -408,7 +408,7 @@ class BrownBellAutomator {
             For injured: ${injuredPlayer.name} (${injuredPlayer.position})
             Healthy partner: ${healthyPlayer.name} (${healthyPlayer.position})
             Would create: ${healthyPlayer.position}+${substitute.position} (INVALID)
-            Valid combos: QB+RB, QB+WR, RB+WR`);
+            Valid combos: QB+RB, QB+TE, QB+WR, RB+TE, RB+WR, TE+WR`);
             return false;
         }
 
@@ -481,7 +481,7 @@ class BrownBellAutomator {
             // Position eligibility depends on award type
             const validPositions = awardType === 'nextup'
                 ? ['QB', 'RB', 'WR', 'TE', 'K']  // Next Up: All positions
-                : ['QB', 'RB', 'WR'];             // Main Award: Traditional positions only
+                : ['QB', 'RB', 'WR', 'TE'];       // Main Award: no kickers, any other position pairs (except same-position)
 
             // DEBUG: Log every player being considered
             if (player && validPositions.includes(player.position)) {
@@ -630,7 +630,7 @@ class BrownBellAutomator {
 
         const validPositions = awardType === 'nextup'
             ? ['QB', 'RB', 'WR', 'TE', 'K']
-            : ['QB', 'RB', 'WR'];
+            : ['QB', 'RB', 'WR', 'TE'];
 
         const eligibleCandidates = [];
 
