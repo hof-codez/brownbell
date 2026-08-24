@@ -289,7 +289,7 @@ class SupabaseDataLayer {
 
     // scores/playerIds shape: { [awardType]: { [teamName]: { [week]: { [index]: value } } } }
     // (this matches updateAllScores()'s existing internal structure - see update-standings.js)
-    async saveWeeklyScores(scores, playerIds, playersData) {
+    async saveWeeklyScores(scores, playerIds, playersData, wasBye) {
         const rows = [];
         for (const awardType of ['main', 'nextup']) {
             for (const [teamName, byWeek] of Object.entries(scores[awardType] || {})) {
@@ -313,7 +313,8 @@ class SupabaseDataLayer {
                             sleeper_player_id: sleeperPlayerId,
                             points: points || 0,
                             player_name: playerName || null,
-                            player_position: player?.position || null
+                            player_position: player?.position || null,
+                            was_bye: !!wasBye?.[awardType]?.[teamName]?.[week]?.[index]
                         });
                     }
                 }

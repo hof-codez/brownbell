@@ -94,6 +94,17 @@ export function RulesPage() {
                 </p>
             </RuleSection>
 
+            <RuleSection title="Bye weeks">
+                <p>
+                    When one of your locked players has their own NFL bye week, that slot simply scores{' '}
+                    <span className="text-chalk">0</span> for the week &mdash; no substitute steps in, and it
+                    doesn&rsquo;t count against you beyond that. The only thing that changes a bye week is an actual
+                    roster change (the player gets traded or released); the bye itself is just honored as-is. Past
+                    weeks always show a <span className="text-chalk">BYE</span> tag next to a player who sat that
+                    week, so the record stays accurate no matter how much later you look back at it.
+                </p>
+            </RuleSection>
+
             <RuleSection title="Injuries - temporary swaps">
                 <p>
                     If your locked player is ruled out, doubtful, or placed on IR &mdash; but is still on your

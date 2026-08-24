@@ -7,6 +7,9 @@ export interface PlayerScore {
     playerName: string;
     playerPosition: string;
     points: number;
+    /** Only meaningful in the weekly view - a single boolean doesn't make
+     * sense for a season-long aggregate, so this is left undefined there. */
+    wasBye?: boolean;
 }
 
 interface WeeklyTeamScore {
@@ -56,7 +59,7 @@ export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
             const teamIds = teams.map(t => t.team.id);
             const { data, error: fetchError } = await supabase
                 .from('weekly_scores')
-                .select('team_id, award_type, week, sleeper_player_id, points, player_name, player_position')
+                .select('team_id, award_type, week, sleeper_player_id, points, player_name, player_position, was_bye')
                 .in('team_id', teamIds);
 
             if (cancelled) return;
@@ -86,7 +89,8 @@ export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
                         sleeperPlayerId: row.sleeper_player_id,
                         playerName: row.player_name || 'Unknown player',
                         playerPosition: row.player_position || '',
-                        points: Number(row.points)
+                        points: Number(row.points),
+                        wasBye: !!row.was_bye
                     });
                     byTeamWeek.set(key, entry);
                 }

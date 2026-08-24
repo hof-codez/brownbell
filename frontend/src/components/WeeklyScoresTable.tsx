@@ -69,6 +69,11 @@ export function WeeklyScoresTable({ scores, myTeamId }: WeeklyScoresTableProps) 
                                                 <span key={p.sleeperPlayerId}>
                                                     {pi > 0 && ' \u00b7 '}
                                                     {p.playerName} {p.points.toFixed(1)}
+                                                    {p.wasBye && (
+                                                        <span className="ml-1 rounded bg-brick/20 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brick">
+                                                            Bye
+                                                        </span>
+                                                    )}
                                                 </span>
                                             ))}
                                         </div>

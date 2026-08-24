@@ -1917,6 +1917,7 @@ class BrownBellAutomator {
         const currentWeek = await this.getCurrentWeek();
         const scores = { main: {}, nextup: {} };
         const playerIds = { main: {}, nextup: {} };
+        const wasBye = { main: {}, nextup: {} }; // captured alongside scores - who was on bye, per week, for the historical badge
 
         existingSubstitutions = existingSubstitutions || [];
         rosterChanges = rosterChanges || [];
@@ -1930,6 +1931,7 @@ class BrownBellAutomator {
             for (const [teamName, originalDuo] of Object.entries(duos)) {
                 scores[awardType][teamName] = {};
                 playerIds[awardType][teamName] = {};
+                wasBye[awardType][teamName] = {};
 
                 const roster = this.leagueData.rosters.find(r =>
                     this.leagueData.userMap[r.owner_id] === teamName
@@ -1955,6 +1957,7 @@ class BrownBellAutomator {
                     const weekScores = await this.getWeeklyScores(week);
                     scores[awardType][teamName][week] = {};
                     playerIds[awardType][teamName][week] = {};
+                    wasBye[awardType][teamName][week] = {};
 
                     for (let index = 0; index < originalDuo.length; index++) {
                         const originalPlayer = originalDuo[index];
@@ -2013,6 +2016,7 @@ class BrownBellAutomator {
                                 const awardScores = existingScores[awardType];
                                 scores[awardType][teamName][week][index] = awardScores?.[teamName]?.[week]?.[index] || 0;
                                 playerIds[awardType][teamName][week][index] = null;
+                                wasBye[awardType][teamName][week][index] = false;
                                 continue;
                             }
                             playerId = this.findPlayerInRoster(originalPlayer, roster);
@@ -2022,7 +2026,9 @@ class BrownBellAutomator {
 
                         if (playerId && weekScores[playerId] !== undefined) {
                             // Check if this player is on bye this week
-                            if (await this.isPlayerOnBye(playerId, week)) {
+                            const onBye = await this.isPlayerOnBye(playerId, week);
+                            wasBye[awardType][teamName][week][index] = onBye;
+                            if (onBye) {
                                 scores[awardType][teamName][week][index] = 0;
                                 const playerName = activeSub ? activeSub.substituteName : originalPlayer.name;
                                 console.log(`${playerName} on bye week ${week} - 0 points`);
@@ -2033,6 +2039,7 @@ class BrownBellAutomator {
                                 }
                             }
                         } else {
+                            wasBye[awardType][teamName][week][index] = false;
                             scores[awardType][teamName][week][index] = 0;
                             if (activeSub) {
                                 console.log(`No score found for substitute ${activeSub.substituteName} (${playerId})`);
@@ -2083,7 +2090,7 @@ class BrownBellAutomator {
             }
         }
 
-        return { scores, playerIds };
+        return { scores, playerIds, wasBye };
     }
 
     getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions) {
@@ -2253,7 +2260,7 @@ class BrownBellAutomator {
 
         // Update scores
         const existingScoresForFallback = { main: {}, nextup: {} }; // inactive-team historical fallback; see updateAllScores
-        const { scores: allScores, playerIds: allPlayerIds } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
+        const { scores: allScores, playerIds: allPlayerIds, wasBye: allWasBye } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
 
         // Process every duo slot: pre-lock slots are skipped entirely (fully
         // owner-editable), locked slots get the full healthy/temporary/permanent
@@ -2292,7 +2299,7 @@ class BrownBellAutomator {
         // call only persists cleanupSubstitutions()'s in-memory fixups (e.g. an
         // invalid date range correction) to the existing rows, nothing new.
         await this.dataLayer.saveSubstitutions(cleanedSubstitutions);
-        await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds, this.playersData);
+        await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds, this.playersData, allWasBye);
         if (scheduleSnapshotTeams) {
             await this.dataLayer.saveScheduleSnapshot(currentWeek, scheduleSnapshotTeams, scheduleSnapshotCapturedAt);
             await this.dataLayer.saveScheduleChanges(currentWeek, newlyDetectedChanges);
