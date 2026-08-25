@@ -55,13 +55,13 @@ export function HistoryTab({ teams }: HistoryTabProps) {
                         </div>
                         <p className="mt-1 font-body text-sm text-chalk-dim">
                             {entry.originalName === '(not set)' ? (
-                                <>Set to <span className="text-chalk">{entry.substituteName}</span></>
+                                <>Set to <span className="text-chalk">{entry.substituteName} ({entry.substitutePosition})</span></>
                             ) : entry.badge === 'CLEARED' ? (
-                                <><span className="text-chalk">{entry.originalName}</span> departed - slot cleared, awaiting owner pick</>
+                                <><span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> departed - slot cleared, awaiting owner pick</>
                             ) : (
                                 <>
-                                    <span className="text-chalk">{entry.originalName}</span> &rarr;{' '}
-                                    <span className="text-chalk">{entry.substituteName}</span>
+                                    <span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> &rarr;{' '}
+                                    <span className="text-chalk">{entry.substituteName} ({entry.substitutePosition})</span>
                                 </>
                             )}
                         </p>

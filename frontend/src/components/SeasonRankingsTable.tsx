@@ -46,7 +46,7 @@ export function SeasonRankingsTable({ scores, myTeamId }: SeasonRankingsTablePro
                                             {row.players.map((p, i) => (
                                                 <span key={p.sleeperPlayerId}>
                                                     {i > 0 && ' \u00b7 '}
-                                                    {p.playerName} {p.points.toFixed(1)}
+                                                    {p.playerName} ({p.playerPosition}) {p.points.toFixed(1)}
                                                 </span>
                                             ))}
                                         </div>

@@ -68,7 +68,7 @@ export function WeeklyScoresTable({ scores, myTeamId }: WeeklyScoresTableProps) 
                                             {row.players.map((p, pi) => (
                                                 <span key={p.sleeperPlayerId}>
                                                     {pi > 0 && ' \u00b7 '}
-                                                    {p.playerName} {p.points.toFixed(1)}
+                                                    {p.playerName} ({p.playerPosition}) {p.points.toFixed(1)}
                                                     {p.wasBye && (
                                                         <span className="ml-1 rounded bg-brick/20 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brick">
                                                             Bye

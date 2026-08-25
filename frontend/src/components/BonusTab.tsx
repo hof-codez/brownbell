@@ -27,6 +27,35 @@ function PillToggle<T extends string>({ options, value, onChange }: { options: {
     );
 }
 
+interface MatchupSideProps {
+    team: { teamId: string; teamName: string; score: number; players: { sleeperPlayerId: string; playerName: string; playerPosition: string; points: number }[] };
+    isMe: boolean;
+    isWinner: boolean;
+    align: 'left' | 'right';
+}
+
+function MatchupSide({ team, isMe, isWinner, align }: MatchupSideProps) {
+    const alignClass = align === 'right' ? 'items-end text-right' : 'items-start text-left';
+    return (
+        <div className={`flex min-w-0 flex-col ${alignClass}`}>
+            <p className={`truncate font-body text-sm font-semibold ${isWinner ? 'text-chalk' : 'text-chalk-dim'}`}>
+                {team.teamName}
+                {isMe && <span className="ml-1 text-xs text-bell">(You)</span>}
+            </p>
+            <div className="mt-1 space-y-0.5">
+                {team.players.map(p => (
+                    <p key={p.sleeperPlayerId} className="font-mono text-[11px] text-chalk-dim">
+                        {p.playerName} ({p.playerPosition}) <span className="text-chalk">{p.points.toFixed(1)}</span>
+                    </p>
+                ))}
+            </div>
+            <p className={`mt-1.5 font-mono text-xl font-bold ${isWinner ? 'text-chalk' : 'text-chalk-dim'}`}>
+                {team.score.toFixed(1)}
+            </p>
+        </div>
+    );
+}
+
 export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
     const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
     const [view, setView] = useState<'matchups' | 'season'>('matchups');
@@ -121,6 +150,10 @@ export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
                         const aWins = m.winnerTeamIds.includes(m.teamA.teamId);
                         const bWins = m.winnerTeamIds.includes(m.teamB.teamId);
                         const involvesMe = m.teamA.teamId === myTeamId || m.teamB.teamId === myTeamId;
+                        // Pre-game, neither side is "losing" yet - both render full-brightness.
+                        // Once played, the loser dims and the winner (or both, on a tie) stays lit.
+                        const aHighlight = !m.played || aWins;
+                        const bHighlight = !m.played || bWins;
                         return (
                             <div
                                 key={i}
@@ -135,54 +168,16 @@ export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
                                         &#9733; Matchup of the Week
                                     </p>
                                 )}
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className={`font-body text-sm ${!m.played || aWins ? 'text-chalk' : 'text-chalk-dim'}`}>
-                                            {m.teamA.teamName}
-                                            {m.teamA.teamId === myTeamId && <span className="ml-1 text-xs text-bell">(You)</span>}
-                                        </p>
-                                        {m.teamA.players.length > 0 && (
-                                            <p className="mt-0.5 font-mono text-xs text-chalk-dim">
-                                                {m.teamA.players.map((p, pi) => (
-                                                    <span key={p.sleeperPlayerId}>
-                                                        {pi > 0 && ' \u00b7 '}
-                                                        {p.playerName}{m.played ? ` ${p.points.toFixed(1)}` : ''}
-                                                    </span>
-                                                ))}
-                                            </p>
-                                        )}
+                                <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+                                    <MatchupSide team={m.teamA} isMe={m.teamA.teamId === myTeamId} isWinner={aHighlight} align="left" />
+                                    <div className="flex flex-col items-center pt-1">
+                                        <span className="rounded-full border border-panel-line bg-field px-2 py-1 font-mono text-[10px] font-bold text-chalk-dim">
+                                            VS
+                                        </span>
                                     </div>
-                                    {m.played && (
-                                        <p className={`font-mono text-sm font-semibold ${aWins ? 'text-chalk' : 'text-chalk-dim'}`}>
-                                            {m.teamA.score.toFixed(1)}
-                                        </p>
-                                    )}
+                                    <MatchupSide team={m.teamB} isMe={m.teamB.teamId === myTeamId} isWinner={bHighlight} align="right" />
                                 </div>
-                                <div className="my-1.5 border-t border-dashed border-panel-line" />
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className={`font-body text-sm ${!m.played || bWins ? 'text-chalk' : 'text-chalk-dim'}`}>
-                                            {m.teamB.teamName}
-                                            {m.teamB.teamId === myTeamId && <span className="ml-1 text-xs text-bell">(You)</span>}
-                                        </p>
-                                        {m.teamB.players.length > 0 && (
-                                            <p className="mt-0.5 font-mono text-xs text-chalk-dim">
-                                                {m.teamB.players.map((p, pi) => (
-                                                    <span key={p.sleeperPlayerId}>
-                                                        {pi > 0 && ' \u00b7 '}
-                                                        {p.playerName}{m.played ? ` ${p.points.toFixed(1)}` : ''}
-                                                    </span>
-                                                ))}
-                                            </p>
-                                        )}
-                                    </div>
-                                    {m.played && (
-                                        <p className={`font-mono text-sm font-semibold ${bWins ? 'text-chalk' : 'text-chalk-dim'}`}>
-                                            {m.teamB.score.toFixed(1)}
-                                        </p>
-                                    )}
-                                </div>
-                                <p className="mt-1.5 font-mono text-xs uppercase tracking-widest text-bell">
+                                <p className="mt-2 font-mono text-xs uppercase tracking-widest text-bell">
                                     {!m.played
                                         ? 'Upcoming - not played yet'
                                         : m.winnerTeamIds.length === 2
