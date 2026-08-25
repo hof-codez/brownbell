@@ -107,10 +107,12 @@ function normalizeName(name) {
 
 // Rule matches the one baked into update-standings.js's isNextUpEligibleExperience /
 // isValidNextUpCombo - kept in sync manually since this is a standalone one-time
-// script, not a shared module. Both years of experience AND position must differ.
+// script, not a shared module. Eligible = entering season 1-3 (years_exp 0-2);
+// entering season 4+ (years_exp 3+) is NOT eligible. Both years of experience
+// AND position must differ between the two players.
 function isNextUpEligibleExperience(yearsExp) {
     const exp = yearsExp || 0;
-    return exp >= 0 && exp <= 3;
+    return exp >= 0 && exp <= 2;
 }
 
 function isValidNextUpCombo(a, b) {

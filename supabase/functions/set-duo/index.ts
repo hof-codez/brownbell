@@ -54,15 +54,27 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'Season not found' }, 404);
         }
 
-        const { data: currentDuo, error: duoError } = await supabase
-            .from('duos').select('player_index, sleeper_player_id, player_name, player_position')
-            .eq('team_id', teamId).eq('award_type', awardType);
+        // Fetch BOTH awards' duos for this team in one go - the current award
+        // (for the usual same-award checks) and the other award (to enforce
+        // cross-award exclusivity: a player used in one award can't also be
+        // used in the other for the same team).
+        const { data: allDuos, error: duoError } = await supabase
+            .from('duos').select('award_type, player_index, sleeper_player_id, player_name, player_position')
+            .eq('team_id', teamId);
         if (duoError) {
             return jsonResponse({ success: false, error: 'Failed to load current duo' }, 500);
         }
 
-        const currentPlayer = currentDuo?.find(d => d.player_index === playerIndex) || null;
-        const otherSlotPlayer = currentDuo?.find(d => d.player_index !== playerIndex) || null;
+        const currentDuo = (allDuos ?? []).filter(d => d.award_type === awardType);
+        const otherAwardType = awardType === 'main' ? 'nextup' : 'main';
+        const otherAwardPlayerIds = new Set(
+            (allDuos ?? [])
+                .filter(d => d.award_type === otherAwardType && d.sleeper_player_id)
+                .map(d => d.sleeper_player_id as string)
+        );
+
+        const currentPlayer = currentDuo.find(d => d.player_index === playerIndex) || null;
+        const otherSlotPlayer = currentDuo.find(d => d.player_index !== playerIndex) || null;
 
         const [allPlayers, rosterPlayerIds] = await Promise.all([
             fetchAllPlayers(),
@@ -94,6 +106,12 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'That player is not on your current roster' }, 400);
         }
 
+        // Cross-award exclusivity - a player already used in this team's other
+        // award can never be double-booked into this one too.
+        if (otherAwardPlayerIds.has(sleeperPlayerId)) {
+            return jsonResponse({ success: false, error: `That player is already used in your ${otherAwardType === 'main' ? 'Main Award' : 'Next Up'} duo` }, 400);
+        }
+
         const newPlayer = allPlayers[sleeperPlayerId];
         if (!newPlayer?.position) {
             return jsonResponse({ success: false, error: 'Could not resolve that player' }, 400);
@@ -104,8 +122,9 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: `${newPlayer.position} is not eligible for ${awardType === 'nextup' ? 'Next Up' : 'the Main Award'}` }, 400);
         }
 
-        // Individual Next Up eligibility (0-3 yrs) applies regardless of whether the
-        // other slot is filled - this must be checked even with no pairing partner yet.
+        // Individual Next Up eligibility (entering season 1-3) applies regardless of
+        // whether the other slot is filled - this must be checked even with no
+        // pairing partner yet.
         if (awardType === 'nextup' && !isNextUpEligibleExperience(newPlayer.years_exp || 0)) {
             return jsonResponse({ success: false, error: `${newPlayer.first_name} ${newPlayer.last_name} has too many years of experience for Next Up` }, 400);
         }

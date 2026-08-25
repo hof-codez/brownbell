@@ -18,11 +18,13 @@ export function isValidMainCombo(a: PlayerInfo, b: PlayerInfo): boolean {
     return validCombos.includes(combo);
 }
 
-// Next Up Award (2026 rule): both players must have 0-3 yrs experience, at
-// QB/RB/WR/TE/K, and must differ in BOTH years of experience and position.
+// Next Up Award (2026 rule): both players must be entering their 1st, 2nd, or
+// 3rd season (years_exp 0, 1, or 2 - a player entering their 4th season,
+// years_exp 3, is NOT eligible), at QB/RB/WR/TE/K, and must differ in BOTH
+// years of experience and position.
 export function isNextUpEligibleExperience(yearsExp: number): boolean {
     const exp = yearsExp || 0;
-    return exp >= 0 && exp <= 3;
+    return exp >= 0 && exp <= 2;
 }
 
 export function isValidNextUpCombo(a: PlayerInfo, b: PlayerInfo): boolean {

@@ -86,7 +86,7 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
             <RuleSection title="Duo format">
                 <p>Both players in your Next Up duo must meet three conditions at the same time:</p>
                 <ul className="ml-4 list-disc space-y-1">
-                    <li>Each player individually has <span className="text-chalk">0&ndash;3 years</span> of NFL experience (rookie through 3rd-year)</li>
+                    <li>Each player is individually entering their <span className="text-chalk">1st, 2nd, or 3rd season</span> (a player entering their 4th season is not eligible)</li>
                     <li>The two players have <span className="text-chalk">different</span> years of experience from each other</li>
                     <li>The two players play <span className="text-chalk">different</span> positions from each other</li>
                 </ul>

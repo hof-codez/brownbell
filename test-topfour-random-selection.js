@@ -48,7 +48,7 @@ async function run() {
             '3000': { first_name: 'Original', last_name: 'WR', position: 'WR', team: 'DAL', injury_status: null, years_exp: 0 },
             '3001': { first_name: 'Cand', last_name: 'A', position: 'RB', team: 'DAL', injury_status: null, years_exp: 1 },
             '3002': { first_name: 'Cand', last_name: 'B', position: 'QB', team: 'DAL', injury_status: null, years_exp: 2 },
-            '3003': { first_name: 'Cand', last_name: 'C', position: 'TE', team: 'DAL', injury_status: null, years_exp: 3 },
+            '3003': { first_name: 'Cand', last_name: 'C', position: 'TE', team: 'DAL', injury_status: null, years_exp: 2 },
             '3004': { first_name: 'Cand', last_name: 'D', position: 'K', team: 'DAL', injury_status: null, years_exp: 1 }
         };
         automator.leagueData = {

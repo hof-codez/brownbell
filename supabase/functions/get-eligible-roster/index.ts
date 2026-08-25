@@ -6,7 +6,9 @@
 // exact same way set-duo validates a real pick - so nothing shown here as
 // "eligible" could ever be rejected when they actually submit it. This
 // includes the full lock/injury/permanent-swap state, not just a plain
-// locked/unlocked flag - see _shared/swapStatus.ts for the actual rule.
+// locked/unlocked flag - see _shared/swapStatus.ts for the actual rule - and
+// cross-award exclusivity: a player currently used in this team's OTHER
+// award can never appear as a candidate here.
 //
 // verify_jwt must be OFF for this function (see ../../config.toml).
 
@@ -42,15 +44,26 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ error: 'Season not found' }, 404);
         }
 
-        const { data: currentDuo, error: duoError } = await supabase
-            .from('duos').select('player_index, player_name, player_position, sleeper_player_id')
-            .eq('team_id', teamId).eq('award_type', awardType);
+        // Fetch BOTH awards' duos for this team in one go - the current award
+        // (for the usual same-award checks) and the other award (purely to
+        // exclude its 2 players from candidates - cross-award exclusivity).
+        const { data: allDuos, error: duoError } = await supabase
+            .from('duos').select('award_type, player_index, player_name, player_position, sleeper_player_id')
+            .eq('team_id', teamId);
         if (duoError) {
             return jsonResponse({ error: 'Failed to load current duo' }, 500);
         }
 
-        const currentPlayer = currentDuo?.find(d => d.player_index === playerIndex) || null;
-        const otherSlotPlayer = currentDuo?.find(d => d.player_index !== playerIndex) || null;
+        const currentDuo = (allDuos ?? []).filter(d => d.award_type === awardType);
+        const otherAwardType = awardType === 'main' ? 'nextup' : 'main';
+        const otherAwardPlayerIds = new Set(
+            (allDuos ?? [])
+                .filter(d => d.award_type === otherAwardType && d.sleeper_player_id)
+                .map(d => d.sleeper_player_id as string)
+        );
+
+        const currentPlayer = currentDuo.find(d => d.player_index === playerIndex) || null;
+        const otherSlotPlayer = currentDuo.find(d => d.player_index !== playerIndex) || null;
 
         const [allPlayers, rosterPlayerIds] = await Promise.all([
             fetchAllPlayers(),
@@ -85,14 +98,15 @@ Deno.serve(async (req: Request) => {
             : null;
 
         const candidates = !allowSwap ? [] : rosterPlayerIds
-            .filter(id => id !== otherSlotPlayer?.sleeper_player_id) // can't pick the same player twice
+            .filter(id => id !== otherSlotPlayer?.sleeper_player_id) // can't pick the same player twice within this award
             .filter(id => id !== currentPlayer?.sleeper_player_id) // re-picking the current player isn't a "swap"
+            .filter(id => !otherAwardPlayerIds.has(id)) // cross-award exclusivity - already used in the other award
             .map(id => ({ id, player: allPlayers[id] }))
             .filter(({ player }) => player?.position && validPositions.has(player.position))
             .filter(({ player }) => {
                 // Individual eligibility applies regardless of whether the other slot
-                // is filled - a 10-year veteran is never Next Up eligible, empty
-                // other slot or not. This must run even with no pairing partner yet.
+                // is filled - a 4th-season-or-later player is never Next Up eligible,
+                // empty other slot or not. This must run even with no pairing partner yet.
                 if (awardType === 'nextup' && !isNextUpEligibleExperience(player!.years_exp || 0)) return false;
                 return true;
             })

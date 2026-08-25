@@ -841,7 +841,14 @@ class BrownBellAutomator {
                     yearsExp: this.playersData[pairRow.sleeperPlayerId]?.years_exp || 0
                 }
                 : null;
-            const excludeIds = [row.sleeperPlayerId, pairRow?.sleeperPlayerId].filter(Boolean);
+
+            // Cross-award exclusivity - a player already used in this team's
+            // OTHER award can never be auto-filled into this one too.
+            const otherAwardType = row.awardType === 'main' ? 'nextup' : 'main';
+            const otherAwardRows = byTeamAward[`${row.teamName}|${otherAwardType}`] || {};
+            const otherAwardPlayerIds = [otherAwardRows[0]?.sleeperPlayerId, otherAwardRows[1]?.sleeperPlayerId].filter(Boolean);
+
+            const excludeIds = [row.sleeperPlayerId, pairRow?.sleeperPlayerId, ...otherAwardPlayerIds].filter(Boolean);
 
             const onRoster = this.isPlayerOnTeamRoster(row.teamName, row.sleeperPlayerId);
 
@@ -2122,14 +2129,16 @@ class BrownBellAutomator {
     }
 
     // Next Up Award eligibility rule (2026 revision): any player with 0-3 years NFL
-    // experience is individually eligible, at QB/RB/WR/TE/K. A valid PAIR additionally
-    // needs the two players to differ in BOTH years of experience and position - two
-    // rookies, two 2nd-years, or two players at the same position (even with
-    // different experience) are all invalid. Computed live from years_exp - no
-    // per-player hardcoding.
+    // experience is individually eligible, at QB/RB/WR/TE/K - meaning a player
+    // entering their 1st, 2nd, or 3rd season (years_exp 0, 1, or 2). A player
+    // entering their 4th season (years_exp 3, like Jordan Addison in 2026) is
+    // NOT eligible. A valid PAIR additionally needs the two players to differ
+    // in BOTH years of experience and position - two rookies, two 2nd-years,
+    // or two players at the same position (even with different experience)
+    // are all invalid. Computed live from years_exp - no per-player hardcoding.
     isNextUpEligibleExperience(yearsExp) {
         const exp = yearsExp || 0;
-        return exp >= 0 && exp <= 3;
+        return exp >= 0 && exp <= 2;
     }
 
     // true/false when both players are resolvable, null when one/both can't be
