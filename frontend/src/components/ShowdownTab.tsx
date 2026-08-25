@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useBonusResults } from '../hooks/useBonusResults';
+import { useWeeklyRecap } from '../hooks/useWeeklyRecap';
 import { duoNameKey } from '../hooks/useDuoNames';
 import type { TeamWithDuos } from '../types';
 
-interface BonusTabProps {
+interface ShowdownTabProps {
     teams: TeamWithDuos[];
     myTeamId?: string | null;
     /** Jumps to the bonus rules section of the Rules tab. */
     onLearnMore?: () => void;
-    /** Bonus matchups are always about the Main Award duo specifically. */
+    /** Matchups are always about the Main Award duo specifically. */
     duoNames?: Map<string, string>;
 }
 
@@ -61,9 +63,102 @@ function MatchupSide({ team, isMe, isWinner, align, name }: MatchupSideProps) {
     );
 }
 
-export function BonusTab({ teams, myTeamId, onLearnMore, duoNames }: BonusTabProps) {
+function RecapCard({ title, children }: { title: string; children: ReactNode }) {
+    return (
+        <div className="rounded-lg border border-panel-line bg-panel p-3">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-bell">{title}</p>
+            <div className="mt-1 font-body text-sm text-chalk">{children}</div>
+        </div>
+    );
+}
+
+function WeeklyRecapSection({ teams, week }: { teams: TeamWithDuos[]; week: number }) {
+    const { recap, loading, error } = useWeeklyRecap(teams, week);
+
+    if (loading) return <p className="font-body text-sm text-chalk-dim">Loading recap&hellip;</p>;
+    if (error) return <p className="font-body text-sm text-chalk-dim">Couldn&rsquo;t load recap: {error}</p>;
+    if (!recap) return null;
+
+    return (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <RecapCard title="Upset of the Week">
+                {recap.upsetOfWeek ? (
+                    <>
+                        <span className="font-semibold">{recap.upsetOfWeek.teamName}</span> knocked off{' '}
+                        <span className="font-semibold">{recap.upsetOfWeek.opponent.teamName}</span>, overcoming a{' '}
+                        {recap.upsetOfWeek.cumulativeGapBeaten.toFixed(1)}-point season gap to do it.
+                    </>
+                ) : <span className="text-chalk-dim">No upsets this week &mdash; chalk held.</span>}
+            </RecapCard>
+
+            <RecapCard title="Most Dominant">
+                {recap.mostDominant ? (
+                    <>
+                        <span className="font-semibold">{recap.mostDominant.teamName}</span> demolished{' '}
+                        <span className="font-semibold">{recap.mostDominant.opponent.teamName}</span> by{' '}
+                        {recap.mostDominant.margin.toFixed(1)} points.
+                    </>
+                ) : <span className="text-chalk-dim">No matchups played yet this week.</span>}
+            </RecapCard>
+
+            <RecapCard title="Closest Call">
+                {recap.closestCall ? (
+                    <>
+                        <span className="font-semibold">{recap.closestCall.teamA.teamName}</span> ({recap.closestCall.teamA.score.toFixed(1)}) vs{' '}
+                        <span className="font-semibold">{recap.closestCall.teamB.teamName}</span> ({recap.closestCall.teamB.score.toFixed(1)})
+                        &mdash; decided by just {recap.closestCall.margin.toFixed(1)} points.
+                    </>
+                ) : <span className="text-chalk-dim">No matchups played yet this week.</span>}
+            </RecapCard>
+
+            <RecapCard title="Next Up Spotlight">
+                {recap.nextUpSpotlight ? (
+                    <>
+                        <span className="font-semibold">{recap.nextUpSpotlight.teamName}</span>&rsquo;s Next Up duo led the pack with{' '}
+                        {recap.nextUpSpotlight.points.toFixed(1)} points.
+                    </>
+                ) : <span className="text-chalk-dim">No Next Up scores yet this week.</span>}
+            </RecapCard>
+
+            <RecapCard title="Most Improved">
+                {recap.mostImproved ? (
+                    <>
+                        <span className="font-semibold">{recap.mostImproved.teamName}</span> jumped{' '}
+                        {recap.mostImproved.swing.toFixed(1)} points from last week.
+                    </>
+                ) : <span className="text-chalk-dim">{week === 1 ? 'Nothing to compare yet - it\u2019s week 1.' : 'Not enough data yet.'}</span>}
+            </RecapCard>
+
+            <RecapCard title="Most Disappointing">
+                {recap.mostDisappointing ? (
+                    <>
+                        <span className="font-semibold">{recap.mostDisappointing.teamName}</span> fell{' '}
+                        {Math.abs(recap.mostDisappointing.swing).toFixed(1)} points from last week.
+                    </>
+                ) : <span className="text-chalk-dim">{week === 1 ? 'Nothing to compare yet - it\u2019s week 1.' : 'Not enough data yet.'}</span>}
+            </RecapCard>
+
+            {recap.byeWeekCasualties.length > 0 && (
+                <div className="sm:col-span-2">
+                    <RecapCard title="Bye Week Casualties">
+                        <ul className="space-y-1">
+                            {recap.byeWeekCasualties.map(c => (
+                                <li key={c.teamId}>
+                                    <span className="font-semibold">{c.teamName}</span> lost while{' '}
+                                    <span className="font-semibold">{c.byedPlayerName}</span> was on bye.
+                                </li>
+                            ))}
+                        </ul>
+                    </RecapCard>
+                </div>
+            )}
+        </div>
+    );
+}
+
+export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: ShowdownTabProps) {
     const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
-    const [view, setView] = useState<'matchups' | 'season'>('matchups');
+    const [view, setView] = useState<'matchups' | 'season' | 'recap'>('matchups');
     const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
     useEffect(() => {
@@ -79,13 +174,13 @@ export function BonusTab({ teams, myTeamId, onLearnMore, duoNames }: BonusTabPro
     }, [weeksAvailable, selectedWeek, myTeamId, getUpcomingMatchup]);
 
     if (loading) {
-        return <p className="font-body text-sm text-chalk-dim">Loading bonus matchups&hellip;</p>;
+        return <p className="font-body text-sm text-chalk-dim">Loading showdown&hellip;</p>;
     }
 
     if (error) {
         return (
             <div className="rounded border border-brick/50 bg-brick/10 px-4 py-3">
-                <p className="font-body text-sm text-chalk">Couldn&rsquo;t load bonus results: {error}</p>
+                <p className="font-body text-sm text-chalk">Couldn&rsquo;t load results: {error}</p>
             </div>
         );
     }
@@ -133,11 +228,11 @@ export function BonusTab({ teams, myTeamId, onLearnMore, duoNames }: BonusTabPro
 
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <PillToggle
-                    options={[{ id: 'matchups', label: 'Matchups' }, { id: 'season', label: 'Season' }]}
+                    options={[{ id: 'matchups', label: 'Matchups' }, { id: 'season', label: 'Season' }, { id: 'recap', label: 'Recap' }]}
                     value={view}
                     onChange={setView}
                 />
-                {view === 'matchups' && weeksAvailable.length > 0 && (
+                {(view === 'matchups' || view === 'recap') && weeksAvailable.length > 0 && (
                     <select
                         value={selectedWeek ?? ''}
                         onChange={(e) => setSelectedWeek(Number(e.target.value))}
@@ -233,6 +328,10 @@ export function BonusTab({ teams, myTeamId, onLearnMore, duoNames }: BonusTabPro
                         </tbody>
                     </table>
                 </div>
+            )}
+
+            {view === 'recap' && selectedWeek !== null && (
+                <WeeklyRecapSection teams={teams} week={selectedWeek} />
             )}
         </div>
     );

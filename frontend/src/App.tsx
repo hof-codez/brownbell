@@ -16,14 +16,14 @@ import { Tabs } from './components/Tabs';
 import { TeamsView } from './components/TeamsView';
 import { RulesPage } from './components/RulesPage';
 import { LeagueTab } from './components/LeagueTab';
-import { BonusTab } from './components/BonusTab';
+import { ShowdownTab } from './components/ShowdownTab';
 import { HistoryTab } from './components/HistoryTab';
 import type { AwardType } from './types';
 
 const TABS = [
   { id: 'teams', label: 'Teams' },
   { id: 'league', label: 'League' },
-  { id: 'bonus', label: 'Bonus' },
+  { id: 'bonus', label: 'Showdown' },
   { id: 'history', label: 'History' },
   { id: 'rules', label: 'Rules' }
 ];
@@ -90,7 +90,7 @@ export default function App() {
         )}
 
         {activeTab === 'bonus' && (
-          <BonusTab
+          <ShowdownTab
             teams={teams}
             myTeamId={claimedTeam?.teamId ?? null}
             onLearnMore={() => goToRulesSection('bonus-matchups-rule')}
