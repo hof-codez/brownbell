@@ -396,6 +396,17 @@ class SupabaseDataLayer {
         if (error) throw new Error(`Failed to save bonus results: ${error.message}`);
     }
 
+    // Companion to saveBonusResults - removes any bonus_results rows for a
+    // week that turns out to have no real score data. Needed because a
+    // week's bonus results might already have been (incorrectly) written by
+    // an earlier run before this check existed, or before Sleeper had
+    // posted any stats yet - this cleans that up on the next run rather
+    // than leaving stale "everyone tied 0-0" results sitting there.
+    async clearBonusResultsForWeek(week) {
+        const { error } = await this.supabase.from('bonus_results').delete().eq('week', week);
+        if (error) console.error(`Failed to clear stale bonus results for week ${week} (non-fatal): ${error.message}`);
+    }
+
     async loadRosterChanges() {
         const { data, error } = await this.supabase
             .from('roster_changes')

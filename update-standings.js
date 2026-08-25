@@ -1709,14 +1709,31 @@ class BrownBellAutomator {
         // scored off this week's Main Award totals (already computed above).
         // Recomputed every run so bonus standings update live through the week,
         // same as everything else - not locked until some explicit finalization step.
-        const brownBellWeekTotals = {};
-        for (const [teamName, byWeek] of Object.entries(allScores.main || {})) {
-            const byIndex = byWeek[currentWeek] || {};
-            brownBellWeekTotals[teamName] = Object.values(byIndex).reduce((sum, p) => sum + (p || 0), 0);
+        //
+        // GATE: only compute/save results once Sleeper actually has real stat
+        // data for this week. Before that (pre-season, or just before that
+        // week's games start), every team's total is genuinely 0 - not
+        // because they tied, but because nothing has been played yet. Without
+        // this check, every matchup gets saved as a real "0-0 tie" with
+        // real bonus points awarded, which is wrong and (if it already
+        // happened on an earlier run before this check existed) needs
+        // cleaning up, not just avoiding going forward.
+        const weekScoresCheck = await this.getWeeklyScores(currentWeek);
+        const weekHasRealData = Object.keys(weekScoresCheck).length > 0;
+
+        if (weekHasRealData) {
+            const brownBellWeekTotals = {};
+            for (const [teamName, byWeek] of Object.entries(allScores.main || {})) {
+                const byIndex = byWeek[currentWeek] || {};
+                brownBellWeekTotals[teamName] = Object.values(byIndex).reduce((sum, p) => sum + (p || 0), 0);
+            }
+            const brownBellMatchups = this.getBrownBellMatchupsForWeek(currentWeek);
+            const brownBellBonuses = this.computeBrownBellBonuses(brownBellMatchups, brownBellWeekTotals);
+            await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses);
+        } else {
+            console.log(`No real score data yet for week ${currentWeek} - skipping bonus computation and clearing any stale results`);
+            await this.dataLayer.clearBonusResultsForWeek(currentWeek);
         }
-        const brownBellMatchups = this.getBrownBellMatchupsForWeek(currentWeek);
-        const brownBellBonuses = this.computeBrownBellBonuses(brownBellMatchups, brownBellWeekTotals);
-        await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses);
 
         // Persist everything to Supabase - this replaces the single JSON file write.
         // Substitutions and scores are the actual core of the automation and should
