@@ -7,6 +7,7 @@ import type { TeamWithDuos, AwardType } from '../types';
 interface LeagueTabProps {
     teams: TeamWithDuos[];
     myTeamId?: string | null;
+    duoNames?: Map<string, string>;
 }
 
 function PillToggle<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
@@ -27,7 +28,7 @@ function PillToggle<T extends string>({ options, value, onChange }: { options: {
     );
 }
 
-export function LeagueTab({ teams, myTeamId }: LeagueTabProps) {
+export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
     const { main, nextup, loading, error } = useLeagueScores(teams);
     const [award, setAward] = useState<AwardType>('main');
     const [view, setView] = useState<'rankings' | 'weekly'>('rankings');
@@ -63,9 +64,9 @@ export function LeagueTab({ teams, myTeamId }: LeagueTabProps) {
             </div>
 
             {view === 'rankings' ? (
-                <SeasonRankingsTable scores={activeScores} myTeamId={myTeamId} />
+                <SeasonRankingsTable scores={activeScores} myTeamId={myTeamId} awardType={award} duoNames={duoNames} />
             ) : (
-                <WeeklyScoresTable scores={activeScores} myTeamId={myTeamId} />
+                <WeeklyScoresTable scores={activeScores} myTeamId={myTeamId} awardType={award} duoNames={duoNames} />
             )}
         </div>
     );

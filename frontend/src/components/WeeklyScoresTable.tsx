@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import type { AwardScores } from '../hooks/useLeagueScores';
+import type { AwardType } from '../types';
+import { duoNameKey } from '../hooks/useDuoNames';
 
 interface WeeklyScoresTableProps {
     scores: AwardScores;
     myTeamId?: string | null;
+    awardType: AwardType;
+    duoNames?: Map<string, string>;
 }
 
-export function WeeklyScoresTable({ scores, myTeamId }: WeeklyScoresTableProps) {
+export function WeeklyScoresTable({ scores, myTeamId, awardType, duoNames }: WeeklyScoresTableProps) {
     const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
     // Default to the most recent week once data loads
@@ -52,38 +56,42 @@ export function WeeklyScoresTable({ scores, myTeamId }: WeeklyScoresTableProps) 
                         </tr>
                     </thead>
                     <tbody>
-                        {weekRows.map((row, i) => (
-                            <tr
-                                key={row.teamId}
-                                className={`border-b border-panel-line last:border-0 ${row.teamId === myTeamId ? 'bg-bell/10' : ''}`}
-                            >
-                                <td className="px-3 py-2 align-top font-mono text-sm text-chalk-dim">{i + 1}</td>
-                                <td className="px-3 py-2 align-top font-body text-sm text-chalk">
-                                    <div>
-                                        {row.teamName}
-                                        {row.teamId === myTeamId && <span className="ml-1.5 text-xs text-bell">(You)</span>}
-                                    </div>
-                                    {row.players.length > 0 && (
-                                        <div className="mt-0.5 font-mono text-xs text-chalk-dim">
-                                            {row.players.map((p, pi) => (
-                                                <span key={p.sleeperPlayerId}>
-                                                    {pi > 0 && ' \u00b7 '}
-                                                    {p.playerName} ({p.playerPosition}) {p.points.toFixed(1)}
-                                                    {p.wasBye && (
-                                                        <span className="ml-1 rounded bg-brick/20 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brick">
-                                                            Bye
-                                                        </span>
-                                                    )}
-                                                </span>
-                                            ))}
+                        {weekRows.map((row, i) => {
+                            const name = duoNames?.get(duoNameKey(row.teamId, awardType));
+                            return (
+                                <tr
+                                    key={row.teamId}
+                                    className={`border-b border-panel-line last:border-0 ${row.teamId === myTeamId ? 'bg-bell/10' : ''}`}
+                                >
+                                    <td className="px-3 py-2 align-top font-mono text-sm text-chalk-dim">{i + 1}</td>
+                                    <td className="px-3 py-2 align-top font-body text-sm text-chalk">
+                                        <div>
+                                            {row.teamName}
+                                            {name && <span className="ml-1.5 text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</span>}
+                                            {row.teamId === myTeamId && <span className="ml-1.5 text-xs text-bell">(You)</span>}
                                         </div>
-                                    )}
-                                </td>
-                                <td className="px-3 py-2 text-right align-top font-mono text-sm font-semibold text-chalk">
-                                    {row.points.toFixed(1)}
-                                </td>
-                            </tr>
-                        ))}
+                                        {row.players.length > 0 && (
+                                            <div className="mt-0.5 font-mono text-xs text-chalk-dim">
+                                                {row.players.map((p, pi) => (
+                                                    <span key={p.sleeperPlayerId}>
+                                                        {pi > 0 && ' \u00b7 '}
+                                                        {p.playerName} ({p.playerPosition}) {p.points.toFixed(1)}
+                                                        {p.wasBye && (
+                                                            <span className="ml-1 rounded bg-brick/20 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brick">
+                                                                Bye
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="px-3 py-2 text-right align-top font-mono text-sm font-semibold text-chalk">
+                                        {row.points.toFixed(1)}
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

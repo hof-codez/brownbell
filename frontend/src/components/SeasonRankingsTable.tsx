@@ -1,8 +1,12 @@
 import type { AwardScores } from '../hooks/useLeagueScores';
+import type { AwardType } from '../types';
+import { duoNameKey } from '../hooks/useDuoNames';
 
 interface SeasonRankingsTableProps {
     scores: AwardScores;
     myTeamId?: string | null;
+    awardType: AwardType;
+    duoNames?: Map<string, string>;
 }
 
 // Left-border accent + rank-number color, not a full background tint - keeps
@@ -14,7 +18,7 @@ const RANK_ACCENT: Record<number, { border: string; text: string }> = {
     3: { border: 'border-l-4 border-l-[#B08D57]', text: 'text-[#B08D57]' }  // bronze
 };
 
-export function SeasonRankingsTable({ scores, myTeamId }: SeasonRankingsTableProps) {
+export function SeasonRankingsTable({ scores, myTeamId, awardType, duoNames }: SeasonRankingsTableProps) {
     return (
         <div className="overflow-hidden rounded-lg border border-panel-line">
             <table className="w-full">
@@ -28,6 +32,7 @@ export function SeasonRankingsTable({ scores, myTeamId }: SeasonRankingsTablePro
                 <tbody>
                     {scores.seasonRankings.map(row => {
                         const accent = RANK_ACCENT[row.rank];
+                        const name = duoNames?.get(duoNameKey(row.teamId, awardType));
                         return (
                             <tr
                                 key={row.teamId}
@@ -39,6 +44,7 @@ export function SeasonRankingsTable({ scores, myTeamId }: SeasonRankingsTablePro
                                 <td className="px-3 py-2 align-top font-body text-sm text-chalk">
                                     <div>
                                         {row.teamName}
+                                        {name && <span className="ml-1.5 text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</span>}
                                         {row.teamId === myTeamId && <span className="ml-1.5 text-xs text-bell">(You)</span>}
                                     </div>
                                     {row.players.length > 0 && (

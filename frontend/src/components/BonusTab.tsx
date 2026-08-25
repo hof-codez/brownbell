@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBonusResults } from '../hooks/useBonusResults';
+import { duoNameKey } from '../hooks/useDuoNames';
 import type { TeamWithDuos } from '../types';
 
 interface BonusTabProps {
@@ -7,6 +8,8 @@ interface BonusTabProps {
     myTeamId?: string | null;
     /** Jumps to the bonus rules section of the Rules tab. */
     onLearnMore?: () => void;
+    /** Bonus matchups are always about the Main Award duo specifically. */
+    duoNames?: Map<string, string>;
 }
 
 function PillToggle<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
@@ -32,9 +35,10 @@ interface MatchupSideProps {
     isMe: boolean;
     isWinner: boolean;
     align: 'left' | 'right';
+    name?: string;
 }
 
-function MatchupSide({ team, isMe, isWinner, align }: MatchupSideProps) {
+function MatchupSide({ team, isMe, isWinner, align, name }: MatchupSideProps) {
     const alignClass = align === 'right' ? 'items-end text-right' : 'items-start text-left';
     return (
         <div className={`flex min-w-0 flex-col ${alignClass}`}>
@@ -42,6 +46,7 @@ function MatchupSide({ team, isMe, isWinner, align }: MatchupSideProps) {
                 {team.teamName}
                 {isMe && <span className="ml-1 text-xs text-bell">(You)</span>}
             </p>
+            {name && <p className="truncate font-body text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</p>}
             <div className="mt-1 space-y-0.5">
                 {team.players.map(p => (
                     <p key={p.sleeperPlayerId} className="font-mono text-[11px] text-chalk-dim">
@@ -56,12 +61,11 @@ function MatchupSide({ team, isMe, isWinner, align }: MatchupSideProps) {
     );
 }
 
-export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
+export function BonusTab({ teams, myTeamId, onLearnMore, duoNames }: BonusTabProps) {
     const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
     const [view, setView] = useState<'matchups' | 'season'>('matchups');
     const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
-    // Default to my own next upcoming matchup's week if claimed, otherwise week 1
     useEffect(() => {
         if (selectedWeek !== null || weeksAvailable.length === 0) return;
         if (myTeamId) {
@@ -93,6 +97,7 @@ export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
     const myOpponentName = myUpcoming
         ? (myUpcoming.teamA.teamId === myTeamId ? myUpcoming.teamB.teamName : myUpcoming.teamA.teamName)
         : null;
+    const myOpponentDuoName = myOpponentId ? duoNames?.get(duoNameKey(myOpponentId, 'main')) : undefined;
     const myHeadToHead = myTeamId && myOpponentId ? getHeadToHead(myTeamId, myOpponentId) : null;
 
     return (
@@ -118,6 +123,7 @@ export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
                     <p className="font-mono text-xs uppercase tracking-widest text-bell">Your next matchup</p>
                     <p className="mt-1 font-body text-lg text-chalk">
                         Week {myUpcoming.week} vs <span className="font-semibold">{myOpponentName}</span>
+                        {myOpponentDuoName && <span className="ml-1.5 text-sm italic text-chalk-dim">&ldquo;{myOpponentDuoName}&rdquo;</span>}
                     </p>
                     <p className="mt-1 font-mono text-xs text-chalk-dim">
                         All-time vs {myOpponentName}: {myHeadToHead.wins}-{myHeadToHead.losses}-{myHeadToHead.ties}
@@ -150,10 +156,10 @@ export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
                         const aWins = m.winnerTeamIds.includes(m.teamA.teamId);
                         const bWins = m.winnerTeamIds.includes(m.teamB.teamId);
                         const involvesMe = m.teamA.teamId === myTeamId || m.teamB.teamId === myTeamId;
-                        // Pre-game, neither side is "losing" yet - both render full-brightness.
-                        // Once played, the loser dims and the winner (or both, on a tie) stays lit.
                         const aHighlight = !m.played || aWins;
                         const bHighlight = !m.played || bWins;
+                        const aName = duoNames?.get(duoNameKey(m.teamA.teamId, 'main'));
+                        const bName = duoNames?.get(duoNameKey(m.teamB.teamId, 'main'));
                         return (
                             <div
                                 key={i}
@@ -169,13 +175,13 @@ export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
                                     </p>
                                 )}
                                 <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-                                    <MatchupSide team={m.teamA} isMe={m.teamA.teamId === myTeamId} isWinner={aHighlight} align="left" />
+                                    <MatchupSide team={m.teamA} isMe={m.teamA.teamId === myTeamId} isWinner={aHighlight} align="left" name={aName} />
                                     <div className="flex flex-col items-center pt-1">
                                         <span className="rounded-full border border-panel-line bg-field px-2 py-1 font-mono text-[10px] font-bold text-chalk-dim">
                                             VS
                                         </span>
                                     </div>
-                                    <MatchupSide team={m.teamB} isMe={m.teamB.teamId === myTeamId} isWinner={bHighlight} align="right" />
+                                    <MatchupSide team={m.teamB} isMe={m.teamB.teamId === myTeamId} isWinner={bHighlight} align="right" name={bName} />
                                 </div>
                                 <p className="mt-2 font-mono text-xs uppercase tracking-widest text-bell">
                                     {!m.played
@@ -202,24 +208,28 @@ export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
                             </tr>
                         </thead>
                         <tbody>
-                            {seasonRankings.map(row => (
-                                <tr
-                                    key={row.teamId}
-                                    className={`border-b border-panel-line last:border-0 ${row.teamId === myTeamId ? 'bg-bell/10' : ''}`}
-                                >
-                                    <td className="px-3 py-2 font-mono text-sm text-chalk-dim">{row.rank}</td>
-                                    <td className="px-3 py-2 font-body text-sm text-chalk">
-                                        {row.teamName}
-                                        {row.teamId === myTeamId && <span className="ml-1.5 text-xs text-bell">(You)</span>}
-                                    </td>
-                                    <td className="px-3 py-2 text-center font-mono text-xs text-chalk-dim">
-                                        {row.wins}-{row.losses}-{row.ties}
-                                    </td>
-                                    <td className="px-3 py-2 text-right font-mono text-sm font-semibold text-chalk">
-                                        {row.totalBonus.toFixed(2)}
-                                    </td>
-                                </tr>
-                            ))}
+                            {seasonRankings.map(row => {
+                                const name = duoNames?.get(duoNameKey(row.teamId, 'main'));
+                                return (
+                                    <tr
+                                        key={row.teamId}
+                                        className={`border-b border-panel-line last:border-0 ${row.teamId === myTeamId ? 'bg-bell/10' : ''}`}
+                                    >
+                                        <td className="px-3 py-2 font-mono text-sm text-chalk-dim">{row.rank}</td>
+                                        <td className="px-3 py-2 font-body text-sm text-chalk">
+                                            {row.teamName}
+                                            {name && <span className="ml-1.5 text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</span>}
+                                            {row.teamId === myTeamId && <span className="ml-1.5 text-xs text-bell">(You)</span>}
+                                        </td>
+                                        <td className="px-3 py-2 text-center font-mono text-xs text-chalk-dim">
+                                            {row.wins}-{row.losses}-{row.ties}
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-mono text-sm font-semibold text-chalk">
+                                            {row.totalBonus.toFixed(2)}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

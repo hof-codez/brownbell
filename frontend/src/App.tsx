@@ -86,7 +86,7 @@ export default function App() {
         )}
 
         {activeTab === 'league' && (
-          <LeagueTab teams={teams} myTeamId={claimedTeam?.teamId ?? null} />
+          <LeagueTab teams={teams} myTeamId={claimedTeam?.teamId ?? null} duoNames={duoNames} />
         )}
 
         {activeTab === 'bonus' && (
@@ -94,6 +94,7 @@ export default function App() {
             teams={teams}
             myTeamId={claimedTeam?.teamId ?? null}
             onLearnMore={() => goToRulesSection('bonus-matchups-rule')}
+            duoNames={duoNames}
           />
         )}
 
