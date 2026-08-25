@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBonusResults } from '../hooks/useBonusResults';
-import type { Team } from '../types';
+import type { TeamWithDuos } from '../types';
 
 interface BonusTabProps {
-    teams: Team[];
+    teams: TeamWithDuos[];
     myTeamId?: string | null;
 }
 
@@ -108,23 +108,47 @@ export function BonusTab({ teams, myTeamId }: BonusTabProps) {
                                 key={i}
                                 className={`rounded-lg border border-panel-line p-3 ${involvesMe ? 'bg-bell/10' : 'bg-panel'}`}
                             >
-                                <div className="flex items-center justify-between">
-                                    <p className={`font-body text-sm ${!m.played || aWins ? 'text-chalk' : 'text-chalk-dim'}`}>
-                                        {m.teamA.teamName}
-                                        {m.teamA.teamId === myTeamId && <span className="ml-1 text-xs text-bell">(You)</span>}
-                                    </p>
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className={`font-body text-sm ${!m.played || aWins ? 'text-chalk' : 'text-chalk-dim'}`}>
+                                            {m.teamA.teamName}
+                                            {m.teamA.teamId === myTeamId && <span className="ml-1 text-xs text-bell">(You)</span>}
+                                        </p>
+                                        {m.teamA.players.length > 0 && (
+                                            <p className="mt-0.5 font-mono text-xs text-chalk-dim">
+                                                {m.teamA.players.map((p, pi) => (
+                                                    <span key={p.sleeperPlayerId}>
+                                                        {pi > 0 && ' \u00b7 '}
+                                                        {p.playerName}{m.played ? ` ${p.points.toFixed(1)}` : ''}
+                                                    </span>
+                                                ))}
+                                            </p>
+                                        )}
+                                    </div>
                                     {m.played && (
                                         <p className={`font-mono text-sm font-semibold ${aWins ? 'text-chalk' : 'text-chalk-dim'}`}>
                                             {m.teamA.score.toFixed(1)}
                                         </p>
                                     )}
                                 </div>
-                                <div className="my-1 border-t border-dashed border-panel-line" />
-                                <div className="flex items-center justify-between">
-                                    <p className={`font-body text-sm ${!m.played || bWins ? 'text-chalk' : 'text-chalk-dim'}`}>
-                                        {m.teamB.teamName}
-                                        {m.teamB.teamId === myTeamId && <span className="ml-1 text-xs text-bell">(You)</span>}
-                                    </p>
+                                <div className="my-1.5 border-t border-dashed border-panel-line" />
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className={`font-body text-sm ${!m.played || bWins ? 'text-chalk' : 'text-chalk-dim'}`}>
+                                            {m.teamB.teamName}
+                                            {m.teamB.teamId === myTeamId && <span className="ml-1 text-xs text-bell">(You)</span>}
+                                        </p>
+                                        {m.teamB.players.length > 0 && (
+                                            <p className="mt-0.5 font-mono text-xs text-chalk-dim">
+                                                {m.teamB.players.map((p, pi) => (
+                                                    <span key={p.sleeperPlayerId}>
+                                                        {pi > 0 && ' \u00b7 '}
+                                                        {p.playerName}{m.played ? ` ${p.points.toFixed(1)}` : ''}
+                                                    </span>
+                                                ))}
+                                            </p>
+                                        )}
+                                    </div>
                                     {m.played && (
                                         <p className={`font-mono text-sm font-semibold ${bWins ? 'text-chalk' : 'text-chalk-dim'}`}>
                                             {m.teamB.score.toFixed(1)}

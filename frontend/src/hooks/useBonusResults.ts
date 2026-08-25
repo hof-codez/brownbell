@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Team } from '../types';
+import type { TeamWithDuos } from '../types';
 import { getScheduledMatchupsForWeek, REGULAR_SEASON_WEEKS } from '../lib/bonusSchedule';
+
+export interface MatchupPlayer {
+    sleeperPlayerId: string;
+    playerName: string;
+    playerPosition: string;
+    points: number;
+}
 
 export interface Matchup {
     week: number;
     played: boolean; // false = scheduled but no result recorded yet (still upcoming)
-    teamA: { teamId: string; teamName: string; score: number };
-    teamB: { teamId: string; teamName: string; score: number };
+    teamA: { teamId: string; teamName: string; score: number; players: MatchupPlayer[] };
+    teamB: { teamId: string; teamName: string; score: number; players: MatchupPlayer[] };
     winnerTeamIds: string[]; // empty if not played; 1 team normally, 2 on a tie
     tier: number | null;
     bonusPointsEach: number;
@@ -41,14 +48,14 @@ interface UseBonusResultsResult {
     getUpcomingMatchup: (teamId: string) => Matchup | null;
 }
 
-export function useBonusResults(teams: Team[]): UseBonusResultsResult {
+export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsResult {
     const [matchupsByWeek, setMatchupsByWeek] = useState<Map<number, Matchup[]>>(new Map());
     const [seasonRankings, setSeasonRankings] = useState<SeasonBonusRanking[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (teams.length === 0) {
+        if (teamsWithDuos.length === 0) {
             setLoading(false);
             return;
         }
@@ -56,33 +63,74 @@ export function useBonusResults(teams: Team[]): UseBonusResultsResult {
         let cancelled = false;
 
         async function load() {
+            const teams = teamsWithDuos.map(t => t.team);
             const teamIds = teams.map(t => t.id);
-            const { data, error: fetchError } = await supabase
-                .from('bonus_results')
-                .select('team_id, week, opponent_team_id, team_score, opponent_score, outcome, tier, bonus_points')
-                .in('team_id', teamIds);
+
+            const [bonusResultsRes, weeklyScoresRes] = await Promise.all([
+                supabase.from('bonus_results')
+                    .select('team_id, week, opponent_team_id, team_score, opponent_score, outcome, tier, bonus_points')
+                    .in('team_id', teamIds),
+                // Only Main Award scores are relevant here - bonus matchups are a
+                // Main Award mechanic, Next Up never enters into this.
+                supabase.from('weekly_scores')
+                    .select('team_id, week, sleeper_player_id, points, player_name, player_position')
+                    .eq('award_type', 'main')
+                    .in('team_id', teamIds)
+            ]);
 
             if (cancelled) return;
 
-            if (fetchError) {
-                setError(fetchError.message);
+            if (bonusResultsRes.error) {
+                setError(bonusResultsRes.error.message);
+                setLoading(false);
+                return;
+            }
+            if (weeklyScoresRes.error) {
+                setError(weeklyScoresRes.error.message);
                 setLoading(false);
                 return;
             }
 
             const teamNameById: Record<string, string> = {};
-            teams.forEach(t => { teamNameById[t.id] = t.display_name; });
+            const currentMainDuoByTeamId: Record<string, MatchupPlayer[]> = {};
+            teamsWithDuos.forEach(t => {
+                teamNameById[t.team.id] = t.team.display_name;
+                currentMainDuoByTeamId[t.team.id] = t.main
+                    .filter((s): s is NonNullable<typeof s> => s !== null && !!s.sleeper_player_id)
+                    .map(s => ({
+                        sleeperPlayerId: s.sleeper_player_id!,
+                        playerName: s.player_name,
+                        playerPosition: s.player_position,
+                        points: 0
+                    }));
+            });
 
-            const rows = data ?? [];
-            // Quick lookup: for a given week+team, find their recorded result (if played).
+            const rows = bonusResultsRes.data ?? [];
+            const scoreRows = weeklyScoresRes.data ?? [];
+
             const resultByWeekAndTeam = new Map<string, typeof rows[number]>();
             for (const row of rows) {
                 resultByWeekAndTeam.set(`${row.week}|${row.team_id}`, row);
             }
 
-            // Build every scheduled week, 1 through the end of the regular
-            // season - not just weeks that have been played. Unplayed weeks
-            // show the matchup with played=false and no scores yet.
+            // Real Main Award players who actually scored that week - captured
+            // at write time, so this stays accurate even after a later swap.
+            const playersByWeekAndTeam = new Map<string, MatchupPlayer[]>();
+            for (const row of scoreRows) {
+                const key = `${row.week}|${row.team_id}`;
+                const list = playersByWeekAndTeam.get(key) || [];
+                list.push({
+                    sleeperPlayerId: row.sleeper_player_id,
+                    playerName: row.player_name || 'Unknown player',
+                    playerPosition: row.player_position || '',
+                    points: Number(row.points)
+                });
+                playersByWeekAndTeam.set(key, list);
+            }
+
+            // Every scheduled week, 1 through the regular season's end - not
+            // just played weeks. Unplayed weeks show the CURRENT duo picks
+            // (no scores yet) instead of nothing.
             const byWeek = new Map<number, Matchup[]>();
             for (let week = 1; week <= REGULAR_SEASON_WEEKS; week++) {
                 const scheduled = getScheduledMatchupsForWeek(teams, week);
@@ -94,8 +142,8 @@ export function useBonusResults(teams: Team[]): UseBonusResultsResult {
                         return {
                             week,
                             played: false,
-                            teamA: { teamId: teamIdA, teamName: teamNameById[teamIdA] || 'Unknown', score: 0 },
-                            teamB: { teamId: teamIdB, teamName: teamNameById[teamIdB] || 'Unknown', score: 0 },
+                            teamA: { teamId: teamIdA, teamName: teamNameById[teamIdA] || 'Unknown', score: 0, players: currentMainDuoByTeamId[teamIdA] || [] },
+                            teamB: { teamId: teamIdB, teamName: teamNameById[teamIdB] || 'Unknown', score: 0, players: currentMainDuoByTeamId[teamIdB] || [] },
                             winnerTeamIds: [],
                             tier: null,
                             bonusPointsEach: 0
@@ -109,8 +157,8 @@ export function useBonusResults(teams: Team[]): UseBonusResultsResult {
                     return {
                         week,
                         played: true,
-                        teamA: { teamId: teamIdA, teamName: teamNameById[teamIdA] || 'Unknown', score: Number(rowA.team_score) },
-                        teamB: { teamId: teamIdB, teamName: teamNameById[teamIdB] || 'Unknown', score: Number(rowB.team_score) },
+                        teamA: { teamId: teamIdA, teamName: teamNameById[teamIdA] || 'Unknown', score: Number(rowA.team_score), players: playersByWeekAndTeam.get(`${week}|${teamIdA}`) || [] },
+                        teamB: { teamId: teamIdB, teamName: teamNameById[teamIdB] || 'Unknown', score: Number(rowB.team_score), players: playersByWeekAndTeam.get(`${week}|${teamIdB}`) || [] },
                         winnerTeamIds,
                         tier: rowA.outcome === 'loss' ? rowB.tier : rowA.tier,
                         bonusPointsEach: rowA.outcome === 'loss' ? Number(rowB.bonus_points) : Number(rowA.bonus_points)
@@ -119,7 +167,6 @@ export function useBonusResults(teams: Team[]): UseBonusResultsResult {
                 byWeek.set(week, weekMatchups);
             }
 
-            // Season bonus leaderboard - only counts PLAYED results.
             const bonusTotals = new Map<string, number>();
             const records = new Map<string, { wins: number; losses: number; ties: number }>();
             for (const t of teams) {
@@ -154,7 +201,7 @@ export function useBonusResults(teams: Team[]): UseBonusResultsResult {
 
         load();
         return () => { cancelled = true; };
-    }, [teams]);
+    }, [teamsWithDuos]);
 
     function getHeadToHead(teamIdA: string, teamIdB: string): HeadToHeadRecord {
         let wins = 0, losses = 0, ties = 0;

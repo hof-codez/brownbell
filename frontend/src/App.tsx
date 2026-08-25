@@ -68,7 +68,7 @@ export default function App() {
         )}
 
         {activeTab === 'bonus' && (
-          <BonusTab teams={teams.map(t => t.team)} myTeamId={claimedTeam?.teamId ?? null} />
+          <BonusTab teams={teams} myTeamId={claimedTeam?.teamId ?? null} />
         )}
 
         {activeTab === 'rules' && <RulesPage />}
