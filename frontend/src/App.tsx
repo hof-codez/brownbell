@@ -4,10 +4,13 @@ import { useTeamClaim } from './hooks/useTeamClaim';
 import { useDuoPicker } from './hooks/useDuoPicker';
 import { useLockCountdown } from './hooks/useLockCountdown';
 import { useCurrentWeekByeStatus } from './hooks/useCurrentWeekByeStatus';
+import { useDuoNames, duoNameKey } from './hooks/useDuoNames';
+import { useDuoNaming } from './hooks/useDuoNaming';
 import { Header } from './components/Header';
 import { ClaimStatusBar } from './components/ClaimStatusBar';
 import { ClaimTeamModal } from './components/ClaimTeamModal';
 import { DuoPickerModal } from './components/DuoPickerModal';
+import { DuoNameModal } from './components/DuoNameModal';
 import { CountdownBanner } from './components/CountdownBanner';
 import { Tabs } from './components/Tabs';
 import { TeamsView } from './components/TeamsView';
@@ -30,8 +33,10 @@ export default function App() {
   const { status, claimedTeam, claiming, claimError, claim, forget } = useTeamClaim();
   const { lockTime } = useLockCountdown(season?.id ?? null);
   const byePlayerIds = useCurrentWeekByeStatus(season);
+  const { names: duoNames, refetch: refetchDuoNames } = useDuoNames(teams.map(t => t.team));
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
+  const [namingAward, setNamingAward] = useState<AwardType | null>(null);
   const [activeTab, setActiveTab] = useState('teams');
   // Set alongside switching to the Rules tab so it knows which section to
   // scroll to - cleared once RulesPage has consumed it via its own effect,
@@ -41,9 +46,10 @@ export default function App() {
   const myTeam = claimedTeam ? teams.find(t => t.team.id === claimedTeam.teamId) ?? null : null;
   const otherTeams = myTeam ? teams.filter(t => t.team.id !== myTeam.team.id) : teams;
 
-  // Only meaningful once there's a claimed team - the hook needs a real
+  // Only meaningful once there's a claimed team - both hooks need a real
   // teamId/deviceToken, and there's nothing to edit without one.
   const picker = useDuoPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
+  const naming = useDuoNaming(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
 
   function goToRulesSection(id: string) {
     setRulesScrollTarget(id);
@@ -74,6 +80,8 @@ export default function App() {
             otherTeams={otherTeams}
             onEditSlot={(awardType, playerIndex) => setEditingSlot({ awardType, playerIndex })}
             byePlayerIds={byePlayerIds}
+            duoNames={duoNames}
+            onNameDuo={claimedTeam ? (awardType) => setNamingAward(awardType) : undefined}
           />
         )}
 
@@ -118,6 +126,22 @@ export default function App() {
             refetch();
           }}
           onClose={() => setEditingSlot(null)}
+        />
+      )}
+
+      {namingAward && claimedTeam && (
+        <DuoNameModal
+          awardType={namingAward}
+          currentName={duoNames.get(duoNameKey(claimedTeam.teamId, namingAward)) ?? null}
+          suggesting={naming.suggesting}
+          saving={naming.saving}
+          error={naming.error}
+          onGetSuggestions={naming.getSuggestions}
+          onSave={naming.saveName}
+          onClose={() => {
+            setNamingAward(null);
+            refetchDuoNames();
+          }}
         />
       )}
     </div>
