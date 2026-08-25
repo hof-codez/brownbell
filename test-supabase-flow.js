@@ -1,7 +1,11 @@
 // test-supabase-flow.js
 // End-to-end offline test: seeds a mock Supabase store with a season, two teams, and
-// duos, then runs generateCompleteData() against it (with Sleeper/network calls stubbed)
-// and confirms data actually lands correctly in the mock tables.
+// duos, then runs the REAL automator.run() -> generateCompleteData() pipeline against
+// it (with Sleeper/network calls stubbed) and confirms data actually lands correctly
+// in the mock tables. This is the only test that exercises the full live entry point
+// (checkpoint-type resolution, schedule handling, processDuoSlots, and every save call
+// wired together) rather than calling one method in isolation - valuable specifically
+// because it catches wiring bugs unit tests can't see.
 
 process.env.SUPABASE_URL = 'http://fake';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake';
@@ -17,21 +21,20 @@ async function run() {
     const teamAId = 'team-a';
     const teamBId = 'team-b';
 
-    // Seed season + teams + duos directly into the mock store
+    // Seed season + teams + duos directly into the mock store. TeamA's default swap
+    // state (no permanent_swaps_used/manual_privilege set) means the mock store falls
+    // back to { permanentSwapsUsed: 0, manualPrivilege: true } - so this is a team's
+    // FIRST permanent departure of the season.
     await supabase.from('seasons').insert({ id: seasonId, year: 2026, current_week: 3, sleeper_league_id: '1313661584425385984' });
     await supabase.from('teams').insert([
-        { id: teamAId, season_id: seasonId, sleeper_roster_id: '1', sleeper_owner_id: 'owner1', display_name: 'TeamA' },
-        { id: teamBId, season_id: seasonId, sleeper_roster_id: '2', sleeper_owner_id: 'owner2', display_name: 'TeamB' }
+        { id: teamAId, season_id: seasonId, sleeper_roster_id: '1', sleeper_owner_id: 'owner1', display_name: 'TeamA', permanent_swaps_used: 0, manual_privilege: true },
+        { id: teamBId, season_id: seasonId, sleeper_roster_id: '2', sleeper_owner_id: 'owner2', display_name: 'TeamB', permanent_swaps_used: 0, manual_privilege: true }
     ]);
+    // TeamA's duo shows the original QB (1001) still in slot 0 - but that player has
+    // since been dropped from the roster entirely (see the roster stub below).
     await supabase.from('duos').insert([
         { id: 'd1', team_id: teamAId, award_type: 'main', player_index: 0, player_name: 'Original QB', player_position: 'QB', sleeper_player_id: '1001' },
         { id: 'd2', team_id: teamAId, award_type: 'main', player_index: 1, player_name: 'Original RB', player_position: 'RB', sleeper_player_id: '1002' }
-    ]);
-    // TeamA already has a substitute active for slot 0, but that sub (2002) was dropped
-    await supabase.from('substitutions').insert([
-        { id: 's1', team_id: teamAId, award_type: 'main', player_index: 0, original_name: 'Original QB', original_position: 'QB',
-          substitute_name: 'Dropped Sub', substitute_player_id: '2002', substitute_position: 'RB',
-          start_week: 1, end_week: null, active: true, source: 'auto', reason: 'test seed', no_replacement_available: false }
     ]);
 
     const automator = new BrownBellAutomator('1313661584425385984');
@@ -41,13 +44,13 @@ async function run() {
         automator.playersData = {
             '1001': { first_name: 'Original', last_name: 'QB', position: 'QB', team: 'DAL', injury_status: null, years_exp: 5 },
             '1002': { first_name: 'Original', last_name: 'RB', position: 'RB', team: 'DAL', injury_status: null, years_exp: 5 },
-            '2002': { first_name: 'Dropped', last_name: 'Sub', position: 'RB', team: 'DAL', injury_status: null, years_exp: 3 },
             '3003': { first_name: 'Fresh', last_name: 'Candidate', position: 'RB', team: 'DAL', injury_status: null, years_exp: 2 },
             '4004': { first_name: 'Backup', last_name: 'Quarterback', position: 'QB', team: 'DAL', injury_status: null, years_exp: 1 }
         };
         automator.leagueData = {
             rosters: [
-                { owner_id: 'owner1', roster_id: 1, players: ['3003', '4004'] }, // original (1001) AND old sub (2002) gone; 4004 (QB) is a valid replacement, 3003 (RB) is not (would make RB+RB)
+                // Original (1001) is gone - traded/released. 1002 (the healthy partner) stays.
+                { owner_id: 'owner1', roster_id: 1, players: ['1002', '3003', '4004'] },
                 { owner_id: 'owner2', roster_id: 2, players: [] }
             ],
             userMap: { owner1: 'TeamA', owner2: 'TeamB' }
@@ -55,7 +58,7 @@ async function run() {
     };
     automator.getCurrentWeek = async () => 3;
     automator.getWeeklyScores = async () => ({});
-    automator.hasPlayerGameStarted = async () => false;
+    automator.hasPlayerGameStarted = async (playerId, week) => week === 1; // locked for the season, no games started this week
     automator.fetchNFLSchedule = async () => ({});
 
     process.env.CRON_SCHEDULE = '0 14 * * 2'; // Tuesday full check
@@ -64,17 +67,23 @@ async function run() {
     console.log('\n=== RUN SUMMARY ===');
     console.log(JSON.stringify(result, null, 2));
 
-    console.log('\n=== FINAL SUBSTITUTIONS IN MOCK STORE ===');
+    const finalDuos = supabase._store.duos;
     const finalSubs = supabase._store.substitutions;
+    console.log('\n=== FINAL DUOS IN MOCK STORE ===');
+    console.log(JSON.stringify(finalDuos, null, 2));
+    console.log('\n=== FINAL SUBSTITUTIONS IN MOCK STORE ===');
     console.log(JSON.stringify(finalSubs, null, 2));
 
-    const oldSubEnded = finalSubs.find(s => s.id === 's1')?.end_week === 2;
-    const newSubInserted = finalSubs.some(s => s.substitute_player_id === '4004' && s.team_id === teamAId);
+    const slot0After = finalDuos.find(d => d.team_id === teamAId && d.award_type === 'main' && d.player_index === 0);
+    const slotCleared = slot0After === undefined;
+    const clearLogged = finalSubs.some(s =>
+        s.team_id === teamAId && s.original_name === 'Original QB' && (s.reason || '').includes('slot cleared')
+    );
 
     console.log('\n--- CHECKS ---');
-    console.log(oldSubEnded ? '✅ Old dropped sub correctly closed out in Supabase' : '❌ FAILED - old sub not closed');
-    console.log(newSubInserted ? '✅ New replacement correctly inserted into Supabase' : '❌ FAILED - no replacement inserted');
-    process.exit(oldSubEnded && newSubInserted ? 0 : 1);
+    console.log(slotCleared ? '✅ 1st permanent departure correctly clears the slot (not auto-filled)' : '❌ FAILED - slot still shows a player');
+    console.log(clearLogged ? '✅ The clear was logged to substitutions history' : '❌ FAILED - no history entry for the clear');
+    process.exit(slotCleared && clearLogged ? 0 : 1);
 }
 
 run().catch(err => {

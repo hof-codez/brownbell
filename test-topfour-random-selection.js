@@ -35,8 +35,8 @@ async function run() {
         // Candidate scored 20 pts in week 1 only (week 2 has no entry - didn't play/no data)
         automator.getWeeklyScores = async (w) => (w === 1 ? { '2001': 20 } : {});
 
-        const injury = { originalPlayer: { name: 'Original RB', position: 'RB' }, playerId: null, index: 1, status: 'out' };
-        const sub = await automator.findSubstitute('TeamA', injury, 2, 'main');
+        const otherSlotInfo = { position: 'QB', years: 5 }; // the healthy partner (Original QB)
+        const sub = await automator.selectAutoReplacement('TeamA', 'main', 2, ['1001', '1002'], otherSlotInfo);
 
         allPassed &= check('Early-season average = 20 (not 20/3=6.67 from a fixed 3-week divisor)', sub && Math.abs(sub.score - 20) < 0.01);
     }
@@ -69,10 +69,14 @@ async function run() {
         };
 
         const injury = { originalPlayer: { name: 'Original WR', position: 'WR' }, playerId: null, index: 0, status: 'out' };
+        // Healthy partner (WR, rookie) - chosen so it differs in both position AND years
+        // from every candidate below (A:RB/1yr, B:QB/2yr, C:TE/2yr, D:K/1yr), keeping all
+        // 4 individually valid Next Up pairings, matching the original test's intent.
+        const otherSlotInfo = { position: 'WR', years: 0 };
 
         const picks = new Set();
         for (let i = 0; i < 60; i++) {
-            const sub = await automator.findSubstitute('TeamB', injury, 3, 'nextup');
+            const sub = await automator.selectAutoReplacement('TeamB', 'nextup', 3, ['3000'], otherSlotInfo);
             if (sub) picks.add(sub.name);
         }
 
