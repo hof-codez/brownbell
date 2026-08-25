@@ -2039,7 +2039,10 @@ class BrownBellAutomator {
                                 }
                             }
                         } else {
-                            wasBye[awardType][teamName][week][index] = false;
+                            // No live score data yet - could mean genuinely on bye, or just
+                            // too early in the week for this game's data to have posted.
+                            // These are different things; check for real rather than assume.
+                            wasBye[awardType][teamName][week][index] = playerId ? await this.isPlayerOnBye(playerId, week) : false;
                             scores[awardType][teamName][week][index] = 0;
                             if (activeSub) {
                                 console.log(`No score found for substitute ${activeSub.substituteName} (${playerId})`);

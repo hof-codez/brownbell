@@ -3,6 +3,7 @@ import { useSeasonData } from './hooks/useSeasonData';
 import { useTeamClaim } from './hooks/useTeamClaim';
 import { useDuoPicker } from './hooks/useDuoPicker';
 import { useLockCountdown } from './hooks/useLockCountdown';
+import { useCurrentWeekByeStatus } from './hooks/useCurrentWeekByeStatus';
 import { Header } from './components/Header';
 import { ClaimStatusBar } from './components/ClaimStatusBar';
 import { ClaimTeamModal } from './components/ClaimTeamModal';
@@ -13,12 +14,14 @@ import { TeamsView } from './components/TeamsView';
 import { RulesPage } from './components/RulesPage';
 import { LeagueTab } from './components/LeagueTab';
 import { BonusTab } from './components/BonusTab';
+import { HistoryTab } from './components/HistoryTab';
 import type { AwardType } from './types';
 
 const TABS = [
   { id: 'teams', label: 'Teams' },
   { id: 'league', label: 'League' },
   { id: 'bonus', label: 'Bonus' },
+  { id: 'history', label: 'History' },
   { id: 'rules', label: 'Rules' }
 ];
 
@@ -26,6 +29,7 @@ export default function App() {
   const { loading, error, season, teams, refetch } = useSeasonData();
   const { status, claimedTeam, claiming, claimError, claim, forget } = useTeamClaim();
   const { lockTime } = useLockCountdown(season?.id ?? null);
+  const byePlayerIds = useCurrentWeekByeStatus(season);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
   const [activeTab, setActiveTab] = useState('teams');
@@ -60,6 +64,7 @@ export default function App() {
             myTeam={myTeam}
             otherTeams={otherTeams}
             onEditSlot={(awardType, playerIndex) => setEditingSlot({ awardType, playerIndex })}
+            byePlayerIds={byePlayerIds}
           />
         )}
 
@@ -69,6 +74,10 @@ export default function App() {
 
         {activeTab === 'bonus' && (
           <BonusTab teams={teams} myTeamId={claimedTeam?.teamId ?? null} />
+        )}
+
+        {activeTab === 'history' && (
+          <HistoryTab teams={teams.map(t => t.team)} />
         )}
 
         {activeTab === 'rules' && <RulesPage />}

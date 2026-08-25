@@ -5,10 +5,16 @@ import { DuoSlotDisplay } from './DuoSlotDisplay';
 interface TeamCardProps {
     teamWithDuos: TeamWithDuos;
     onEditSlot?: (awardType: AwardType, playerIndex: 0 | 1) => void;
+    /** Sleeper player IDs on bye this week - see useCurrentWeekByeStatus. */
+    byePlayerIds?: Set<string>;
 }
 
-export function TeamCard({ teamWithDuos, onEditSlot }: TeamCardProps) {
+export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds }: TeamCardProps) {
     const { team, main, nextup } = teamWithDuos;
+
+    function isBye(slot: TeamWithDuos['main'][number]): boolean {
+        return !!slot?.sleeper_player_id && !!byePlayerIds?.has(slot.sleeper_player_id);
+    }
 
     return (
         <article className="rounded-lg border border-panel-line bg-panel p-5">
@@ -25,8 +31,8 @@ export function TeamCard({ teamWithDuos, onEditSlot }: TeamCardProps) {
                         </h3>
                     </div>
                     <div className="space-y-1.5">
-                        <DuoSlotDisplay slot={main[0]} onEdit={onEditSlot ? () => onEditSlot('main', 0) : undefined} />
-                        <DuoSlotDisplay slot={main[1]} onEdit={onEditSlot ? () => onEditSlot('main', 1) : undefined} />
+                        <DuoSlotDisplay slot={main[0]} onEdit={onEditSlot ? () => onEditSlot('main', 0) : undefined} isBye={isBye(main[0])} />
+                        <DuoSlotDisplay slot={main[1]} onEdit={onEditSlot ? () => onEditSlot('main', 1) : undefined} isBye={isBye(main[1])} />
                     </div>
                 </section>
 
@@ -38,8 +44,8 @@ export function TeamCard({ teamWithDuos, onEditSlot }: TeamCardProps) {
                         </h3>
                     </div>
                     <div className="space-y-1.5">
-                        <DuoSlotDisplay slot={nextup[0]} onEdit={onEditSlot ? () => onEditSlot('nextup', 0) : undefined} />
-                        <DuoSlotDisplay slot={nextup[1]} onEdit={onEditSlot ? () => onEditSlot('nextup', 1) : undefined} />
+                        <DuoSlotDisplay slot={nextup[0]} onEdit={onEditSlot ? () => onEditSlot('nextup', 0) : undefined} isBye={isBye(nextup[0])} />
+                        <DuoSlotDisplay slot={nextup[1]} onEdit={onEditSlot ? () => onEditSlot('nextup', 1) : undefined} isBye={isBye(nextup[1])} />
                     </div>
                 </section>
             </div>

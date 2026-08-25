@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const { data: currentDuo, error: duoError } = await supabase
-            .from('duos').select('player_index, sleeper_player_id')
+            .from('duos').select('player_index, sleeper_player_id, player_name, player_position')
             .eq('team_id', teamId).eq('award_type', awardType);
         if (duoError) {
             return jsonResponse({ success: false, error: 'Failed to load current duo' }, 500);
@@ -152,6 +152,36 @@ Deno.serve(async (req: Request) => {
                 // whole request over a bookkeeping update.
                 console.error('Failed to increment permanent_swaps_used:', teamUpdateError);
             }
+        }
+
+        // Log this change to substitutions as a pure history entry - previously
+        // only the automation's own changes were logged here, meaning owner-
+        // driven swaps were invisible to any activity/history view. This never
+        // determines who's currently playing (duos alone does that) - it's
+        // purely a record of what happened, for transparency.
+        const reason = !locked
+            ? (currentPlayer ? 'Owner changed pick before lock' : 'Owner set pick')
+            : (isPermanentSwap ? 'Owner replacement - permanent (trade/release)' : 'Owner replacement - temporary (injury)');
+
+        const { error: logError } = await supabase.from('substitutions').insert({
+            team_id: teamId,
+            award_type: awardType,
+            player_index: playerIndex,
+            original_name: currentPlayer?.player_name || '(not set)',
+            original_position: currentPlayer?.player_position || '-',
+            substitute_name: `${newPlayer.first_name || ''} ${newPlayer.last_name || ''}`.trim(),
+            substitute_player_id: sleeperPlayerId,
+            substitute_position: newPlayer.position,
+            start_week: season.current_week,
+            end_week: null,
+            active: true,
+            source: 'owner',
+            reason
+        });
+        if (logError) {
+            // The duo write already succeeded - log this but don't fail the
+            // whole request over a history-log entry.
+            console.error('Failed to log substitution history:', logError);
         }
 
         return jsonResponse({ success: true });
