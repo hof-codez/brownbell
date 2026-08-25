@@ -141,6 +141,20 @@ class SupabaseDataLayer {
         })).filter(row => row.teamName); // drop rows for a team not in this season's roster
     }
 
+    // Batch-updates injury_status for every currently-set duo slot, called once
+    // per automation run - purely a display field, never read by any
+    // substitution/scoring logic (that always reads live Sleeper data directly).
+    async updateDuoInjuryStatuses(updates) {
+        if (!updates || updates.length === 0) return;
+
+        const results = await Promise.all(updates.map(({ rowId, injuryStatus }) =>
+            this.supabase.from('duos').update({ injury_status: injuryStatus }).eq('id', rowId)
+        ));
+
+        const failed = results.find(r => r.error);
+        if (failed) console.error(`Failed to update some duo injury statuses (non-fatal): ${failed.error.message}`);
+    }
+
     // Direct write to duos - the automation's own auto-fill/lock-freeze/revert
     // path. Owner-driven writes go through set-duo (the Edge Function), not here.
     async upsertDuoSlot({ teamName, awardType, playerIndex, playerName, playerPosition, sleeperPlayerId, source, originalSleeperPlayerId }) {

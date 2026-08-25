@@ -23,6 +23,8 @@ export interface DuoRow {
   player_position: string;
   sleeper_player_id: string | null;
   experience: string | null;
+  /** Sleeper's raw status - 'Questionable' | 'Doubtful' | 'Out' | 'IR' | 'PUP' | null if healthy. */
+  injury_status: string | null;
 }
 
 /** A team's two duo slots for one award. A slot is null if it hasn't been set yet. */

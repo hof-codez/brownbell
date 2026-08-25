@@ -1043,6 +1043,10 @@ class BrownBellAutomator {
     async processDuoSlots(week) {
         const duoRows = await this.dataLayer.loadDuoRows();
         const events = [];
+        // Captured for EVERY row with a resolved player, locked or not - this
+        // is purely a display field for the Teams tab's injury dots, separate
+        // from the lock/substitution decisions below.
+        const injuryStatusUpdates = [];
 
         const byTeamAward = {};
         for (const row of duoRows) {
@@ -1059,6 +1063,8 @@ class BrownBellAutomator {
                 console.warn(`Could not resolve player ${row.sleeperPlayerId} for ${row.teamName}/${row.awardType}`);
                 continue;
             }
+
+            injuryStatusUpdates.push({ rowId: row.rowId, injuryStatus: player.injury_status || null });
 
             // Locks are for the SEASON - always checked against week 1, matching
             // the Edge Functions (get-eligible-roster/set-duo) exactly.
@@ -1213,6 +1219,8 @@ class BrownBellAutomator {
                 }
             }
         }
+
+        await this.dataLayer.updateDuoInjuryStatuses(injuryStatusUpdates);
 
         return events;
     }

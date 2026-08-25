@@ -63,7 +63,7 @@ export function useSeasonData(): UseSeasonDataResult {
       if (teamIds.length > 0) {
         const { data: duoRows, error: duosError } = await supabase
           .from('duos')
-          .select('team_id, award_type, player_index, player_name, player_position, sleeper_player_id, experience')
+          .select('team_id, award_type, player_index, player_name, player_position, sleeper_player_id, experience, injury_status')
           .in('team_id', teamIds);
 
         if (duosError) {
