@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { LIVE_SCORE_POLL_INTERVAL_MS } from '../lib/livePolling';
 import type { TeamWithDuos } from '../types';
 import { getScheduledMatchupsForWeek, REGULAR_SEASON_WEEKS } from '../lib/bonusSchedule';
 
@@ -238,7 +239,9 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
         }
 
         load();
-        return () => { cancelled = true; };
+        // Poll while this tab is open - see LIVE_SCORE_POLL_INTERVAL_MS.
+        const intervalId = setInterval(load, LIVE_SCORE_POLL_INTERVAL_MS);
+        return () => { cancelled = true; clearInterval(intervalId); };
     }, [teamsWithDuos]);
 
     function getHeadToHead(teamIdA: string, teamIdB: string): HeadToHeadRecord {

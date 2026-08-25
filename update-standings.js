@@ -1521,17 +1521,23 @@ class BrownBellAutomator {
         // (Saturday prep, early Sunday, both Monday slots) previously fell through this check
         // entirely and skipped substitution processing for that run without any error.
         const CRON_CHECKPOINTS = {
-            '0 14 * * 2': 'TUESDAY_CHECK',                 // Tue 10am ET / 7am AZ
-            '30 14 * * 4': 'THURSDAY_CHECK',                // Thu 2:30pm AZ - injury checkpoint
-            '0 3 * * 5': 'THURSDAY_CHECK',                  // Thu 8pm AZ - post-TNF scores
+            // Standalone checkpoints, outside any game-day window
+            '0 14 * * 2': 'TUESDAY_CHECK',                 // Tue 10am ET / 7am AZ - weekly cleanup
+            '30 14 * * 4': 'THURSDAY_CHECK',                // Thu 2:30pm AZ - pre-TNF injury checkpoint
             '0 11 * * 6': 'SATURDAY_INTERNATIONAL_PREP',    // Sat 4am AZ - international prep
             '0 11 * * 0': 'SUNDAY_INTERNATIONAL_CHECK',     // Sun 4am AZ - pre-international
-            '0 16 * * 0': 'SUNDAY_INTERNATIONAL_CHECK',     // Sun 9am AZ - pre-AM games
-            '5 19 * * 0': 'SUNDAY_PREGAME_CHECK',           // Sun 12:05pm AZ - post-AM games
-            '0 23 * * 0': 'SUNDAY_PREGAME_CHECK',           // Sun 4pm AZ - post-evening games
-            '0 4 * * 1': 'MONDAY_CHECK',                    // Sun 9pm AZ - post-SNF
             '30 14 * * 1': 'MONDAY_CHECK',                  // Mon 2:30pm AZ - post-game cleanup
-            '0 3 * * 2': 'MONDAY_CHECK'                     // Mon 8pm AZ - post-MNF scores
+
+            // 15-minute live-score windows - see the matching comment in
+            // update-standings.yml for why these windows are this wide.
+            // All map to LIVE_CHECK, which gates on whether a game is
+            // actually in progress before doing any real work (see below).
+            '*/15 23 * * 4': 'LIVE_CHECK',   // Thu night window, part 1
+            '*/15 0-4 * * 5': 'LIVE_CHECK',  // Thu night window, part 2 (wraps past UTC midnight)
+            '*/15 13-23 * * 0': 'LIVE_CHECK', // Sunday window, part 1
+            '*/15 0-4 * * 1': 'LIVE_CHECK',   // Sunday window, part 2 (wraps past UTC midnight)
+            '*/15 23 * * 1': 'LIVE_CHECK',    // Monday night window, part 1
+            '*/15 0-4 * * 2': 'LIVE_CHECK'    // Monday night window, part 2 (wraps past UTC midnight)
         };
 
         let checkpointType = null;
@@ -1582,6 +1588,33 @@ class BrownBellAutomator {
         }
 
         console.log(`Current week: ${currentWeek}, Checkpoint: ${checkpointType || 'ROUTINE_UPDATE'}`);
+
+        // LIVE_CHECK fires every 15 min across a wide, generous window (see
+        // update-standings.yml) - wide enough to safely cover any kickoff
+        // time across the season, which means it also wakes up during real
+        // dead gaps (an early international game has ended, the noon games
+        // haven't started yet). Rather than trying to make the cron schedule
+        // itself precise to the minute, the job checks LIVE schedule data
+        // here and skips all the real work - Sleeper API calls, Supabase
+        // reads/writes - the instant it's clear nothing is actually being
+        // played right now. This reuses fetchNFLSchedule's cache, so nothing
+        // extra gets fetched if a game IS live and the run proceeds normally.
+        if (checkpointType === 'LIVE_CHECK') {
+            const liveSchedule = await this.fetchNFLSchedule(currentWeek);
+            const anyGameInProgress = !!liveSchedule && Object.values(liveSchedule).some(game => game.status === 'in');
+            if (!anyGameInProgress) {
+                console.log('LIVE_CHECK: no games currently in progress - skipping this run');
+                return {
+                    version: '3.0',
+                    timestamp: new Date().toISOString(),
+                    currentWeek,
+                    sleeperLeagueId: this.leagueId,
+                    lastCheckpointType: 'LIVE_CHECK_SKIPPED',
+                    automationStats: { scoresUpdated: 0, duoSlotChanges: 0, scheduleChangesThisWeek: 0 }
+                };
+            }
+            console.log('LIVE_CHECK: at least one game is in progress - proceeding with a real update');
+        }
 
         // Load existing state from Supabase (replaces the old file-based JSON read)
         const cleanedSubstitutionsRaw = await this.dataLayer.loadSubstitutions();

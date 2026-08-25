@@ -7,28 +7,40 @@ name: Update Brown Bell Standings
 
 on:
   schedule:
-    # Tuesday at 10 AM ET (7 AM AZ) - 2 PM UTC
+    # --- Standalone checkpoints (outside any game-day window) ---
+    # Tuesday at 10 AM ET (7 AM AZ) - 2 PM UTC - weekly cleanup
     - cron: '0 14 * * 2'
-    # Thursday at 2:30 PM AZ (9:30 PM UTC) - injury checkpoint + scores
+    # Thursday at 2:30 PM AZ (9:30 PM UTC) - pre-TNF injury checkpoint
     - cron: '30 14 * * 4'
-    # Thursday at 8 PM AZ (3 AM UTC Friday) - post-TNF scores
-    - cron: '0 3 * * 5'
     # Saturday at 4 AM AZ (11 AM UTC) - international game prep
     - cron: '0 11 * * 6'
     # Sunday at 4 AM AZ (11 AM UTC) - pre-international games
     - cron: '0 11 * * 0'
-    # Sunday at 9 AM AZ (4 PM UTC) - pre-AM games
-    - cron: '0 16 * * 0'
-    # Sunday at 12:05 PM AZ (7:05 PM UTC) - post-AM games
-    - cron: '5 19 * * 0'
-    # Sunday at 4 PM AZ (11 PM UTC) - post-evening games
-    - cron: '0 23 * * 0'
-    # Sunday at 9 PM AZ (4 AM UTC Monday) - post-SNF
-    - cron: '0 4 * * 1'
     # Monday at 2:30 PM AZ (9:30 PM UTC) - post-game cleanup
     - cron: '30 14 * * 1'
-    # Monday at 8 PM AZ (3 AM UTC Tuesday) - post-MNF scores
-    - cron: '0 3 * * 2'
+
+    # --- 15-minute live-score windows, one per game day. These fire every
+    # 15 min inside a GENEROUS window covering the full range kickoff could
+    # land in across the season (Arizona doesn't observe DST, but Eastern
+    # Time does, so the ET->UTC offset shifts by an hour partway through the
+    # season - these windows are padded wide enough to not care which side
+    # of that shift we're on). The job itself (see update-standings.js's
+    # LIVE_CHECK handling) checks whether a game is ACTUALLY in progress
+    # before doing any real work, so a 15-min wake-up during a dead gap -
+    # e.g. after an early international game ends but before the noon
+    # games start - costs almost nothing and does nothing. This replaces
+    # several of the old single-fixed-time checkpoints that fell inside
+    # these windows anyway.
+    #
+    # Thursday night: ~23:00 UTC Thu -> ~05:00 UTC Fri
+    - cron: '*/15 23 * * 4'
+    - cron: '*/15 0-4 * * 5'
+    # Sunday, all games including early internationals: ~13:00 UTC Sun -> ~05:00 UTC Mon
+    - cron: '*/15 13-23 * * 0'
+    - cron: '*/15 0-4 * * 1'
+    # Monday night: ~23:00 UTC Mon -> ~05:00 UTC Tue
+    - cron: '*/15 23 * * 1'
+    - cron: '*/15 0-4 * * 2'
 
   # Allow manual triggering
   workflow_dispatch:
@@ -60,7 +72,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '22'
+        node-version: '20'
 
     - name: Install dependencies
       run: npm install

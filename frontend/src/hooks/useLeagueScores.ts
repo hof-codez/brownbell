@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { LIVE_SCORE_POLL_INTERVAL_MS } from '../lib/livePolling';
 import type { TeamWithDuos, AwardType } from '../types';
 
 export interface PlayerScore {
@@ -157,7 +158,11 @@ export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
         }
 
         load();
-        return () => { cancelled = true; };
+        // Poll while this tab is open - see LIVE_SCORE_POLL_INTERVAL_MS. load()
+        // never flips loading back to true, so this updates silently in the
+        // background with no flicker.
+        const intervalId = setInterval(load, LIVE_SCORE_POLL_INTERVAL_MS);
+        return () => { cancelled = true; clearInterval(intervalId); };
     }, [teams]);
 
     return { main, nextup, loading, error };
