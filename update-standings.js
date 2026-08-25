@@ -1719,7 +1719,13 @@ class BrownBellAutomator {
         // happened on an earlier run before this check existed) needs
         // cleaning up, not just avoiding going forward.
         const weekScoresCheck = await this.getWeeklyScores(currentWeek);
-        const weekHasRealData = Object.keys(weekScoresCheck).length > 0;
+        // Check for genuinely non-zero activity, not just key presence -
+        // Sleeper's matchups endpoint can pre-populate every rostered
+        // player's entry at 0 points before any games start, rather than
+        // returning an empty structure. Checking for keys alone would have
+        // treated that pre-populated placeholder data as "the week has
+        // started" - it hasn't, every value is a real, uniform zero.
+        const weekHasRealData = Object.values(weekScoresCheck).some(points => points > 0);
 
         if (weekHasRealData) {
             const brownBellWeekTotals = {};
