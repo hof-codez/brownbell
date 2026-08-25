@@ -208,11 +208,31 @@ class SupabaseDataLayer {
     // Pure history log now - substitutions no longer determines who's
     // currently playing (duos does), this just records that a change happened.
     // Never throws - a failed log entry shouldn't take down the actual change.
+    // IMPORTANT: updateAllScores still resolves "who was playing" for past
+    // weeks by searching this table for an entry with end_week IS NULL - see
+    // the matching note in update-standings.js. That lookup is only reliable
+    // if at most one such entry ever exists per team/award/player_index at a
+    // time, regardless of whether it was the owner or the automation that
+    // wrote it last. So every write here closes out any prior open entry for
+    // this exact slot FIRST, mirroring the same close-out set-duo does on
+    // its own writes - the two paths have to agree on this or the same
+    // ambiguity bug reappears from whichever direction wasn't covered.
     async logSubstitution({ teamName, awardType, playerIndex, originalName, originalPosition, substituteName, substitutePlayerId, substitutePosition, week, source, reason, noReplacementAvailable }) {
         const teamId = this.teamIdByName[teamName];
         if (!teamId) {
             console.warn(`Skipping substitution log - unknown team: ${teamName}`);
             return;
+        }
+
+        const { error: closeOutError } = await this.supabase
+            .from('substitutions')
+            .update({ end_week: Math.max(0, week - 1), active: false })
+            .eq('team_id', teamId)
+            .eq('award_type', awardType)
+            .eq('player_index', playerIndex)
+            .is('end_week', null);
+        if (closeOutError) {
+            console.error(`Failed to close out prior substitution entries (non-fatal): ${closeOutError.message}`);
         }
 
         const { error } = await this.supabase.from('substitutions').insert({
