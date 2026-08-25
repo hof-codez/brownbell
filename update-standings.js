@@ -1312,6 +1312,22 @@ class BrownBellAutomator {
 
                     for (let index = 0; index < originalDuo.length; index++) {
                         const originalPlayer = originalDuo[index];
+                        let playerId;
+                        // Only meaningful for past-week reconstruction and the log
+                        // lines below - left null on the current-week fast path.
+                        let activeSub = null;
+
+                        if (week === currentWeek) {
+                            // Current week: duos is the live source of truth, loaded
+                            // fresh at the top of this run - no ambiguity, so read it
+                            // directly rather than reconstructing "who was playing"
+                            // via the substitutions log (which exists for genuinely
+                            // historical weeks, not to second-guess right now).
+                            playerId = originalPlayer.sleeperId || null;
+                            if (playerId) {
+                                console.log(`Week ${week} (current): ${originalPlayer.name} (${playerId}) for ${teamName}, from live duos`);
+                            }
+                        } else {
                         // Check if this player was traded
                         const tradeInfo = rosterChanges.find(rc =>
                             rc.teamName === teamName &&
@@ -1333,7 +1349,7 @@ class BrownBellAutomator {
                         );
 
                         // Find temporary bye replacement first (highest priority)
-                        let activeSub = activeSubstitutions.find(sub => sub.isTemporaryByeReplacement === true);
+                        activeSub = activeSubstitutions.find(sub => sub.isTemporaryByeReplacement === true);
 
                         // If no temporary bye replacement, find other temporary subs
                         if (!activeSub) {
@@ -1344,8 +1360,6 @@ class BrownBellAutomator {
                         if (!activeSub) {
                             activeSub = activeSubstitutions.find(sub => sub.endWeek === null);
                         }
-
-                        let playerId;
 
                         // PRIORITY 1: Active substitution (trade or injury)
                         if (activeSub) {
@@ -1371,6 +1385,7 @@ class BrownBellAutomator {
                                 continue;
                             }
                             playerId = this.findPlayerInRoster(originalPlayer, roster);
+                        }
                         }
 
                         playerIds[awardType][teamName][week][index] = playerId || null;
