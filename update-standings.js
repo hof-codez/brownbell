@@ -356,6 +356,18 @@ class BrownBellAutomator {
     }
 
     findPlayerInRoster(originalPlayer, roster, allowTradedPlayers = false) {
+        // Prefer the reliable Sleeper ID directly over fuzzy name matching,
+        // whenever the duo entry actually has one - true for any pick made
+        // through the picker. The fuzzy matching below (including the
+        // global, entire-player-pool search when allowTradedPlayers is set)
+        // exists only for the rare legacy case where a row somehow lacks an
+        // ID - it should never be the first resort when a reliable one is
+        // already sitting right there, since name matching can genuinely
+        // pick the wrong person (shared last names, suffixes, etc).
+        if (originalPlayer.sleeperId && this.playersData[originalPlayer.sleeperId]) {
+            return originalPlayer.sleeperId;
+        }
+
         if (!roster || !roster.players) return null;
 
         // FIRST: Try to find player on current roster (normal case)
