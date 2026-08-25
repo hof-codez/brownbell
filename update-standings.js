@@ -1419,8 +1419,8 @@ class BrownBellAutomator {
                     // Validate Next Up Award combinations after scores are set
                     if (awardType === 'nextup') {
                         // Get both players' current { years, position } for this week
-                        const player1Experience = this.getPlayerExperienceForWeek(teamName, 0, week, existingSubstitutions);
-                        const player2Experience = this.getPlayerExperienceForWeek(teamName, 1, week, existingSubstitutions);
+                        const player1Experience = this.getPlayerExperienceForWeek(teamName, 0, week, existingSubstitutions, currentWeek);
+                        const player2Experience = this.getPlayerExperienceForWeek(teamName, 1, week, existingSubstitutions, currentWeek);
 
                         // Valid combo (2026 rule): both players individually eligible (0-3 yrs
                         // experience) AND they differ in both years of experience and position.
@@ -1462,9 +1462,24 @@ class BrownBellAutomator {
         return { scores, playerIds, wasBye };
     }
 
-    getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions) {
+    getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions, currentWeek) {
         const originalDuo = this.knownDuos.nextup[teamName];
         if (!originalDuo) return null;
+
+        if (week === currentWeek) {
+            // Current week: duos is live and unambiguous - read directly rather
+            // than reconstructing via the substitutions log. Same principle as
+            // the main scoring resolution above, and the same reason: multiple
+            // "active" (end_week: null) entries can exist for one slot, and
+            // which one .find() returns first isn't guaranteed to be the most
+            // recent pick.
+            const sleeperId = originalDuo[playerIndex]?.sleeperId;
+            const player = sleeperId ? this.playersData?.[sleeperId] : null;
+            if (!player) return null;
+            const resolved = { years: player.years_exp || 0, position: player.position };
+            console.log(`Week ${week} (current): ${originalDuo[playerIndex].name} experience: ${resolved.years} yrs, ${resolved.position}, from live duos`);
+            return resolved;
+        }
 
         // Check for active substitution
         const activeSub = existingSubstitutions.find(sub =>

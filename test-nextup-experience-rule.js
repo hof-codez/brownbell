@@ -68,10 +68,55 @@ async function run() {
     allPassed &= check('ValidTeam (rookie WR + 2nd-year RB) end-to-end', validCombo, true);
 
     console.log(allPassed ? '\n✅ ALL CHECKS PASSED' : '\n❌ SOME CHECKS FAILED');
-    process.exit(allPassed ? 0 : 1);
+    return allPassed;
 }
 
-run().catch(err => {
+async function testExperienceResolutionFix() {
+    console.log('\n--- getPlayerExperienceForWeek current-week fast path ---');
+    const automator = new BrownBellAutomator('test-league');
+    let allPassed = true;
+
+    // duos says Player B (a rookie WR) is CURRENTLY in nextup slot 0.
+    automator.knownDuos = {
+        nextup: { TeamA: [{ name: 'Player B', position: 'WR', sleeperId: 'p-b' }, null] },
+        main: {}
+    };
+    automator.playersData = {
+        'p-a': { years_exp: 5, position: 'QB' }, // stale substitute - should be ignored for current week
+        'p-b': { years_exp: 0, position: 'WR' }  // real current pick
+    };
+    automator.leagueData = { rosters: [], userMap: {} };
+
+    const adversarialSubstitutions = [
+        { teamName: 'TeamA', playerIndex: 0, awardType: 'nextup', startWeek: 1, endWeek: null, substitutePlayerId: 'p-a', substituteName: 'Player A' },
+        { teamName: 'TeamA', playerIndex: 0, awardType: 'nextup', startWeek: 2, endWeek: null, substitutePlayerId: 'p-b', substituteName: 'Player B' }
+    ];
+
+    const currentWeekResult = automator.getPlayerExperienceForWeek('TeamA', 0, 3, adversarialSubstitutions, 3);
+    allPassed &= check(
+        'Current week correctly resolves to Player B (years=0) from live duos, ignoring the adversarial stale substitution',
+        currentWeekResult ? `${currentWeekResult.years}/${currentWeekResult.position}` : null,
+        '0/WR'
+    );
+
+    const pastWeekResult = automator.getPlayerExperienceForWeek('TeamA', 0, 1, adversarialSubstitutions, 3);
+    allPassed &= check(
+        'Past week (not current) still uses substitutions-based reconstruction as before',
+        pastWeekResult ? `${pastWeekResult.years}/${pastWeekResult.position}` : null,
+        '5/QB'
+    );
+
+    console.log(allPassed ? '✅ ALL CHECKS PASSED' : '❌ SOME CHECKS FAILED');
+    return allPassed;
+}
+
+async function main() {
+    const result1 = await run();
+    const result2 = await testExperienceResolutionFix();
+    process.exit((result1 && result2) ? 0 : 1);
+}
+
+main().catch(err => {
     console.error('Test threw:', err);
     process.exit(1);
 });
