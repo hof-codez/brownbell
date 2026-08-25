@@ -18,6 +18,11 @@ export interface Matchup {
     winnerTeamIds: string[]; // empty if not played; 1 team normally, 2 on a tie
     tier: number | null;
     bonusPointsEach: number;
+    /** The closest-scoring matchup that week between two teams who were BOTH
+     * in the top half of the league by CUMULATIVE total THROUGH that week
+     * specifically - not today's standings, so a past week's pick never
+     * changes later as the season moves on. */
+    isMatchupOfTheWeek: boolean;
 }
 
 interface SeasonBonusRanking {
@@ -146,7 +151,8 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                             teamB: { teamId: teamIdB, teamName: teamNameById[teamIdB] || 'Unknown', score: 0, players: currentMainDuoByTeamId[teamIdB] || [] },
                             winnerTeamIds: [],
                             tier: null,
-                            bonusPointsEach: 0
+                            bonusPointsEach: 0,
+                            isMatchupOfTheWeek: false
                         };
                     }
 
@@ -161,10 +167,42 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                         teamB: { teamId: teamIdB, teamName: teamNameById[teamIdB] || 'Unknown', score: Number(rowB.team_score), players: playersByWeekAndTeam.get(`${week}|${teamIdB}`) || [] },
                         winnerTeamIds,
                         tier: rowA.outcome === 'loss' ? rowB.tier : rowA.tier,
-                        bonusPointsEach: rowA.outcome === 'loss' ? Number(rowB.bonus_points) : Number(rowA.bonus_points)
+                        bonusPointsEach: rowA.outcome === 'loss' ? Number(rowB.bonus_points) : Number(rowA.bonus_points),
+                        isMatchupOfTheWeek: false
                     };
                 });
                 byWeek.set(week, weekMatchups);
+            }
+
+            // Matchup of the Week: for each week independently, find the
+            // closest-scoring PLAYED matchup between two teams who were BOTH
+            // in the top half of the league by their CUMULATIVE Main Award
+            // total THROUGH that week - not current standings, so a past
+            // week's pick stays accurate no matter how the season moves after.
+            const cumulativeThroughWeek = (teamId: string, week: number): number =>
+                scoreRows
+                    .filter(r => r.team_id === teamId && r.week <= week)
+                    .reduce((sum, r) => sum + Number(r.points), 0);
+
+            const halfCount = Math.floor(teams.length / 2);
+            for (let week = 1; week <= REGULAR_SEASON_WEEKS; week++) {
+                const totalsThisWeek = teams
+                    .map(t => ({ teamId: t.id, total: cumulativeThroughWeek(t.id, week) }))
+                    .sort((a, b) => b.total - a.total);
+                const topHalfIds = new Set(totalsThisWeek.slice(0, halfCount).map(t => t.teamId));
+
+                const weekMatchups = byWeek.get(week) || [];
+                const candidates = weekMatchups.filter(m =>
+                    m.played && topHalfIds.has(m.teamA.teamId) && topHalfIds.has(m.teamB.teamId)
+                );
+                if (candidates.length === 0) continue;
+
+                const closest = candidates.reduce((best, m) => {
+                    const gap = Math.abs(m.teamA.score - m.teamB.score);
+                    const bestGap = Math.abs(best.teamA.score - best.teamB.score);
+                    return gap < bestGap ? m : best;
+                });
+                closest.isMatchupOfTheWeek = true;
             }
 
             const bonusTotals = new Map<string, number>();

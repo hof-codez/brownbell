@@ -1,16 +1,30 @@
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { BellIcon, SproutIcon } from './icons';
 
-function RuleSection({ title, children }: { title: string; children: ReactNode }) {
+function RuleSection({ title, children, id }: { title: string; children: ReactNode; id?: string }) {
     return (
-        <section className="rounded-lg border border-panel-line bg-panel p-5">
+        <section id={id} className="scroll-mt-4 rounded-lg border border-panel-line bg-panel p-5">
             <h3 className="font-display text-xl font-bold uppercase tracking-wide text-chalk">{title}</h3>
             <div className="mt-2 space-y-2 font-body text-sm text-chalk-dim">{children}</div>
         </section>
     );
 }
 
-export function RulesPage() {
+interface RulesPageProps {
+    /** Scrolls to and briefly highlights a specific rule section on mount -
+     * used by the Bonus tab's "Learn more" link to jump straight to the
+     * bonus matchup rules instead of leaving the reader to hunt for them. */
+    scrollToId?: string | null;
+}
+
+export function RulesPage({ scrollToId }: RulesPageProps) {
+    useEffect(() => {
+        if (!scrollToId) return;
+        const el = document.getElementById(scrollToId);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [scrollToId]);
+
     return (
         <div className="space-y-4">
             <section className="rounded-lg border border-panel-line bg-panel p-5">
@@ -40,7 +54,7 @@ export function RulesPage() {
                 </p>
             </RuleSection>
 
-            <RuleSection title="Weekly bonus matchups">
+            <RuleSection title="Weekly bonus matchups" id="bonus-matchups-rule">
                 <p>
                     Every week, your Main Award duo goes head-to-head against another team&rsquo;s &mdash; a
                     separate schedule from anything in Sleeper itself, rotating through every possible opponent

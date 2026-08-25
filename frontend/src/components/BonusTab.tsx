@@ -5,6 +5,8 @@ import type { TeamWithDuos } from '../types';
 interface BonusTabProps {
     teams: TeamWithDuos[];
     myTeamId?: string | null;
+    /** Jumps to the bonus rules section of the Rules tab. */
+    onLearnMore?: () => void;
 }
 
 function PillToggle<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
@@ -25,7 +27,7 @@ function PillToggle<T extends string>({ options, value, onChange }: { options: {
     );
 }
 
-export function BonusTab({ teams, myTeamId }: BonusTabProps) {
+export function BonusTab({ teams, myTeamId, onLearnMore }: BonusTabProps) {
     const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
     const [view, setView] = useState<'matchups' | 'season'>('matchups');
     const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
@@ -66,6 +68,22 @@ export function BonusTab({ teams, myTeamId }: BonusTabProps) {
 
     return (
         <div>
+            <div className="mb-4 rounded-lg border border-panel-line bg-panel/60 px-4 py-3">
+                <p className="font-body text-sm text-chalk-dim">
+                    Every week your Main Award duo faces off against another team&rsquo;s. Win, and you&rsquo;re in
+                    the running for a bonus &mdash; the closer your combined score is to the top among that
+                    week&rsquo;s winners, the bigger the bonus.
+                    {onLearnMore && (
+                        <>
+                            {' '}
+                            <button onClick={onLearnMore} className="text-bell underline underline-offset-2">
+                                Full rules &rarr;
+                            </button>
+                        </>
+                    )}
+                </p>
+            </div>
+
             {myUpcoming && myOpponentName && myHeadToHead && (
                 <div className="mb-4 rounded-lg border border-bell/50 bg-bell/10 p-4">
                     <p className="font-mono text-xs uppercase tracking-widest text-bell">Your next matchup</p>
@@ -106,8 +124,17 @@ export function BonusTab({ teams, myTeamId }: BonusTabProps) {
                         return (
                             <div
                                 key={i}
-                                className={`rounded-lg border border-panel-line p-3 ${involvesMe ? 'bg-bell/10' : 'bg-panel'}`}
+                                className={`rounded-lg border p-3 ${
+                                    m.isMatchupOfTheWeek
+                                        ? 'border-bell bg-bell/10 shadow-[0_0_0_1px_theme(colors.bell)]'
+                                        : `border-panel-line ${involvesMe ? 'bg-bell/10' : 'bg-panel'}`
+                                }`}
                             >
+                                {m.isMatchupOfTheWeek && (
+                                    <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell">
+                                        &#9733; Matchup of the Week
+                                    </p>
+                                )}
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <p className={`font-body text-sm ${!m.played || aWins ? 'text-chalk' : 'text-chalk-dim'}`}>

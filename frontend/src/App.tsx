@@ -33,6 +33,10 @@ export default function App() {
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
   const [activeTab, setActiveTab] = useState('teams');
+  // Set alongside switching to the Rules tab so it knows which section to
+  // scroll to - cleared once RulesPage has consumed it via its own effect,
+  // but simplest to just always pass the latest value down.
+  const [rulesScrollTarget, setRulesScrollTarget] = useState<string | null>(null);
 
   const myTeam = claimedTeam ? teams.find(t => t.team.id === claimedTeam.teamId) ?? null : null;
   const otherTeams = myTeam ? teams.filter(t => t.team.id !== myTeam.team.id) : teams;
@@ -40,6 +44,11 @@ export default function App() {
   // Only meaningful once there's a claimed team - the hook needs a real
   // teamId/deviceToken, and there's nothing to edit without one.
   const picker = useDuoPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
+
+  function goToRulesSection(id: string) {
+    setRulesScrollTarget(id);
+    setActiveTab('rules');
+  }
 
   return (
     <div className="min-h-screen bg-field">
@@ -73,14 +82,18 @@ export default function App() {
         )}
 
         {activeTab === 'bonus' && (
-          <BonusTab teams={teams} myTeamId={claimedTeam?.teamId ?? null} />
+          <BonusTab
+            teams={teams}
+            myTeamId={claimedTeam?.teamId ?? null}
+            onLearnMore={() => goToRulesSection('bonus-matchups-rule')}
+          />
         )}
 
         {activeTab === 'history' && (
           <HistoryTab teams={teams.map(t => t.team)} />
         )}
 
-        {activeTab === 'rules' && <RulesPage />}
+        {activeTab === 'rules' && <RulesPage scrollToId={activeTab === 'rules' ? rulesScrollTarget : null} />}
       </main>
 
       {showClaimModal && (
