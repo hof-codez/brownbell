@@ -175,9 +175,28 @@ Deno.serve(async (req: Request) => {
 
         // Log this change to substitutions as a pure history entry - previously
         // only the automation's own changes were logged here, meaning owner-
-        // driven swaps were invisible to any activity/history view. This never
-        // determines who's currently playing (duos alone does that) - it's
-        // purely a record of what happened, for transparency.
+        // driven swaps were invisible to any activity/history view.
+        //
+        // IMPORTANT: updateAllScores still resolves "who's currently in this
+        // slot" by searching this table for an entry with end_week IS NULL -
+        // that's legacy, pre-dating duos becoming the real source of truth,
+        // and hasn't been migrated off yet. Until it is, every write here
+        // MUST close out any prior open entry for this exact slot first, or
+        // the scoring logic can find more than one "active" candidate and
+        // pick whichever it happens to see first - which is not guaranteed
+        // to be the most recent pick. This close-out is what keeps that
+        // legacy lookup correct in the meantime.
+        const { error: closeOutError } = await supabase
+            .from('substitutions')
+            .update({ end_week: Math.max(0, season.current_week - 1), active: false })
+            .eq('team_id', teamId)
+            .eq('award_type', awardType)
+            .eq('player_index', playerIndex)
+            .is('end_week', null);
+        if (closeOutError) {
+            console.error('Failed to close out prior substitution entries:', closeOutError);
+        }
+
         const reason = !locked
             ? (currentPlayer ? 'Owner changed pick before lock' : 'Owner set pick')
             : (isPermanentSwap ? 'Owner replacement - permanent (trade/release)' : 'Owner replacement - temporary (injury)');
