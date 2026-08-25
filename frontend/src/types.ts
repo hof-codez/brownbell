@@ -11,6 +11,8 @@ export interface Team {
   id: string;
   display_name: string;
   sleeper_roster_id: string;
+  permanent_swaps_used: number;
+  manual_privilege: boolean;
 }
 
 export interface DuoRow {

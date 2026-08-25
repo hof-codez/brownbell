@@ -901,6 +901,20 @@ class BrownBellAutomator {
                         week, source: 'auto', reason: `Temporary - ${player.first_name} ${player.last_name} is ${status}`
                     });
                     events.push({ type: 'temporary-fill', teamName: row.teamName, awardType: row.awardType, replacement: replacement.name });
+                } else {
+                    // No eligible replacement anywhere on the roster - leave the
+                    // injured player in place (they're still legitimately theirs,
+                    // just out this week) but log it so the owner isn't left
+                    // guessing why nothing changed.
+                    await this.dataLayer.logSubstitution({
+                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                        originalName: row.playerName, originalPosition: row.playerPosition,
+                        substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                        week, source: 'auto',
+                        reason: `No eligible replacement found - ${player.first_name} ${player.last_name} is ${status}, left in slot`,
+                        noReplacementAvailable: true
+                    });
+                    events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
                 }
 
             } else {
@@ -933,6 +947,22 @@ class BrownBellAutomator {
                                 : 'Permanent departure - manual privilege already used up, auto-filled'
                         });
                         events.push({ type: wasPrivilegeLoss ? 'permanent-auto-fill-privilege-revoked' : 'permanent-auto-fill', teamName: row.teamName, awardType: row.awardType });
+                    } else {
+                        // No eligible replacement anywhere on the roster. Leaving the
+                        // slot pointing at a player who's no longer even on this
+                        // team would be actively misleading - clear it instead, same
+                        // as the "1st departure" case below, so it honestly reads as
+                        // empty rather than showing a phantom player.
+                        await this.dataLayer.clearDuoSlot(row.teamName, row.awardType, row.playerIndex);
+                        await this.dataLayer.logSubstitution({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            originalName: row.playerName, originalPosition: row.playerPosition,
+                            substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                            week, source: 'auto',
+                            reason: 'No eligible replacement found - slot cleared, awaiting owner pick',
+                            noReplacementAvailable: true
+                        });
+                        events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
                     }
                 } else {
                     // 1st permanent departure of the season - leave it open for the owner

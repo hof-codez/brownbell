@@ -45,6 +45,12 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, onN
             <h2 className="font-display text-2xl font-bold uppercase tracking-wide text-chalk">
                 {team.display_name}
             </h2>
+            <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-chalk-dim">
+                {team.permanent_swaps_used}/2 permanent swaps used
+                {!team.manual_privilege && (
+                    <span className="ml-1.5 text-brick">&middot; manual picks locked, auto-fill only</span>
+                )}
+            </p>
 
             <div className="mt-4 space-y-4">
                 <section aria-labelledby={`main-${team.id}`}>

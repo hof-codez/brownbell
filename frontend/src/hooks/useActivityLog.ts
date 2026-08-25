@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Team, AwardType } from '../types';
 
-export type ActivityBadge = 'SET' | 'SUB' | 'TRADE-SUB' | 'AUTO-SUB' | 'AUTO-TRADE' | 'REVERTED' | 'CLEARED';
+export type ActivityBadge = 'SET' | 'SUB' | 'TRADE-SUB' | 'AUTO-SUB' | 'AUTO-TRADE' | 'REVERTED' | 'CLEARED' | 'NO-SUB';
 
 export interface ActivityEntry {
     id: string;
@@ -24,8 +24,12 @@ export interface ActivityEntry {
 // Maps the exact reason strings written by set-duo (owner) and
 // processDuoSlots (auto) to a badge - see the taxonomy pulled from last
 // year's viewer. Matched by prefix since a few reasons include dynamic text
-// (e.g. "Temporary - {name} is {status}").
-function deriveBadge(source: 'owner' | 'auto', reason: string | null): ActivityBadge {
+// (e.g. "Temporary - {name} is {status}"). noReplacementAvailable is checked
+// FIRST and explicitly - the no-replacement reason text otherwise overlaps
+// with the CLEARED text pattern ("slot cleared") and would be misclassified.
+function deriveBadge(source: 'owner' | 'auto', reason: string | null, noReplacementAvailable: boolean): ActivityBadge {
+    if (noReplacementAvailable) return 'NO-SUB';
+
     const r = reason || '';
     if (source === 'owner') {
         if (r === 'Owner set pick') return 'SET';
@@ -56,7 +60,7 @@ export function useActivityLog(teams: Team[]) {
             const teamIds = teams.map(t => t.id);
             const { data, error: fetchError } = await supabase
                 .from('substitutions')
-                .select('id, team_id, award_type, player_index, original_name, original_position, substitute_name, substitute_position, start_week, source, reason, created_at')
+                .select('id, team_id, award_type, player_index, original_name, original_position, substitute_name, substitute_position, start_week, source, reason, no_replacement_available, created_at')
                 .in('team_id', teamIds)
                 .order('created_at', { ascending: false });
 
@@ -84,7 +88,7 @@ export function useActivityLog(teams: Team[]) {
                 week: row.start_week,
                 source: row.source,
                 reason: row.reason,
-                badge: deriveBadge(row.source, row.reason),
+                badge: deriveBadge(row.source, row.reason, !!row.no_replacement_available),
                 createdAt: row.created_at
             }));
 

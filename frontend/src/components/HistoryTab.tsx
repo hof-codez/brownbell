@@ -13,7 +13,8 @@ const BADGE_STYLES: Record<ActivityBadge, string> = {
     'AUTO-SUB': 'bg-panel-line text-chalk-dim',
     'AUTO-TRADE': 'bg-brick/20 text-brick',
     REVERTED: 'bg-bell/20 text-bell',
-    CLEARED: 'bg-panel-line text-chalk-dim'
+    CLEARED: 'bg-panel-line text-chalk-dim',
+    'NO-SUB': 'bg-brick/20 text-brick'
 };
 
 export function HistoryTab({ teams }: HistoryTabProps) {
@@ -56,6 +57,12 @@ export function HistoryTab({ teams }: HistoryTabProps) {
                         <p className="mt-1 font-body text-sm text-chalk-dim">
                             {entry.originalName === '(not set)' ? (
                                 <>Set to <span className="text-chalk">{entry.substituteName} ({entry.substitutePosition})</span></>
+                            ) : entry.badge === 'NO-SUB' ? (
+                                entry.substituteName === null && entry.reason?.includes('left in slot') ? (
+                                    <>No eligible replacement for <span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> - left in slot</>
+                                ) : (
+                                    <>No eligible replacement for <span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> - slot cleared, awaiting owner pick</>
+                                )
                             ) : entry.badge === 'CLEARED' ? (
                                 <><span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> departed - slot cleared, awaiting owner pick</>
                             ) : (

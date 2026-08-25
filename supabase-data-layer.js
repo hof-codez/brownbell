@@ -194,7 +194,7 @@ class SupabaseDataLayer {
     // Pure history log now - substitutions no longer determines who's
     // currently playing (duos does), this just records that a change happened.
     // Never throws - a failed log entry shouldn't take down the actual change.
-    async logSubstitution({ teamName, awardType, playerIndex, originalName, originalPosition, substituteName, substitutePlayerId, substitutePosition, week, source, reason }) {
+    async logSubstitution({ teamName, awardType, playerIndex, originalName, originalPosition, substituteName, substitutePlayerId, substitutePosition, week, source, reason, noReplacementAvailable }) {
         const teamId = this.teamIdByName[teamName];
         if (!teamId) {
             console.warn(`Skipping substitution log - unknown team: ${teamName}`);
@@ -214,7 +214,8 @@ class SupabaseDataLayer {
             end_week: null,
             active: true,
             source,
-            reason
+            reason,
+            no_replacement_available: noReplacementAvailable || false
         });
 
         if (error) console.error(`Failed to log substitution (non-fatal): ${error.message}`);
