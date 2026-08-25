@@ -50,9 +50,9 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'Both slots need to be set before naming this duo' }, 400);
         }
 
-        const prompt = `Suggest exactly 5 short, fun nickname ideas for a fantasy football "duo" pairing made up of these two real NFL players: "${player1}" and "${player2}".
+        const prompt = `Suggest exactly 5 WACKY, punny, over-the-top fun nickname ideas for a fantasy football "duo" pairing made up of these two real NFL players: "${player1}" and "${player2}".
 
-Base every suggestion STRICTLY on these two players' actual names - wordplay, alliteration, rhyme, or combining parts of their names. Do not invent or reference stats, positions, teams, or anything not derivable from the names themselves. Keep each suggestion under 30 characters.
+Think pro wrestling tag-team names or buddy-cop movie duo titles - bold, funny, a little ridiculous. Base every suggestion STRICTLY on these two players' actual names (wordplay, puns, rhymes, sound-alikes, or creatively reshaping parts of their names) - but push hard for genuinely playful and surprising. Do NOT just combine their names literally like "FirstName & LastName," "The FirstName LastName," or "LastName's LastName" - that's boring and exactly what to avoid. Do not invent or reference stats, positions, teams, or anything not derivable from the names themselves. Keep each suggestion under 30 characters.
 
 Respond with ONLY a JSON array of exactly 5 strings, nothing else - no preamble, no code fences, no explanation.`;
 
