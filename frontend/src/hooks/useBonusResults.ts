@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { LIVE_SCORE_POLL_INTERVAL_MS } from '../lib/livePolling';
 import type { TeamWithDuos } from '../types';
 import { getScheduledMatchupsForWeek, REGULAR_SEASON_WEEKS } from '../lib/bonusSchedule';
+import { computeTeamStats, computeWinProbability } from '../lib/winProbability';
 
 export interface MatchupPlayer {
     sleeperPlayerId: string;
@@ -24,6 +25,13 @@ export interface Matchup {
      * specifically - not today's standings, so a past week's pick never
      * changes later as the season moves on. */
     isMatchupOfTheWeek: boolean;
+    /** Team A's probability of winning, computed ONLY from scoring history
+     * strictly BEFORE this week - a genuine pre-game prediction, not
+     * hindsight. Stays fixed once computed, so a played week's "upset" (the
+     * lower-probability team winning anyway) stays visible even as later
+     * weeks accumulate more data. Null only when there's no data anywhere
+     * in the league yet to base any estimate on (very start of the season). */
+    teamAWinProbability: number | null;
 }
 
 interface SeasonBonusRanking {
@@ -153,7 +161,8 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                             winnerTeamIds: [],
                             tier: null,
                             bonusPointsEach: 0,
-                            isMatchupOfTheWeek: false
+                            isMatchupOfTheWeek: false,
+                            teamAWinProbability: null
                         };
                     }
 
@@ -169,7 +178,8 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                         winnerTeamIds,
                         tier: rowA.outcome === 'loss' ? rowB.tier : rowA.tier,
                         bonusPointsEach: rowA.outcome === 'loss' ? Number(rowB.bonus_points) : Number(rowA.bonus_points),
-                        isMatchupOfTheWeek: false
+                        isMatchupOfTheWeek: false,
+                        teamAWinProbability: null
                     };
                 });
                 byWeek.set(week, weekMatchups);
@@ -204,6 +214,54 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                     return gap < bestGap ? m : best;
                 });
                 closest.isMatchupOfTheWeek = true;
+            }
+
+            // Win probability - computed strictly from each team's scoring
+            // history BEFORE the matchup's own week (a genuine prediction,
+            // not hindsight), plus a league-wide pool (also strictly before
+            // that week) used as a fallback for teams with too little of
+            // their own data yet to trust. See lib/winProbability.ts for the
+            // actual math and its own verification.
+            const weeklyTotalByTeamAndWeek = new Map<string, number>();
+            for (const row of scoreRows) {
+                const key = `${row.team_id}|${row.week}`;
+                weeklyTotalByTeamAndWeek.set(key, (weeklyTotalByTeamAndWeek.get(key) || 0) + Number(row.points));
+            }
+
+            const getWeeklyTotalsBeforeWeek = (teamId: string, week: number): number[] => {
+                const totals: number[] = [];
+                for (let w = 1; w < week; w++) {
+                    const val = weeklyTotalByTeamAndWeek.get(`${teamId}|${w}`);
+                    if (val !== undefined) totals.push(val);
+                }
+                return totals;
+            };
+
+            const computeLeagueWideStatsBeforeWeek = (week: number): { mean: number | null; stdev: number | null } => {
+                const allValues: number[] = [];
+                for (const t of teams) {
+                    for (let w = 1; w < week; w++) {
+                        const val = weeklyTotalByTeamAndWeek.get(`${t.id}|${w}`);
+                        if (val !== undefined) allValues.push(val);
+                    }
+                }
+                if (allValues.length === 0) return { mean: null, stdev: null };
+                const mean = allValues.reduce((a, b) => a + b, 0) / allValues.length;
+                if (allValues.length < 2) return { mean, stdev: null };
+                const variance = allValues.reduce((s, x) => s + (x - mean) ** 2, 0) / (allValues.length - 1);
+                return { mean, stdev: Math.sqrt(variance) };
+            };
+
+            for (let week = 1; week <= REGULAR_SEASON_WEEKS; week++) {
+                const weekMatchups = byWeek.get(week) || [];
+                if (weekMatchups.length === 0) continue;
+
+                const league = computeLeagueWideStatsBeforeWeek(week);
+                for (const m of weekMatchups) {
+                    const statsA = computeTeamStats(getWeeklyTotalsBeforeWeek(m.teamA.teamId, week), league.mean, league.stdev);
+                    const statsB = computeTeamStats(getWeeklyTotalsBeforeWeek(m.teamB.teamId, week), league.mean, league.stdev);
+                    m.teamAWinProbability = computeWinProbability(statsA, statsB);
+                }
             }
 
             const bonusTotals = new Map<string, number>();

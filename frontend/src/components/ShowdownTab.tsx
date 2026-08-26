@@ -265,6 +265,16 @@ export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: Showdown
                         const bHighlight = !m.played || bWins;
                         const aName = duoNames?.get(duoNameKey(m.teamA.teamId, 'main'));
                         const bName = duoNames?.get(duoNameKey(m.teamB.teamId, 'main'));
+
+                        const teamAWinPct = m.teamAWinProbability;
+                        const teamBWinPct = teamAWinPct !== null ? 1 - teamAWinPct : null;
+                        // The lower-probability side actually won - the "defied the
+                        // odds" moment this whole feature exists to surface. Ties
+                        // don't count as an upset either way.
+                        const isUpset = m.played && teamAWinPct !== null && m.winnerTeamIds.length === 1 && (
+                            (aWins && teamAWinPct < 0.5) || (bWins && (teamBWinPct as number) < 0.5)
+                        );
+
                         return (
                             <div
                                 key={i}
@@ -279,12 +289,22 @@ export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: Showdown
                                         &#9733; Matchup of the Week
                                     </p>
                                 )}
+                                {isUpset && (
+                                    <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-brick">
+                                        &#9889; Upset
+                                    </p>
+                                )}
                                 <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
                                     <MatchupSide team={m.teamA} isMe={m.teamA.teamId === myTeamId} isWinner={aHighlight} align="left" name={aName} />
                                     <div className="flex flex-col items-center pt-1">
                                         <span className="rounded-full border border-panel-line bg-field px-2 py-1 font-mono text-[10px] font-bold text-chalk-dim">
                                             VS
                                         </span>
+                                        {teamAWinPct !== null && teamBWinPct !== null && (
+                                            <span className="mt-1 whitespace-nowrap font-mono text-[10px] text-chalk-dim">
+                                                {Math.round(teamAWinPct * 100)}%-{Math.round(teamBWinPct * 100)}%
+                                            </span>
+                                        )}
                                     </div>
                                     <MatchupSide team={m.teamB} isMe={m.teamB.teamId === myTeamId} isWinner={bHighlight} align="right" name={bName} />
                                 </div>
