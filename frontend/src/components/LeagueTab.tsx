@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLeagueScores } from '../hooks/useLeagueScores';
+import { useBonusResults } from '../hooks/useBonusResults';
 import { SeasonRankingsTable } from './SeasonRankingsTable';
 import { WeeklyScoresTable } from './WeeklyScoresTable';
 import type { TeamWithDuos, AwardType } from '../types';
@@ -30,6 +31,12 @@ function PillToggle<T extends string>({ options, value, onChange }: { options: {
 
 export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
     const { main, nextup, loading, error } = useLeagueScores(teams);
+    // The Brown Bell Award is decided by Main Award season points PLUS
+    // accumulated bonus points combined - reusing the same bonus totals
+    // already shown on the Showdown tab, so there's no risk of two
+    // independent computations disagreeing on the number that actually
+    // determines who's winning.
+    const { seasonRankings: bonusRankings } = useBonusResults(teams);
     const [award, setAward] = useState<AwardType>('main');
     const [view, setView] = useState<'rankings' | 'weekly'>('rankings');
 
@@ -48,6 +55,8 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
     const activeScores = award === 'main' ? main : nextup;
     if (!activeScores) return null;
 
+    const bonusTotals = new Map(bonusRankings.map(r => [r.teamId, r.totalBonus]));
+
     return (
         <div>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -64,7 +73,13 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
             </div>
 
             {view === 'rankings' ? (
-                <SeasonRankingsTable scores={activeScores} myTeamId={myTeamId} awardType={award} duoNames={duoNames} />
+                <SeasonRankingsTable
+                    scores={activeScores}
+                    myTeamId={myTeamId}
+                    awardType={award}
+                    duoNames={duoNames}
+                    bonusTotals={award === 'main' ? bonusTotals : undefined}
+                />
             ) : (
                 <WeeklyScoresTable scores={activeScores} myTeamId={myTeamId} awardType={award} duoNames={duoNames} />
             )}
