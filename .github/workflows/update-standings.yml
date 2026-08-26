@@ -64,6 +64,10 @@ on:
 jobs:
   update-standings:
     runs-on: ubuntu-latest
+    # Needed for the failure-alerting step below to create/comment on issues.
+    permissions:
+      issues: write
+      contents: read
 
     steps:
     - name: Checkout repository
@@ -88,3 +92,42 @@ jobs:
         INTERNATIONAL_CHECK: ${{ inputs.international_check }}
         CRON_SCHEDULE: ${{ github.event.schedule }}
       run: node update-standings.js
+
+    # Runs ONLY when the automation step above actually fails. Doesn't rely
+    # on GitHub's own email notifications (which may or may not be reaching
+    # anyone, and weren't caught in time during the recent Node 20 outage) -
+    # this creates a highly visible, impossible-to-miss GitHub Issue instead,
+    # using nothing but the token Actions already provides. Repeat failures
+    # comment on the SAME open issue rather than spamming a new one each
+    # time - close the issue manually once a fix is confirmed working.
+    - name: Alert on failure
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const label = 'automation-failure';
+          const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+          const existing = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: label
+          });
+
+          if (existing.data.length > 0) {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.data[0].number,
+              body: `Failed again: ${runUrl}`
+            });
+          } else {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '\ud83d\udea8 Brown Bell automation is failing',
+              body: `The scheduled automation run failed.\n\nFailed run: ${runUrl}\n\nThis issue stays open (and future failures get logged as comments here, not new issues) until it's closed manually - close it once you've confirmed a fix actually works.`,
+              labels: [label]
+            });
+          }
