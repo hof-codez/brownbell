@@ -8,6 +8,12 @@ interface TeamRef {
 }
 
 export interface RecapData {
+    /** Whether this week has genuinely started - at least one bonus_results
+     * row exists, which the automation only ever writes once real,
+     * non-zero score data exists (see the matching server-side check).
+     * When false, every category below is intentionally null/empty - there
+     * is nothing genuine to report yet, not "nobody's ahead." */
+    weekHasStarted: boolean;
     /** The lower-cumulative-total team beating the higher one - null if no
      * such result this week (including if every matchup went "as expected"). */
     upsetOfWeek: (TeamRef & { opponent: TeamRef; cumulativeGapBeaten: number }) | null;
@@ -58,6 +64,26 @@ export function useWeeklyRecap(teams: TeamWithDuos[], week: number) {
 
             const scoreRows = scoresRes.data ?? [];
             const bonusRows = bonusRes.data ?? [];
+
+            // The automation only ever writes bonus_results once real,
+            // non-zero score data exists for the week - so its mere
+            // presence is a reliable "has this week actually started"
+            // signal, without needing to re-derive that independently here
+            // (and potentially disagreeing with the server-side check).
+            const weekHasStarted = bonusRows.length > 0;
+
+            if (!weekHasStarted) {
+                if (!cancelled) {
+                    setRecap({
+                        weekHasStarted: false,
+                        upsetOfWeek: null, mostDominant: null, closestCall: null,
+                        mostDisappointing: null, mostImproved: null, nextUpSpotlight: null,
+                        byeWeekCasualties: []
+                    });
+                    setLoading(false);
+                }
+                return;
+            }
 
             const mainTotalsByTeamWeek = new Map<string, number>();
             for (const row of scoreRows) {
@@ -159,7 +185,7 @@ export function useWeeklyRecap(teams: TeamWithDuos[], week: number) {
             }
 
             if (!cancelled) {
-                setRecap({ upsetOfWeek, mostDominant, closestCall, mostDisappointing, mostImproved, nextUpSpotlight, byeWeekCasualties });
+                setRecap({ weekHasStarted: true, upsetOfWeek, mostDominant, closestCall, mostDisappointing, mostImproved, nextUpSpotlight, byeWeekCasualties });
                 setLoading(false);
             }
         }

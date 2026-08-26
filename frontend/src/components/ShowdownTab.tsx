@@ -79,6 +79,16 @@ function WeeklyRecapSection({ teams, week }: { teams: TeamWithDuos[]; week: numb
     if (error) return <p className="font-body text-sm text-chalk-dim">Couldn&rsquo;t load recap: {error}</p>;
     if (!recap) return null;
 
+    if (!recap.weekHasStarted) {
+        return (
+            <div className="rounded border border-dashed border-panel-line px-4 py-6 text-center">
+                <p className="font-body text-sm text-chalk-dim">
+                    Week {week} hasn&rsquo;t started yet &mdash; nothing to recap until real scores come in.
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <RecapCard title="Upset of the Week">
