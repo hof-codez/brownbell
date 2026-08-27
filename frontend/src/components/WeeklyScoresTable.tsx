@@ -5,6 +5,7 @@ import { duoNameKey } from '../hooks/useDuoNames';
 import { WeeklyGridTable } from './WeeklyGridTable';
 import { useSubstitutionBadges } from '../hooks/useSubstitutionBadges';
 import type { SubstitutionBadge } from '../hooks/useSubstitutionBadges';
+import { pickDefaultWeek } from '../lib/displayWeek';
 
 interface WeeklyScoresTableProps {
     scores: AwardScores;
@@ -27,7 +28,7 @@ export function WeeklyScoresTable({ scores, myTeamId, awardType, duoNames, teams
 
     useEffect(() => {
         if (selectedWeek === null && scores.weeksAvailable.length > 0) {
-            setSelectedWeek(scores.weeksAvailable[scores.weeksAvailable.length - 1]);
+            setSelectedWeek(pickDefaultWeek(scores.weeksAvailable));
         }
     }, [scores.weeksAvailable, selectedWeek]);
 

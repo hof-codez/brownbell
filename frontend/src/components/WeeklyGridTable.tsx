@@ -1,6 +1,8 @@
+import { useEffect, useRef } from 'react';
 import type { AwardScores } from '../hooks/useLeagueScores';
 import type { AwardType } from '../types';
 import { duoNameKey } from '../hooks/useDuoNames';
+import { pickDefaultWeek } from '../lib/displayWeek';
 
 interface WeeklyGridTableProps {
     scores: AwardScores;
@@ -21,6 +23,17 @@ interface CellData {
 // whoever occupied that slot in each given week. The team-name and Total
 // columns are pinned on the left and span both of a team's rows.
 export function WeeklyGridTable({ scores, myTeamId, awardType, duoNames }: WeeklyGridTableProps) {
+    const targetWeekRef = useRef<HTMLTableCellElement | null>(null);
+    const targetWeek = pickDefaultWeek(scores.weeksAvailable);
+
+    // Bring the relevant week's column into view by default, same delayed
+    // logic as the single-week dropdown (see lib/displayWeek.ts) - without
+    // this, a season with many weeks would just show the earliest ones
+    // first, requiring a manual scroll to see anything recent.
+    useEffect(() => {
+        targetWeekRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }, [targetWeek]);
+
     if (scores.weeksAvailable.length === 0) {
         return (
             <div className="rounded border border-dashed border-panel-line px-4 py-6 text-center">
@@ -48,7 +61,11 @@ export function WeeklyGridTable({ scores, myTeamId, awardType, duoNames }: Weekl
                             Player
                         </th>
                         {scores.weeksAvailable.map(w => (
-                            <th key={w} className="min-w-[4.5rem] whitespace-nowrap bg-panel px-3 py-2 text-right font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                            <th
+                                key={w}
+                                ref={w === targetWeek ? targetWeekRef : undefined}
+                                className="min-w-[4.5rem] whitespace-nowrap bg-panel px-3 py-2 text-right font-mono text-xs uppercase tracking-widest text-chalk-dim"
+                            >
                                 Wk {w}
                             </th>
                         ))}
