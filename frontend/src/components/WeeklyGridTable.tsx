@@ -16,20 +16,29 @@ interface CellData {
     wasBye: boolean;
 }
 
+const TEAM_COL_WIDTH = 'w-36'; // 9rem
+const PLAYER_COL_WIDTH = 'w-32'; // 8rem
+const WEEK_COL_WIDTH = 'w-[4.5rem]';
+
 // Combined weekly view - every team's score for every week in one table,
 // scrollable sideways to see more weeks. Two rows per team, one per duo
 // slot - aligned by SLOT (0/1), not by player identity, so a mid-season
 // substitution doesn't break the row's continuity: the row simply shows
 // whoever occupied that slot in each given week. The team-name and Total
 // columns are pinned on the left and span both of a team's rows.
+//
+// IMPORTANT: table-fixed + an explicit colgroup are load-bearing here, not
+// decorative. Without table-layout: fixed, a browser treats a cell's
+// declared width as a hint it's free to override - with 12+ week columns
+// competing for a narrow phone screen, it was shrinking the sticky
+// Team/Player columns far below their declared widths, which broke the
+// hardcoded sticky offset between them (the Player column's position
+// assumed the Team column was genuinely 9rem, and it wasn't). Forcing
+// fixed layout via the colgroup is what makes that assumption reliable.
 export function WeeklyGridTable({ scores, myTeamId, awardType, duoNames }: WeeklyGridTableProps) {
     const targetWeekRef = useRef<HTMLTableCellElement | null>(null);
     const targetWeek = pickDefaultWeek(scores.weeksAvailable);
 
-    // Bring the relevant week's column into view by default, same delayed
-    // logic as the single-week dropdown (see lib/displayWeek.ts) - without
-    // this, a season with many weeks would just show the earliest ones
-    // first, requiring a manual scroll to see anything recent.
     useEffect(() => {
         targetWeekRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' });
     }, [targetWeek]);
@@ -51,25 +60,31 @@ export function WeeklyGridTable({ scores, myTeamId, awardType, duoNames }: Weekl
 
     return (
         <div className="overflow-x-auto rounded-lg border border-panel-line">
-            <table className="border-collapse">
+            <table className="table-fixed border-collapse">
+                <colgroup>
+                    <col className={TEAM_COL_WIDTH} />
+                    <col className={PLAYER_COL_WIDTH} />
+                    {scores.weeksAvailable.map(w => <col key={w} className={WEEK_COL_WIDTH} />)}
+                    <col className={WEEK_COL_WIDTH} />
+                </colgroup>
                 <thead>
                     <tr className="border-b border-panel-line">
-                        <th className="sticky left-0 z-10 w-36 truncate bg-panel px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                        <th className="sticky left-0 z-10 truncate bg-panel px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">
                             Team
                         </th>
-                        <th className="sticky left-36 z-10 w-32 truncate bg-panel px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                        <th className="sticky left-36 z-10 truncate bg-panel px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">
                             Player
                         </th>
                         {scores.weeksAvailable.map(w => (
                             <th
                                 key={w}
                                 ref={w === targetWeek ? targetWeekRef : undefined}
-                                className="min-w-[4.5rem] whitespace-nowrap bg-panel px-3 py-2 text-right font-mono text-xs uppercase tracking-widest text-chalk-dim"
+                                className="whitespace-nowrap bg-panel px-3 py-2 text-right font-mono text-xs uppercase tracking-widest text-chalk-dim"
                             >
                                 Wk {w}
                             </th>
                         ))}
-                        <th className="sticky right-0 z-10 min-w-[4.5rem] whitespace-nowrap bg-panel px-3 py-2 text-right font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                        <th className="sticky right-0 z-10 whitespace-nowrap bg-panel px-3 py-2 text-right font-mono text-xs uppercase tracking-widest text-chalk-dim">
                             Total
                         </th>
                     </tr>
@@ -92,14 +107,18 @@ export function WeeklyGridTable({ scores, myTeamId, awardType, duoNames }: Weekl
                                     <td
                                         rowSpan={2}
                                         title={`${row.teamName}${name ? ` "${name}"` : ''}`}
-                                        className={`sticky left-0 z-10 w-36 truncate align-top px-3 py-2 font-body text-sm text-chalk ${rowBg}`}
+                                        className={`sticky left-0 z-10 align-top px-3 py-2 font-body text-sm text-chalk ${rowBg}`}
                                     >
-                                        {row.teamName}
-                                        {name && <span className="ml-1 text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</span>}
-                                        {isMe && <span className="ml-1 text-xs text-bell">(You)</span>}
+                                        <div className="truncate">
+                                            {row.teamName}
+                                            {isMe && <span className="ml-1 text-xs text-bell">(You)</span>}
+                                        </div>
+                                        {name && (
+                                            <div className="truncate text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</div>
+                                        )}
                                     </td>
                                 )}
-                                <td title={slotRow.label} className={`sticky left-36 z-10 w-32 truncate px-3 py-2 font-mono text-xs text-chalk-dim ${rowBg}`}>
+                                <td title={slotRow.label} className={`sticky left-36 z-10 truncate px-3 py-2 font-mono text-xs text-chalk-dim ${rowBg}`}>
                                     {slotRow.label}
                                 </td>
                                 {scores.weeksAvailable.map(w => {
