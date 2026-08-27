@@ -78,12 +78,11 @@ export function SeasonRankingsTable({ scores, myTeamId, awardType, duoNames, bon
                                         {row.teamId === myTeamId && <span className="ml-1.5 text-xs text-bell">(You)</span>}
                                     </div>
                                     {row.players.length > 0 && (
-                                        <div className="mt-0.5 truncate font-mono text-xs text-chalk-dim">
-                                            {row.players.map((p, i) => (
-                                                <span key={p.sleeperPlayerId}>
-                                                    {i > 0 && ' \u00b7 '}
+                                        <div className="mt-0.5 space-y-0.5 font-mono text-xs text-chalk-dim">
+                                            {row.players.map(p => (
+                                                <div key={p.sleeperPlayerId} className="truncate">
                                                     {p.playerName} ({p.playerPosition}) {p.points.toFixed(1)}
-                                                </span>
+                                                </div>
                                             ))}
                                         </div>
                                     )}
