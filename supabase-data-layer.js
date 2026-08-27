@@ -368,7 +368,7 @@ class SupabaseDataLayer {
     // Brown Bell weekly bonus matchup results - one row per team per week
     // (a matchup between A and B produces 2 rows, one from each side).
     // resultsByTeamName: { teamName: { opponent, teamScore, opponentScore, outcome, tier, bonusPoints } }
-    async saveBonusResults(week, resultsByTeamName) {
+    async saveBonusResults(week, resultsByTeamName, isFinalByTeamName = {}) {
         const rows = [];
         for (const [teamName, result] of Object.entries(resultsByTeamName)) {
             const teamId = this.teamIdByName[teamName];
@@ -383,7 +383,8 @@ class SupabaseDataLayer {
                 opponent_score: result.opponentScore,
                 outcome: result.outcome,
                 tier: result.tier,
-                bonus_points: result.bonusPoints
+                bonus_points: result.bonusPoints,
+                is_final: !!isFinalByTeamName[teamName]
             });
         }
 

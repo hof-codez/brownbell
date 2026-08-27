@@ -1735,7 +1735,39 @@ class BrownBellAutomator {
             }
             const brownBellMatchups = this.getBrownBellMatchupsForWeek(currentWeek);
             const brownBellBonuses = this.computeBrownBellBonuses(brownBellMatchups, brownBellWeekTotals);
-            await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses);
+
+            // Per-matchup finality: a matchup only needs its OWN 4 players
+            // (both teams' Main Award duos) to have finished their games -
+            // it doesn't need to wait for unrelated games elsewhere in the
+            // week (e.g. Monday Night Football) if everyone involved
+            // already played Thursday or Sunday. Matches standard fantasy
+            // convention at the level that actually matters here: the
+            // specific matchup's own record, not the whole week as one unit.
+            const weekSchedule = this.cachedSchedule?.[currentWeek] || {};
+            const isPlayerDone = (sleeperId) => {
+                const player = sleeperId ? this.playersData[sleeperId] : null;
+                if (!player || !player.team) return false; // can't resolve - be conservative, don't declare final
+                const status = weekSchedule[player.team]?.status;
+                return status === 'post' || status === 'bye';
+            };
+
+            const matchupIsFinal = {};
+            for (const [teamA, teamB] of brownBellMatchups) {
+                const playersInvolved = [
+                    ...(this.knownDuos.main?.[teamA] || []),
+                    ...(this.knownDuos.main?.[teamB] || [])
+                ].filter(Boolean);
+
+                // Zero players set on either side means there's no real
+                // matchup to speak of yet - don't vacuously call that final.
+                const allDone = playersInvolved.length > 0 &&
+                    playersInvolved.every(duoPlayer => isPlayerDone(duoPlayer.sleeperId));
+
+                matchupIsFinal[teamA] = allDone;
+                matchupIsFinal[teamB] = allDone;
+            }
+
+            await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses, matchupIsFinal);
         } else {
             console.log(`No real score data yet for week ${currentWeek} - skipping bonus computation and clearing any stale results`);
             await this.dataLayer.clearBonusResultsForWeek(currentWeek);
