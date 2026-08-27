@@ -11,6 +11,11 @@ export interface PlayerScore {
     /** Only meaningful in the weekly view - a single boolean doesn't make
      * sense for a season-long aggregate, so this is left undefined there. */
     wasBye?: boolean;
+    /** Which duo slot (0 or 1) this player occupied that week - a
+     * substitution can put a DIFFERENT player in the same slot across
+     * different weeks, so this is what lets a grid align "row 1" / "row 2"
+     * consistently across the season rather than by player identity. */
+    playerIndex: 0 | 1;
 }
 
 interface WeeklyTeamScore {
@@ -60,7 +65,7 @@ export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
             const teamIds = teams.map(t => t.team.id);
             const { data, error: fetchError } = await supabase
                 .from('weekly_scores')
-                .select('team_id, award_type, week, sleeper_player_id, points, player_name, player_position, was_bye')
+                .select('team_id, award_type, week, sleeper_player_id, points, player_name, player_position, was_bye, player_index')
                 .in('team_id', teamIds);
 
             if (cancelled) return;
@@ -91,7 +96,8 @@ export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
                         playerName: row.player_name || 'Unknown player',
                         playerPosition: row.player_position || '',
                         points: Number(row.points),
-                        wasBye: !!row.was_bye
+                        wasBye: !!row.was_bye,
+                        playerIndex: row.player_index
                     });
                     byTeamWeek.set(key, entry);
                 }
@@ -130,7 +136,8 @@ export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
                                 sleeperPlayerId: s.sleeper_player_id!,
                                 playerName: s.player_name,
                                 playerPosition: s.player_position,
-                                points: playerSeasonTotals.get(`${t.team.id}|${s.sleeper_player_id}`) || 0
+                                points: playerSeasonTotals.get(`${t.team.id}|${s.sleeper_player_id}`) || 0,
+                                playerIndex: s.player_index
                             }));
 
                         return {
