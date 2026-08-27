@@ -1767,7 +1767,24 @@ class BrownBellAutomator {
                 matchupIsFinal[teamB] = allDone;
             }
 
-            await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses, matchupIsFinal);
+            // A matchup's OWN win/loss is genuinely decided as soon as its own
+            // 4 players are done (matchupIsFinal above) - that part doesn't
+            // depend on anything else. But the TIER and bonus AMOUNT come from
+            // ranking all 6 matchups' winning scores against each other in one
+            // shared sort (see computeBrownBellBonuses) - so a team's tier can
+            // still shift if a DIFFERENT, still-pending matchup elsewhere in
+            // the week later posts a score that reshuffles the ranking. The
+            // bonus amount isn't genuinely final until every matchup that
+            // week is done, even if this specific one already is.
+            const weekBonusIsStable = brownBellMatchups.length > 0 &&
+                brownBellMatchups.every(([teamA, teamB]) => matchupIsFinal[teamA] && matchupIsFinal[teamB]);
+
+            const isFinalByTeamName = {};
+            for (const teamName of Object.keys(matchupIsFinal)) {
+                isFinalByTeamName[teamName] = matchupIsFinal[teamName] && weekBonusIsStable;
+            }
+
+            await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses, isFinalByTeamName);
         } else {
             console.log(`No real score data yet for week ${currentWeek} - skipping bonus computation and clearing any stale results`);
             await this.dataLayer.clearBonusResultsForWeek(currentWeek);
