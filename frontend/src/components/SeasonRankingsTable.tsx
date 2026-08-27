@@ -38,17 +38,22 @@ export function SeasonRankingsTable({ scores, myTeamId, awardType, duoNames, bon
 
     return (
         <div className="overflow-hidden rounded-lg border border-panel-line">
-            <table className="w-full">
+            {/* Deliberately only 3 real columns (#, Team, the headline number) on
+                every screen size, mobile included - a 5-column table (adding
+                separate Season/Bonus columns) doesn't fit a phone width once the
+                Team cell has any real content in it. The Season/Bonus breakdown
+                lives as a sub-line instead, same pattern as the player breakdown
+                right below it. */}
+            <table className="w-full table-fixed">
+                <colgroup>
+                    <col className="w-10" />
+                    <col />
+                    <col className="w-20" />
+                </colgroup>
                 <thead>
                     <tr className="border-b border-panel-line bg-panel">
                         <th className="px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">#</th>
                         <th className="px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">Team</th>
-                        {showCombined && (
-                            <>
-                                <th className="px-3 py-2 text-right font-mono text-xs uppercase tracking-widest text-chalk-dim">Season</th>
-                                <th className="px-3 py-2 text-right font-mono text-xs uppercase tracking-widest text-chalk-dim">Bonus</th>
-                            </>
-                        )}
                         <th className="px-3 py-2 text-right font-mono text-xs uppercase tracking-widest text-chalk-dim">
                             {showCombined ? 'Combined' : 'Total'}
                         </th>
@@ -66,14 +71,14 @@ export function SeasonRankingsTable({ scores, myTeamId, awardType, duoNames, bon
                                 <td className={`px-3 py-2 align-top font-mono text-sm font-semibold ${accent?.text ?? 'text-chalk-dim'}`}>
                                     {row.rank}
                                 </td>
-                                <td className="px-3 py-2 align-top font-body text-sm text-chalk">
-                                    <div>
+                                <td className="min-w-0 px-3 py-2 align-top font-body text-sm text-chalk">
+                                    <div className="truncate">
                                         {row.teamName}
                                         {name && <span className="ml-1.5 text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</span>}
                                         {row.teamId === myTeamId && <span className="ml-1.5 text-xs text-bell">(You)</span>}
                                     </div>
                                     {row.players.length > 0 && (
-                                        <div className="mt-0.5 font-mono text-xs text-chalk-dim">
+                                        <div className="mt-0.5 truncate font-mono text-xs text-chalk-dim">
                                             {row.players.map((p, i) => (
                                                 <span key={p.sleeperPlayerId}>
                                                     {i > 0 && ' \u00b7 '}
@@ -82,17 +87,12 @@ export function SeasonRankingsTable({ scores, myTeamId, awardType, duoNames, bon
                                             ))}
                                         </div>
                                     )}
+                                    {showCombined && (
+                                        <div className="mt-0.5 font-mono text-xs text-chalk-dim">
+                                            Season {row.total.toFixed(1)} &middot; Bonus {row.bonus > 0 ? `+${row.bonus.toFixed(1)}` : row.bonus.toFixed(1)}
+                                        </div>
+                                    )}
                                 </td>
-                                {showCombined && (
-                                    <>
-                                        <td className="px-3 py-2 text-right align-top font-mono text-sm text-chalk-dim">
-                                            {row.total.toFixed(1)}
-                                        </td>
-                                        <td className="px-3 py-2 text-right align-top font-mono text-sm text-chalk-dim">
-                                            {row.bonus > 0 ? `+${row.bonus.toFixed(1)}` : row.bonus.toFixed(1)}
-                                        </td>
-                                    </>
-                                )}
                                 <td className="px-3 py-2 text-right align-top font-mono text-sm font-semibold text-chalk">
                                     {row.combined.toFixed(1)}
                                 </td>
