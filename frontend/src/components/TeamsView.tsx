@@ -35,6 +35,21 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
 
     return (
         <>
+            <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-chalk-dim">
+                <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-yellow-500" />
+                    Questionable
+                </span>
+                <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" />
+                    Doubtful
+                </span>
+                <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-brick" />
+                    Out / IR / PUP
+                </span>
+            </div>
+
             {myTeam && (
                 <section className="mb-8">
                     <h2 className="mb-2 font-mono text-xs uppercase tracking-widest text-bell">Your Team</h2>
