@@ -349,7 +349,8 @@ class SupabaseDataLayer {
                             points: points || 0,
                             player_name: playerName || null,
                             player_position: player?.position || null,
-                            was_bye: !!wasBye?.[awardType]?.[teamName]?.[week]?.[index]
+                            was_bye: !!wasBye?.[awardType]?.[teamName]?.[week]?.[index],
+                            player_index: Number(index)
                         });
                     }
                 }
