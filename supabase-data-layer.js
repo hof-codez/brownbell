@@ -390,6 +390,59 @@ class SupabaseDataLayer {
 
         if (rows.length === 0) return;
 
+        // Detect stat corrections: if a row already exists AND was already
+        // final AND the numbers about to be written actually differ, that's
+        // Sleeper correcting something after the fact (commonly settled the
+        // Tuesday after Monday Night Football, but this catches it whenever
+        // it actually happens) - snapshot the before/after BEFORE
+        // overwriting, so the change is visible rather than silently lost.
+        const teamIds = rows.map(r => r.team_id);
+        const { data: existingRows, error: existingError } = await this.supabase
+            .from('bonus_results')
+            .select('team_id, team_score, outcome, tier, bonus_points, is_final')
+            .eq('week', week)
+            .in('team_id', teamIds);
+
+        if (existingError) {
+            console.error(`Failed to check for stat corrections (non-fatal, proceeding with write): ${existingError.message}`);
+        } else {
+            const existingByTeamId = new Map((existingRows || []).map(r => [r.team_id, r]));
+            const corrections = [];
+
+            for (const row of rows) {
+                const existing = existingByTeamId.get(row.team_id);
+                if (!existing || !existing.is_final) continue; // nothing to compare, or wasn't final yet - not a correction
+
+                const changed = Number(existing.team_score) !== Number(row.team_score) ||
+                    existing.outcome !== row.outcome ||
+                    existing.tier !== row.tier ||
+                    Number(existing.bonus_points) !== Number(row.bonus_points);
+
+                if (changed) {
+                    corrections.push({
+                        team_id: row.team_id,
+                        week,
+                        original_team_score: existing.team_score,
+                        corrected_team_score: row.team_score,
+                        original_outcome: existing.outcome,
+                        corrected_outcome: row.outcome,
+                        original_tier: existing.tier,
+                        corrected_tier: row.tier,
+                        original_bonus_points: existing.bonus_points,
+                        corrected_bonus_points: row.bonus_points
+                    });
+                }
+            }
+
+            if (corrections.length > 0) {
+                console.warn(`Detected ${corrections.length} stat correction(s) for week ${week} - logging before overwriting`);
+                const { error: correctionError } = await this.supabase.from('bonus_result_corrections').insert(corrections);
+                if (correctionError) {
+                    console.error(`Failed to log stat correction(s) (non-fatal, proceeding with write): ${correctionError.message}`);
+                }
+            }
+        }
+
         const { error } = await this.supabase
             .from('bonus_results')
             .upsert(rows, { onConflict: 'team_id,week' });
