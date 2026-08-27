@@ -81,7 +81,7 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
                     bonusTotals={award === 'main' ? bonusTotals : undefined}
                 />
             ) : (
-                <WeeklyScoresTable scores={activeScores} myTeamId={myTeamId} awardType={award} duoNames={duoNames} />
+                <WeeklyScoresTable scores={activeScores} myTeamId={myTeamId} awardType={award} duoNames={duoNames} teams={teams} />
             )}
         </div>
     );
