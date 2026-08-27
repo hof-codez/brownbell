@@ -41,10 +41,10 @@ export function WeeklyGridTable({ scores, myTeamId, awardType, duoNames }: Weekl
             <table className="border-collapse">
                 <thead>
                     <tr className="border-b border-panel-line">
-                        <th className="sticky left-0 z-10 min-w-[9rem] whitespace-nowrap bg-panel px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                        <th className="sticky left-0 z-10 w-36 truncate bg-panel px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">
                             Team
                         </th>
-                        <th className="sticky left-[9rem] z-10 min-w-[8rem] whitespace-nowrap bg-panel px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                        <th className="sticky left-36 z-10 w-32 truncate bg-panel px-3 py-2 text-left font-mono text-xs uppercase tracking-widest text-chalk-dim">
                             Player
                         </th>
                         {scores.weeksAvailable.map(w => (
@@ -72,13 +72,17 @@ export function WeeklyGridTable({ scores, myTeamId, awardType, duoNames }: Weekl
                         return slotRows.map((slotRow, i) => (
                             <tr key={`${row.teamId}-${slotRow.index}`} className={`border-b border-panel-line last:border-0 ${rowBg}`}>
                                 {i === 0 && (
-                                    <td rowSpan={2} className={`sticky left-0 z-10 align-top whitespace-nowrap px-3 py-2 font-body text-sm text-chalk ${rowBg}`}>
+                                    <td
+                                        rowSpan={2}
+                                        title={`${row.teamName}${name ? ` "${name}"` : ''}`}
+                                        className={`sticky left-0 z-10 w-36 truncate align-top px-3 py-2 font-body text-sm text-chalk ${rowBg}`}
+                                    >
                                         {row.teamName}
                                         {name && <span className="ml-1 text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</span>}
                                         {isMe && <span className="ml-1 text-xs text-bell">(You)</span>}
                                     </td>
                                 )}
-                                <td className={`sticky left-[9rem] z-10 whitespace-nowrap px-3 py-2 font-mono text-xs text-chalk-dim ${rowBg}`}>
+                                <td title={slotRow.label} className={`sticky left-36 z-10 w-32 truncate px-3 py-2 font-mono text-xs text-chalk-dim ${rowBg}`}>
                                     {slotRow.label}
                                 </td>
                                 {scores.weeksAvailable.map(w => {
