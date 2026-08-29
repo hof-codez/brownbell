@@ -205,6 +205,45 @@ class BrownBellAutomator {
         return (dayOfWeek === 1 || dayOfWeek === 2); // Mon/Tue = week over
     }
 
+    // Returns minutes until this player's NFL team's game kicks off
+    // (negative if already started), the string 'bye' if their team is
+    // confirmed on bye this week, or null if schedule data genuinely
+    // couldn't be determined (fetch failed, player unresolvable). These
+    // three cases are kept distinct on purpose - a confirmed bye should
+    // NOT be treated as "ineligible" by the kickoff-timing rule below (a
+    // bye player hasn't played, there's nothing to protect against), but
+    // genuinely unknown schedule data should be conservative and block a
+    // pick rather than assume it's safe.
+    async getMinutesUntilKickoff(playerId, week) {
+        const player = this.playersData[playerId];
+        if (!player || !player.team) return null;
+
+        if (!this.cachedSchedule || !this.cachedSchedule[week]) {
+            await this.fetchNFLSchedule(week);
+        }
+
+        const teamGame = this.cachedSchedule?.[week]?.[player.team];
+        if (!teamGame) return null;
+        if (teamGame.date === null) return 'bye';
+
+        const now = new Date();
+        return (teamGame.date.getTime() - now.getTime()) / 60000;
+    }
+
+    // Universal kickoff-timing eligibility rule: a candidate can only be
+    // subbed in - by an owner OR by auto-sub - if their own game hasn't
+    // started (with `bufferMinutes` as a safety margin before the exact
+    // kickoff moment). This prevents anyone from picking a replacement
+    // based on stats that have already happened or are already live.
+    // Currently scoped to Season of Boom only - Main Award and Next Up
+    // retrofit is separate, deliberately deferred work.
+    async isEligibleForSub(playerId, week, bufferMinutes) {
+        const minutesUntilKickoff = await this.getMinutesUntilKickoff(playerId, week);
+        if (minutesUntilKickoff === 'bye') return true; // confirmed bye - not excluded by this rule specifically
+        if (minutesUntilKickoff === null) return false; // genuinely unknown - be conservative
+        return minutesUntilKickoff > bufferMinutes;
+    }
+
     // Weekly check: compares this week's live schedule against the snapshot taken earlier
     // in the week and flags any game whose kickoff time moved - flex scheduling, weather
     // reschedule, etc. This is purely for visibility - hasPlayerGameStarted() already
