@@ -908,7 +908,7 @@ class BrownBellAutomator {
     // logic already verified for the old model (see findSubstitute), adapted to
     // take direct team/award/exclusion inputs instead of the old injuredPlayer/
     // originalDuo shapes duos no longer needs.
-    async selectAutoReplacement(teamName, awardType, week, excludeSleeperIds, otherSlotInfo) {
+    async selectAutoReplacement(teamName, awardType, week, excludeSleeperIds, otherSlotInfo, kickoffBufferMinutes = 0) {
         const roster = this.leagueData.rosters.find(r => this.leagueData.userMap[r.owner_id] === teamName);
         if (!roster) {
             console.warn(`No roster found for ${teamName} - cannot select a replacement`);
@@ -917,7 +917,9 @@ class BrownBellAutomator {
 
         const validPositions = awardType === 'nextup'
             ? ['QB', 'RB', 'WR', 'TE', 'K']
-            : ['QB', 'RB', 'WR', 'TE'];
+            : awardType === 'boom'
+                ? ['DL', 'LB', 'DB']
+                : ['QB', 'RB', 'WR', 'TE'];
 
         const eligibleCandidates = [];
 
@@ -934,12 +936,24 @@ class BrownBellAutomator {
 
             if (await this.isPlayerOnBye(playerId, week)) continue;
 
-            // Can't add someone whose own game for this week has already started
-            if (await this.hasPlayerGameStarted(playerId, week)) continue;
+            // Can't add someone whose own game for this week has already
+            // started. Season of Boom uses the buffered version of this
+            // check (see isEligibleForSub) so auto-sub can trigger BEFORE
+            // the exact kickoff moment, with a configurable safety margin.
+            // Main Award/Next Up still use the original exact-kickoff
+            // check unchanged - that retrofit is separate, deliberately
+            // deferred work, not part of this change.
+            if (awardType === 'boom') {
+                if (!(await this.isEligibleForSub(playerId, week, kickoffBufferMinutes))) continue;
+            } else {
+                if (await this.hasPlayerGameStarted(playerId, week)) continue;
+            }
 
             if (awardType === 'nextup' && !this.isNextUpEligibleExperience(player.years_exp || 0)) continue;
 
-            if (otherSlotInfo) {
+            // Season of Boom has no combo constraint at all - any 2 IDPs
+            // freely, regardless of position overlap.
+            if (otherSlotInfo && awardType !== 'boom') {
                 const candidateInfo = { position: player.position, years: player.years_exp || 0 };
                 const valid = awardType === 'main'
                     ? this.validateDuoCombination(otherSlotInfo.position, candidateInfo.position)
@@ -1088,6 +1102,111 @@ class BrownBellAutomator {
     // still rostered + genuinely injured -> temporary (unconditional, unlimited,
     // auto-reverts to the frozen original once they're healthy again); not on
     // the roster at all -> permanent (trade/release), gated by the team's
+    // Season of Boom's core new behavior: instead of immediately auto-filling
+    // (Main Award/Next Up's existing behavior for a temporary departure) or
+    // immediately clearing with no further checks (existing behavior for a
+    // 1st permanent departure), boom gives the owner a real window to pick
+    // their own replacement, with auto-sub as a safety net that only kicks
+    // in once the best remaining candidate's kickoff is imminent (see
+    // isEligibleForSub's buffer). Shared between the initial detection (in
+    // processDuoSlots below) and the periodic re-check of an already-vacant
+    // slot (checkBoomPendingVacancy) - both need the identical decision,
+    // just with different wording depending on what caused the vacancy.
+    async resolveBoomVacancy(teamName, playerIndex, excludeIds, currentPlayerName, currentPlayerPosition, reasonWhenWaiting, reasonWhenAutoFilled, reasonWhenNoneAvailable, eventTypeWaiting, eventTypeAutoFilled, week) {
+        const bestCandidate = await this.selectAutoReplacement(teamName, 'boom', week, excludeIds, null, 0);
+
+        if (!bestCandidate) {
+            await this.dataLayer.logSubstitution({
+                teamName, awardType: 'boom', playerIndex,
+                originalName: currentPlayerName, originalPosition: currentPlayerPosition,
+                substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                week, source: 'auto', reason: reasonWhenNoneAvailable, noReplacementAvailable: true
+            });
+            return { type: 'no-replacement', teamName, awardType: 'boom' };
+        }
+
+        // 15-minute buffer: the automation's own safety margin before it
+        // steps in, wider than the owner's tighter 1-minute manual window
+        // (enforced separately, in set-duo) since this only checks
+        // periodically rather than continuously.
+        const stillHasTime = await this.isEligibleForSub(bestCandidate.id, week, 15);
+
+        if (stillHasTime) {
+            // Clear but PRESERVE the row (sleeper_player_id: null, not a
+            // deleted row) so original_sleeper_player_id survives for the
+            // revert check and this same vacancy can be re-evaluated on a
+            // later run without losing track of who was originally here.
+            await this.dataLayer.upsertDuoSlot({
+                teamName, awardType: 'boom', playerIndex,
+                playerName: null, playerPosition: null, sleeperPlayerId: null, source: 'auto'
+            });
+            await this.dataLayer.logSubstitution({
+                teamName, awardType: 'boom', playerIndex,
+                originalName: currentPlayerName, originalPosition: currentPlayerPosition,
+                substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                week, source: 'auto', reason: reasonWhenWaiting
+            });
+            return { type: eventTypeWaiting, teamName, awardType: 'boom' };
+        }
+
+        await this.dataLayer.upsertDuoSlot({
+            teamName, awardType: 'boom', playerIndex,
+            playerName: bestCandidate.name, playerPosition: bestCandidate.position,
+            sleeperPlayerId: bestCandidate.id, source: 'auto'
+        });
+        await this.dataLayer.logSubstitution({
+            teamName, awardType: 'boom', playerIndex,
+            originalName: currentPlayerName, originalPosition: currentPlayerPosition,
+            substituteName: bestCandidate.name, substitutePlayerId: bestCandidate.id, substitutePosition: bestCandidate.position,
+            week, source: 'auto', reason: reasonWhenAutoFilled
+        });
+        return { type: eventTypeAutoFilled, teamName, awardType: 'boom', replacement: bestCandidate.name };
+    }
+
+    // Periodic re-check for a boom slot that's ALREADY empty (from a prior
+    // run's clear-and-wait decision above). A slot that's simply never been
+    // set at all (no frozen original) is untouched by this - the owner just
+    // hasn't made their initial pick yet, nothing pending to resolve.
+    async checkBoomPendingVacancy(row, week, byTeamAward) {
+        if (!row.originalSleeperPlayerId) return null;
+
+        const originalPlayer = this.playersData[row.originalSleeperPlayerId];
+        const originalOnRoster = this.isPlayerOnTeamRoster(row.teamName, row.originalSleeperPlayerId);
+        const originalStatus = (originalPlayer?.injury_status || '').toLowerCase();
+        const originalHealthy = originalOnRoster && !['out', 'doubtful', 'ir', 'pup'].includes(originalStatus);
+
+        // A genuinely permanent departure can never pass originalOnRoster
+        // (they're gone from this team's roster for good), so this revert
+        // path is naturally safe for temporary vacancies only - no separate
+        // "was this temporary or permanent" tracking needed.
+        if (originalHealthy) {
+            const originalName = `${originalPlayer.first_name || ''} ${originalPlayer.last_name || ''}`.trim();
+            await this.dataLayer.upsertDuoSlot({
+                teamName: row.teamName, awardType: 'boom', playerIndex: row.playerIndex,
+                playerName: originalName, playerPosition: originalPlayer.position,
+                sleeperPlayerId: row.originalSleeperPlayerId, source: 'auto'
+            });
+            await this.dataLayer.logSubstitution({
+                teamName: row.teamName, awardType: 'boom', playerIndex: row.playerIndex,
+                originalName: '(pending vacancy)', originalPosition: '-',
+                substituteName: originalName, substitutePlayerId: row.originalSleeperPlayerId, substitutePosition: originalPlayer.position,
+                week, source: 'auto', reason: 'Reverted to original player - healthy again'
+            });
+            return { type: 'reverted', teamName: row.teamName, awardType: 'boom' };
+        }
+
+        const pairRow = byTeamAward[`${row.teamName}|boom`]?.[row.playerIndex === 0 ? 1 : 0];
+        const excludeIds = [pairRow?.sleeperPlayerId].filter(Boolean);
+
+        return this.resolveBoomVacancy(
+            row.teamName, row.playerIndex, excludeIds, '(pending vacancy)', '-',
+            'Still awaiting owner pick - plenty of time before kickoff',
+            'Auto-sub - kickoff approaching, no owner pick made',
+            'No eligible replacement currently available - still waiting',
+            'boom-still-waiting', 'boom-auto-fill-near-kickoff', week
+        );
+    }
+
     // 2-swap season budget - 1st time leaves the slot open for the owner, 2nd
     // time auto-fills immediately and revokes manual privilege for the rest of
     // the season.
@@ -1107,7 +1226,13 @@ class BrownBellAutomator {
         }
 
         for (const row of duoRows) {
-            if (!row.sleeperPlayerId) continue;
+            if (!row.sleeperPlayerId) {
+                if (row.awardType === 'boom') {
+                    const event = await this.checkBoomPendingVacancy(row, week, byTeamAward);
+                    if (event) events.push(event);
+                }
+                continue;
+            }
 
             const player = this.playersData[row.sleeperPlayerId];
             if (!player) {
@@ -1179,6 +1304,21 @@ class BrownBellAutomator {
                 const status = (player.injury_status || '').toLowerCase();
                 const qualifyingInjury = ['out', 'doubtful', 'ir', 'pup'].includes(status);
                 if (!qualifyingInjury) continue;
+
+                if (row.awardType === 'boom') {
+                    // Boom gives the owner a real window to pick their own
+                    // replacement here, rather than auto-filling immediately
+                    // like Main Award/Next Up still do - see resolveBoomVacancy.
+                    const event = await this.resolveBoomVacancy(
+                        row.teamName, row.playerIndex, excludeIds, row.playerName, row.playerPosition,
+                        `Temporary - ${player.first_name} ${player.last_name} is ${status}, cleared - pick a replacement or auto-sub kicks in near kickoff`,
+                        `Temporary - ${player.first_name} ${player.last_name} is ${status}, auto-subbed (kickoff approaching, no owner pick made)`,
+                        `No eligible replacement found - ${player.first_name} ${player.last_name} is ${status}, left in slot`,
+                        'boom-temporary-cleared-for-owner', 'temporary-fill', week
+                    );
+                    events.push(event);
+                    continue;
+                }
 
                 const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo);
                 if (replacement) {
@@ -1257,6 +1397,21 @@ class BrownBellAutomator {
                         });
                         events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
                     }
+                } else if (row.awardType === 'boom') {
+                    // 1st permanent departure of the season, boom specifically -
+                    // same owner-window-then-auto-fallback pattern as the
+                    // temporary case above, not an unconditional clear.
+                    const event = await this.resolveBoomVacancy(
+                        row.teamName, row.playerIndex, excludeIds, row.playerName, row.playerPosition,
+                        'Permanent departure - cleared (1st permanent swap of the season) - pick a replacement or auto-sub kicks in near kickoff',
+                        'Permanent departure - auto-subbed (kickoff approaching, no owner pick made) - 1st permanent swap of the season',
+                        'Permanent departure - no eligible replacement currently available - still waiting (1st permanent swap of the season)',
+                        'boom-permanent-cleared-for-owner', 'permanent-auto-fill', week
+                    );
+                    events.push(event);
+                    // Still counts as the season's 1st permanent swap, same
+                    // budget accounting as Main Award/Next Up.
+                    await this.dataLayer.updateTeamSwapState(row.teamName, { permanentSwapsUsed: 1, manualPrivilege: true });
                 } else {
                     // 1st permanent departure of the season - leave it open for the owner
                     await this.dataLayer.clearDuoSlot(row.teamName, row.awardType, row.playerIndex);
