@@ -9,13 +9,23 @@
 // Sleeper data via _shared/swapStatus.ts, and the team's manual-swap budget
 // is enforced from the teams table - never from anything the client sends.
 //
+// Season of Boom (awardType 'boom') differs in three ways: it uses IDP
+// positions (DL/LB/DB) with no combo constraint (any 2 freely) and no
+// cross-award exclusivity (IDP positions never overlap with Main
+// Award/Next Up's offense), and it enforces a NEW rule this function is
+// otherwise the first to apply: a candidate whose own game kicks off
+// within 1 minute is rejected outright, even if everything else about the
+// pick would be valid - see _shared/nflSchedule.ts's kickoff-timing rule.
+// This is the owner's actual deadline; auto-sub's own wider 15-minute
+// safety margin lives in update-standings.js, not here.
+//
 // verify_jwt must be OFF for this function (see ../../config.toml).
 
 import { corsHeaders, handleCorsPreflightRequest } from '../_shared/cors.ts';
 import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
-import { hasTeamGameStarted } from '../_shared/nflSchedule.ts';
-import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS } from '../_shared/eligibility.ts';
+import { hasTeamGameStarted, getMinutesUntilKickoff } from '../_shared/nflSchedule.ts';
+import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS, BOOM_POSITIONS } from '../_shared/eligibility.ts';
 import { classifySwapSituation, checkSwapPermission } from '../_shared/swapStatus.ts';
 
 Deno.serve(async (req: Request) => {
@@ -25,13 +35,12 @@ Deno.serve(async (req: Request) => {
     try {
         const { teamId, deviceToken, awardType, playerIndex, sleeperPlayerId } = await req.json();
 
-        if (!teamId || !deviceToken || !['main', 'nextup'].includes(awardType) || ![0, 1].includes(playerIndex) || !sleeperPlayerId) {
+        if (!teamId || !deviceToken || !['main', 'nextup', 'boom'].includes(awardType) || ![0, 1].includes(playerIndex) || !sleeperPlayerId) {
             return jsonResponse({ success: false, error: 'Missing or invalid input' }, 400);
         }
 
         const supabase = createAdminClient();
 
-        // Auth: this device must be authorized for this team
         const { data: claim, error: claimError } = await supabase
             .from('team_claims').select('device_tokens').eq('team_id', teamId).maybeSingle();
         if (claimError || !claim) {
@@ -54,10 +63,6 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'Season not found' }, 404);
         }
 
-        // Fetch BOTH awards' duos for this team in one go - the current award
-        // (for the usual same-award checks) and the other award (to enforce
-        // cross-award exclusivity: a player used in one award can't also be
-        // used in the other for the same team).
         const { data: allDuos, error: duoError } = await supabase
             .from('duos').select('award_type, player_index, sleeper_player_id, player_name, player_position')
             .eq('team_id', teamId);
@@ -68,7 +73,7 @@ Deno.serve(async (req: Request) => {
         const currentDuo = (allDuos ?? []).filter(d => d.award_type === awardType);
         const otherAwardType = awardType === 'main' ? 'nextup' : 'main';
         const otherAwardPlayerIds = new Set(
-            (allDuos ?? [])
+            awardType === 'boom' ? [] : (allDuos ?? [])
                 .filter(d => d.award_type === otherAwardType && d.sleeper_player_id)
                 .map(d => d.sleeper_player_id as string)
         );
@@ -81,8 +86,6 @@ Deno.serve(async (req: Request) => {
             fetchRosterPlayerIds(season.sleeper_league_id, team.sleeper_roster_id)
         ]);
 
-        // Lock + swap-permission check. Locks are for the SEASON (week 1
-        // specifically), not the week - see get-eligible-roster's matching comment.
         let locked = false;
         let isPermanentSwap = false;
         if (currentPlayer?.sleeper_player_id) {
@@ -101,13 +104,10 @@ Deno.serve(async (req: Request) => {
             }
         }
 
-        // The requested player must actually be on this team's live roster
         if (!rosterPlayerIds.includes(sleeperPlayerId)) {
             return jsonResponse({ success: false, error: 'That player is not on your current roster' }, 400);
         }
 
-        // Cross-award exclusivity - a player already used in this team's other
-        // award can never be double-booked into this one too.
         if (otherAwardPlayerIds.has(sleeperPlayerId)) {
             return jsonResponse({ success: false, error: `That player is already used in your ${otherAwardType === 'main' ? 'Main Award' : 'Next Up'} duo` }, 400);
         }
@@ -117,14 +117,12 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'Could not resolve that player' }, 400);
         }
 
-        const validPositions = awardType === 'nextup' ? NEXTUP_POSITIONS : MAIN_POSITIONS;
+        const validPositions = awardType === 'nextup' ? NEXTUP_POSITIONS : awardType === 'boom' ? BOOM_POSITIONS : MAIN_POSITIONS;
         if (!validPositions.has(newPlayer.position)) {
-            return jsonResponse({ success: false, error: `${newPlayer.position} is not eligible for ${awardType === 'nextup' ? 'Next Up' : 'the Main Award'}` }, 400);
+            const awardLabel = awardType === 'nextup' ? 'Next Up' : awardType === 'boom' ? 'Season of Boom' : 'the Main Award';
+            return jsonResponse({ success: false, error: `${newPlayer.position} is not eligible for ${awardLabel}` }, 400);
         }
 
-        // Individual Next Up eligibility (entering season 1-3) applies regardless of
-        // whether the other slot is filled - this must be checked even with no
-        // pairing partner yet.
         if (awardType === 'nextup' && !isNextUpEligibleExperience(newPlayer.years_exp || 0)) {
             return jsonResponse({ success: false, error: `${newPlayer.first_name} ${newPlayer.last_name} has too many years of experience for Next Up` }, 400);
         }
@@ -133,7 +131,24 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'That player is already in the other slot' }, 400);
         }
 
-        if (otherSlotPlayer?.sleeper_player_id) {
+        // Boom-only: the owner's actual deadline. A candidate whose own
+        // game kicks off within 1 minute (or has already started) is
+        // rejected outright - this is the rule that makes "manual control
+        // can override auto-sub until 1 minute before kickoff" a real,
+        // server-enforced guarantee rather than just a UI suggestion.
+        if (awardType === 'boom' && newPlayer.team) {
+            const minutesUntilKickoff = await getMinutesUntilKickoff(newPlayer.team, season.current_week, String(season.year));
+            if (minutesUntilKickoff !== 'bye' && (minutesUntilKickoff === null || minutesUntilKickoff <= 1)) {
+                return jsonResponse({
+                    success: false,
+                    error: minutesUntilKickoff === null
+                        ? 'Could not confirm this player has not already started - try again in a moment'
+                        : `${newPlayer.first_name} ${newPlayer.last_name}'s game has already started or is about to - too late to pick them this week`
+                }, 400);
+            }
+        }
+
+        if (otherSlotPlayer?.sleeper_player_id && awardType !== 'boom') {
             const otherP = allPlayers[otherSlotPlayer.sleeper_player_id];
             if (otherP?.position) {
                 const otherInfo = { position: otherP.position, yearsExp: otherP.years_exp || 0 };
@@ -159,33 +174,16 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'Failed to save' }, 500);
         }
 
-        // Only a genuinely permanent (trade/release) swap consumes the season's
-        // 2-swap budget - temporary injury swaps never touch this counter.
         if (isPermanentSwap) {
             const { error: teamUpdateError } = await supabase
                 .from('teams')
                 .update({ permanent_swaps_used: team.permanent_swaps_used + 1 })
                 .eq('id', teamId);
             if (teamUpdateError) {
-                // The duo write already succeeded - log this but don't fail the
-                // whole request over a bookkeeping update.
                 console.error('Failed to increment permanent_swaps_used:', teamUpdateError);
             }
         }
 
-        // Log this change to substitutions as a pure history entry - previously
-        // only the automation's own changes were logged here, meaning owner-
-        // driven swaps were invisible to any activity/history view.
-        //
-        // IMPORTANT: updateAllScores still resolves "who's currently in this
-        // slot" by searching this table for an entry with end_week IS NULL -
-        // that's legacy, pre-dating duos becoming the real source of truth,
-        // and hasn't been migrated off yet. Until it is, every write here
-        // MUST close out any prior open entry for this exact slot first, or
-        // the scoring logic can find more than one "active" candidate and
-        // pick whichever it happens to see first - which is not guaranteed
-        // to be the most recent pick. This close-out is what keeps that
-        // legacy lookup correct in the meantime.
         const { error: closeOutError } = await supabase
             .from('substitutions')
             .update({ end_week: Math.max(0, season.current_week - 1), active: false })
@@ -217,8 +215,6 @@ Deno.serve(async (req: Request) => {
             reason
         });
         if (logError) {
-            // The duo write already succeeded - log this but don't fail the
-            // whole request over a history-log entry.
             console.error('Failed to log substitution history:', logError);
         }
 

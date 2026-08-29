@@ -36,3 +36,8 @@ export function isValidNextUpCombo(a: PlayerInfo, b: PlayerInfo): boolean {
 
 export const MAIN_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
 export const NEXTUP_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE', 'K']);
+// Season of Boom: any 2 IDPs freely, no combo constraint at all - unlike
+// Main Award (different positions required) or Next Up (different
+// position AND experience tier required), so there's no isValidBoomCombo
+// function to go with this - nothing to validate beyond the position list.
+export const BOOM_POSITIONS = new Set(['DL', 'LB', 'DB']);
