@@ -14,18 +14,16 @@ import { DuoNameModal } from './components/DuoNameModal';
 import { CountdownBanner } from './components/CountdownBanner';
 import { Tabs } from './components/Tabs';
 import { TeamsView } from './components/TeamsView';
-import { RulesPage } from './components/RulesPage';
 import { LeagueTab } from './components/LeagueTab';
 import { ShowdownTab } from './components/ShowdownTab';
-import { HistoryTab } from './components/HistoryTab';
+import { MiscTab } from './components/MiscTab';
 import type { AwardType } from './types';
 
 const TABS = [
   { id: 'teams', label: 'Teams' },
   { id: 'league', label: 'League' },
   { id: 'bonus', label: 'Showdown' },
-  { id: 'history', label: 'History' },
-  { id: 'rules', label: 'Rules' }
+  { id: 'misc', label: 'Misc.' }
 ];
 
 export default function App() {
@@ -38,9 +36,10 @@ export default function App() {
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
   const [namingAward, setNamingAward] = useState<AwardType | null>(null);
   const [activeTab, setActiveTab] = useState('teams');
-  // Set alongside switching to the Rules tab so it knows which section to
-  // scroll to - cleared once RulesPage has consumed it via its own effect,
-  // but simplest to just always pass the latest value down.
+  // Set alongside switching to the Misc tab so MiscTab knows to force its
+  // Rules sub-tab open and which section to scroll to - cleared once
+  // RulesPage has consumed it via its own effect, but simplest to just
+  // always pass the latest value down.
   const [rulesScrollTarget, setRulesScrollTarget] = useState<string | null>(null);
 
   const myTeam = claimedTeam ? teams.find(t => t.team.id === claimedTeam.teamId) ?? null : null;
@@ -53,7 +52,7 @@ export default function App() {
 
   function goToRulesSection(id: string) {
     setRulesScrollTarget(id);
-    setActiveTab('rules');
+    setActiveTab('misc');
   }
 
   return (
@@ -98,11 +97,9 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'history' && (
-          <HistoryTab teams={teams.map(t => t.team)} />
+        {activeTab === 'misc' && (
+          <MiscTab teams={teams.map(t => t.team)} rulesScrollTarget={rulesScrollTarget} />
         )}
-
-        {activeTab === 'rules' && <RulesPage scrollToId={activeTab === 'rules' ? rulesScrollTarget : null} />}
       </main>
 
       {showClaimModal && (

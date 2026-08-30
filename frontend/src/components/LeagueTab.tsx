@@ -3,30 +3,13 @@ import { useLeagueScores } from '../hooks/useLeagueScores';
 import { useBonusResults } from '../hooks/useBonusResults';
 import { SeasonRankingsTable } from './SeasonRankingsTable';
 import { WeeklyScoresTable } from './WeeklyScoresTable';
+import { PillToggle } from './PillToggle';
 import type { TeamWithDuos, AwardType } from '../types';
 
 interface LeagueTabProps {
     teams: TeamWithDuos[];
     myTeamId?: string | null;
     duoNames?: Map<string, string>;
-}
-
-function PillToggle<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
-    return (
-        <div className="inline-flex rounded border border-panel-line p-0.5">
-            {options.map(opt => (
-                <button
-                    key={opt.id}
-                    onClick={() => onChange(opt.id)}
-                    className={`rounded px-3 py-1 font-mono text-xs uppercase tracking-widest transition-colors ${
-                        value === opt.id ? 'bg-bell text-field' : 'text-chalk-dim'
-                    }`}
-                >
-                    {opt.label}
-                </button>
-            ))}
-        </div>
-    );
 }
 
 export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
