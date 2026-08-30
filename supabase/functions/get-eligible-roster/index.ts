@@ -100,9 +100,15 @@ Deno.serve(async (req: Request) => {
             ? { position: allPlayers[otherSlotPlayer.sleeper_player_id]?.position || otherSlotPlayer.player_position, yearsExp: allPlayers[otherSlotPlayer.sleeper_player_id]?.years_exp || 0 }
             : null;
 
-        // Boom's kickoff-timing eligibility - fetched ONCE regardless of how
-        // many candidates there are, not once per candidate.
-        const weekSchedule = awardType === 'boom' && allowSwap
+        // Boom's kickoff-timing eligibility only matters once the slot is
+        // actually locked (a real in-season substitution scenario) - before
+        // that, this is the initial pre-season pick, nobody's game is
+        // anywhere close to starting, and this check has nothing to
+        // protect against. Gating on `locked` specifically (not just
+        // `allowSwap`, which defaults to true even when not locked at all)
+        // is what keeps the initial pick flow completely unaffected by
+        // this rule.
+        const weekSchedule = awardType === 'boom' && locked && allowSwap
             ? await fetchWeekSchedule(season.current_week, String(season.year))
             : null;
 
@@ -125,10 +131,10 @@ Deno.serve(async (req: Request) => {
                     : isValidNextUpCombo(otherPlayerInfo, candidateInfo);
             })
             .filter(({ player }) => {
-                // Boom-only: a candidate whose own game kicks off within 1
-                // minute is excluded entirely - picking them would be
-                // immediately rejected by set-duo anyway.
-                if (awardType !== 'boom') return true;
+                // Boom-only, and only once actually locked - see the
+                // weekSchedule comment above for why this doesn't apply to
+                // the initial pre-season pick.
+                if (awardType !== 'boom' || !locked) return true;
                 return isEligibleForSubFromSchedule(weekSchedule, player!.team || '', 1);
             })
             .map(({ id, player }) => ({

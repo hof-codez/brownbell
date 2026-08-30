@@ -136,7 +136,13 @@ Deno.serve(async (req: Request) => {
         // rejected outright - this is the rule that makes "manual control
         // can override auto-sub until 1 minute before kickoff" a real,
         // server-enforced guarantee rather than just a UI suggestion.
-        if (awardType === 'boom' && newPlayer.team) {
+        //
+        // Gated on `locked` for the same reason as get-eligible-roster's
+        // matching check: this only means anything once a slot is already
+        // locked (a real in-season substitution). The initial pre-season
+        // pick has nobody's game anywhere close to starting, so this rule
+        // has nothing to protect against yet and must not apply.
+        if (awardType === 'boom' && locked && newPlayer.team) {
             const minutesUntilKickoff = await getMinutesUntilKickoff(newPlayer.team, season.current_week, String(season.year));
             if (minutesUntilKickoff !== 'bye' && (minutesUntilKickoff === null || minutesUntilKickoff <= 1)) {
                 return jsonResponse({
