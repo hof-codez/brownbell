@@ -24,7 +24,7 @@ interface TeamCardProps {
 
 export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, currentWeekScore, onNameDuo, onCustomize, onViewHistory, collapsible }: TeamCardProps) {
     const { team, main, nextup, boom } = teamWithDuos;
-    const [expanded, setExpanded] = useState(!collapsible);
+    const [expanded, setExpanded] = useState(true);
 
     function isBye(slot: TeamWithDuos['main'][number]): boolean {
         return !!slot?.sleeper_player_id && !!byePlayerIds?.has(slot.sleeper_player_id);
