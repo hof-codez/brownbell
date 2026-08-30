@@ -10,9 +10,10 @@ interface TeamsViewProps {
     byePlayerIds?: Set<string>;
     duoNames?: Map<string, string>;
     onNameDuo?: (awardType: AwardType) => void;
+    onCustomize?: () => void;
 }
 
-export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, onNameDuo }: TeamsViewProps) {
+export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, onNameDuo, onCustomize }: TeamsViewProps) {
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading teams&hellip;</p>;
     }
@@ -54,7 +55,7 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
                 <section className="mb-8">
                     <h2 className="mb-2 font-mono text-xs uppercase tracking-widest text-bell">Your Team</h2>
                     <div className="max-w-sm">
-                        <TeamCard teamWithDuos={myTeam} onEditSlot={onEditSlot} byePlayerIds={byePlayerIds} duoNames={duoNames} onNameDuo={onNameDuo} />
+                        <TeamCard teamWithDuos={myTeam} onEditSlot={onEditSlot} byePlayerIds={byePlayerIds} duoNames={duoNames} onNameDuo={onNameDuo} onCustomize={onCustomize} />
                     </div>
                 </section>
             )}

@@ -13,6 +13,8 @@ export interface Team {
   sleeper_roster_id: string;
   permanent_swaps_used: number;
   manual_privilege: boolean;
+  background_image_url: string | null;
+  background_opacity: number;
 }
 
 export interface DuoRow {

@@ -6,11 +6,13 @@ import { useLockCountdown } from './hooks/useLockCountdown';
 import { useCurrentWeekByeStatus } from './hooks/useCurrentWeekByeStatus';
 import { useDuoNames, duoNameKey } from './hooks/useDuoNames';
 import { useDuoNaming } from './hooks/useDuoNaming';
+import { useTeamBackground } from './hooks/useTeamBackground';
 import { Header } from './components/Header';
 import { ClaimStatusBar } from './components/ClaimStatusBar';
 import { ClaimTeamModal } from './components/ClaimTeamModal';
 import { DuoPickerModal } from './components/DuoPickerModal';
 import { DuoNameModal } from './components/DuoNameModal';
+import { TeamBackgroundModal } from './components/TeamBackgroundModal';
 import { CountdownBanner } from './components/CountdownBanner';
 import { Tabs } from './components/Tabs';
 import { TeamsView } from './components/TeamsView';
@@ -35,6 +37,7 @@ export default function App() {
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
   const [namingAward, setNamingAward] = useState<AwardType | null>(null);
+  const [showBackgroundModal, setShowBackgroundModal] = useState(false);
   const [activeTab, setActiveTab] = useState('teams');
   // Set alongside switching to the Misc tab so MiscTab knows to force its
   // Rules sub-tab open and which section to scroll to - cleared once
@@ -49,6 +52,7 @@ export default function App() {
   // teamId/deviceToken, and there's nothing to edit without one.
   const picker = useDuoPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
   const naming = useDuoNaming(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
+  const background = useTeamBackground(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
 
   function goToRulesSection(id: string) {
     setRulesScrollTarget(id);
@@ -81,6 +85,7 @@ export default function App() {
             byePlayerIds={byePlayerIds}
             duoNames={duoNames}
             onNameDuo={claimedTeam ? (awardType) => setNamingAward(awardType) : undefined}
+            onCustomize={claimedTeam ? () => setShowBackgroundModal(true) : undefined}
           />
         )}
 
@@ -140,6 +145,20 @@ export default function App() {
             setNamingAward(null);
             refetchDuoNames();
           }}
+        />
+      )}
+
+      {showBackgroundModal && myTeam && (
+        <TeamBackgroundModal
+          team={myTeam.team}
+          uploadBackground={background.uploadBackground}
+          resetBackground={background.resetBackground}
+          saving={background.saving}
+          onDone={() => {
+            setShowBackgroundModal(false);
+            refetch();
+          }}
+          onClose={() => setShowBackgroundModal(false)}
         />
       )}
     </div>
