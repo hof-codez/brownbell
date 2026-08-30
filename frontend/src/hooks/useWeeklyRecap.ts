@@ -8,12 +8,14 @@ interface TeamRef {
 }
 
 export interface RecapData {
-    /** Whether this week has genuinely started - at least one bonus_results
-     * row exists, which the automation only ever writes once real,
-     * non-zero score data exists (see the matching server-side check).
-     * When false, every category below is intentionally null/empty - there
-     * is nothing genuine to report yet, not "nobody's ahead." */
-    weekHasStarted: boolean;
+    /** Whether this week has genuinely CONCLUDED - not just started. Every
+     * category below is an outcome/record claim (an upset, a "most
+     * dominant" win), and those can flip while the week is still live
+     * (Thursday through Monday night) - matching standard fantasy
+     * convention, this only becomes true once the automation itself marks
+     * the week final (no games left pre/in-progress). When false, every
+     * category below is intentionally null/empty. */
+    weekIsFinal: boolean;
     /** The lower-cumulative-total team beating the higher one - null if no
      * such result this week (including if every matchup went "as expected"). */
     upsetOfWeek: (TeamRef & { opponent: TeamRef; cumulativeGapBeaten: number }) | null;
@@ -53,7 +55,7 @@ export function useWeeklyRecap(teams: TeamWithDuos[], week: number) {
                     .select('team_id, award_type, week, points, sleeper_player_id, player_name, was_bye')
                     .in('team_id', teamIds),
                 supabase.from('bonus_results')
-                    .select('team_id, week, opponent_team_id, team_score, opponent_score, outcome')
+                    .select('team_id, week, opponent_team_id, team_score, opponent_score, outcome, is_final')
                     .in('team_id', teamIds)
                     .eq('week', week)
             ]);
@@ -65,17 +67,17 @@ export function useWeeklyRecap(teams: TeamWithDuos[], week: number) {
             const scoreRows = scoresRes.data ?? [];
             const bonusRows = bonusRes.data ?? [];
 
-            // The automation only ever writes bonus_results once real,
-            // non-zero score data exists for the week - so its mere
-            // presence is a reliable "has this week actually started"
-            // signal, without needing to re-derive that independently here
-            // (and potentially disagreeing with the server-side check).
-            const weekHasStarted = bonusRows.length > 0;
+            // Every category here is an outcome/record claim - it must wait
+            // for the week to be genuinely CONCLUDED (matching standard
+            // fantasy convention), not just started. The automation sets
+            // is_final itself once no games are left pre/in-progress for
+            // the week (see the matching server-side check).
+            const weekIsFinal = bonusRows.length > 0 && bonusRows.every(r => r.is_final);
 
-            if (!weekHasStarted) {
+            if (!weekIsFinal) {
                 if (!cancelled) {
                     setRecap({
-                        weekHasStarted: false,
+                        weekIsFinal: false,
                         upsetOfWeek: null, mostDominant: null, closestCall: null,
                         mostDisappointing: null, mostImproved: null, nextUpSpotlight: null,
                         byeWeekCasualties: []
@@ -185,7 +187,7 @@ export function useWeeklyRecap(teams: TeamWithDuos[], week: number) {
             }
 
             if (!cancelled) {
-                setRecap({ weekHasStarted: true, upsetOfWeek, mostDominant, closestCall, mostDisappointing, mostImproved, nextUpSpotlight, byeWeekCasualties });
+                setRecap({ weekIsFinal: true, upsetOfWeek, mostDominant, closestCall, mostDisappointing, mostImproved, nextUpSpotlight, byeWeekCasualties });
                 setLoading(false);
             }
         }

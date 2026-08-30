@@ -25,6 +25,12 @@ export interface Matchup {
      * specifically - not today's standings, so a past week's pick never
      * changes later as the season moves on. */
     isMatchupOfTheWeek: boolean;
+    /** Live scores update all week regardless of this - it only tracks
+     * whether the week has genuinely concluded (matching standard fantasy
+     * convention, official after the last game - typically Monday Night
+     * Football). Only meaningful when played is true; always false
+     * otherwise. */
+    isFinal: boolean;
     /** Team A's probability of winning, computed ONLY from scoring history
      * strictly BEFORE this week - a genuine pre-game prediction, not
      * hindsight. Stays fixed once computed, so a played week's "upset" (the
@@ -82,7 +88,7 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
 
             const [bonusResultsRes, weeklyScoresRes] = await Promise.all([
                 supabase.from('bonus_results')
-                    .select('team_id, week, opponent_team_id, team_score, opponent_score, outcome, tier, bonus_points')
+                    .select('team_id, week, opponent_team_id, team_score, opponent_score, outcome, tier, bonus_points, is_final')
                     .in('team_id', teamIds),
                 // Only Main Award scores are relevant here - bonus matchups are a
                 // Main Award mechanic, Next Up never enters into this.
@@ -162,7 +168,8 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                             tier: null,
                             bonusPointsEach: 0,
                             isMatchupOfTheWeek: false,
-                            teamAWinProbability: null
+                            teamAWinProbability: null,
+                            isFinal: false
                         };
                     }
 
@@ -179,7 +186,8 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                         tier: rowA.outcome === 'loss' ? rowB.tier : rowA.tier,
                         bonusPointsEach: rowA.outcome === 'loss' ? Number(rowB.bonus_points) : Number(rowA.bonus_points),
                         isMatchupOfTheWeek: false,
-                        teamAWinProbability: null
+                        teamAWinProbability: null,
+                        isFinal: !!rowA.is_final
                     };
                 });
                 byWeek.set(week, weekMatchups);
@@ -271,6 +279,12 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                 records.set(t.id, { wins: 0, losses: 0, ties: 0 });
             }
             for (const row of rows) {
+                // Only genuinely concluded weeks count toward the season total
+                // and record - this is the number that decides the Brown Bell
+                // Award, so it shouldn't move mid-week off live, still-settling
+                // scores, matching standard fantasy convention (official after
+                // the week's last game, typically Monday Night Football).
+                if (!row.is_final) continue;
                 bonusTotals.set(row.team_id, (bonusTotals.get(row.team_id) || 0) + Number(row.bonus_points));
                 const rec = records.get(row.team_id) || { wins: 0, losses: 0, ties: 0 };
                 if (row.outcome === 'win') rec.wins++;
