@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { HistoryTab } from './HistoryTab';
 import { RulesPage } from './RulesPage';
 import { BonusRulesSection } from './BonusRulesSection';
+import { RewardsSection } from './RewardsSection';
 import { PillToggle } from './PillToggle';
 import type { Team } from '../types';
 
@@ -23,7 +24,7 @@ interface MiscTabProps {
 }
 
 export function MiscTab({ teams, miscScrollTarget, historyTeamFilter, onClearHistoryFilter }: MiscTabProps) {
-    const [subTab, setSubTab] = useState<'history' | 'bonus' | 'rules'>('history');
+    const [subTab, setSubTab] = useState<'history' | 'bonus' | 'rewards' | 'rules'>('history');
 
     useEffect(() => {
         if (miscScrollTarget) setSubTab('bonus');
@@ -37,7 +38,7 @@ export function MiscTab({ teams, miscScrollTarget, historyTeamFilter, onClearHis
         <div>
             <div className="mb-4">
                 <PillToggle
-                    options={[{ id: 'history', label: 'History' }, { id: 'bonus', label: 'Bonus' }, { id: 'rules', label: 'Rules' }]}
+                    options={[{ id: 'history', label: 'History' }, { id: 'bonus', label: 'Bonus' }, { id: 'rewards', label: 'Rewards' }, { id: 'rules', label: 'Rules' }]}
                     value={subTab}
                     onChange={setSubTab}
                 />
@@ -45,6 +46,7 @@ export function MiscTab({ teams, miscScrollTarget, historyTeamFilter, onClearHis
 
             {subTab === 'history' && <HistoryTab teams={teams} teamFilter={historyTeamFilter} onClearFilter={onClearHistoryFilter} />}
             {subTab === 'bonus' && <BonusRulesSection scrollToId={miscScrollTarget} />}
+            {subTab === 'rewards' && <RewardsSection />}
             {subTab === 'rules' && <RulesPage />}
         </div>
     );
