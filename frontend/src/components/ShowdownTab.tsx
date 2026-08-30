@@ -44,12 +44,33 @@ interface MatchupSideProps {
     isWinner: boolean;
     align: 'left' | 'right';
     name?: string;
+    backgroundImageUrl?: string | null;
+    backgroundOpacity?: number;
 }
 
-function MatchupSide({ team, isMe, isWinner, align, name }: MatchupSideProps) {
+function MatchupSide({ team, isMe, isWinner, align, name, backgroundImageUrl, backgroundOpacity }: MatchupSideProps) {
     const alignClass = align === 'right' ? 'items-end text-right' : 'items-start text-left';
     return (
-        <div className={`flex min-w-0 flex-col ${alignClass}`}>
+        <div className={`relative min-w-0 overflow-hidden rounded ${backgroundImageUrl ? 'p-1.5' : ''}`}>
+            {backgroundImageUrl && (
+                <>
+                    <div
+                        className="absolute inset-0"
+                        style={{
+                            backgroundImage: `url(${backgroundImageUrl})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            opacity: backgroundOpacity ?? 0.25
+                        }}
+                        aria-hidden="true"
+                    />
+                    {/* Same fixed readability scrim as TeamCard - independent of
+                        the owner's chosen opacity, so a strong background can
+                        never make this side's score/players unreadable. */}
+                    <div className="absolute inset-0 bg-panel/70" aria-hidden="true" />
+                </>
+            )}
+            <div className={`relative z-10 flex min-w-0 flex-col ${alignClass}`}>
             <p className={`truncate font-body text-sm font-semibold ${isWinner ? 'text-chalk' : 'text-chalk-dim'}`}>
                 {team.teamName}
                 {isMe && <span className="ml-1 text-xs text-bell">(You)</span>}
@@ -65,6 +86,7 @@ function MatchupSide({ team, isMe, isWinner, align, name }: MatchupSideProps) {
             <p className={`mt-1.5 font-mono text-xl font-bold ${isWinner ? 'text-chalk' : 'text-chalk-dim'}`}>
                 {team.score.toFixed(1)}
             </p>
+            </div>
         </div>
     );
 }
@@ -179,6 +201,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
     const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
     const [predictionError, setPredictionError] = useState<string | null>(null);
     const canVote = !!myTeamId && !!deviceToken;
+    const teamsById = new Map(teams.map(t => [t.team.id, t.team]));
 
     async function handlePick(week: number, teamAId: string, teamBId: string, pickedTeamId: string) {
         if (!myTeamId || !deviceToken) return;
@@ -311,7 +334,15 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                     </p>
                                 )}
                                 <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-                                    <MatchupSide team={m.teamA} isMe={m.teamA.teamId === myTeamId} isWinner={aHighlight} align="left" name={aName} />
+                                    <MatchupSide
+                                        team={m.teamA}
+                                        isMe={m.teamA.teamId === myTeamId}
+                                        isWinner={aHighlight}
+                                        align="left"
+                                        name={aName}
+                                        backgroundImageUrl={teamsById.get(m.teamA.teamId)?.background_image_url}
+                                        backgroundOpacity={teamsById.get(m.teamA.teamId)?.background_opacity}
+                                    />
                                     <div className="flex flex-col items-center pt-1">
                                         <span className="rounded-full border border-panel-line bg-field px-2 py-1 font-mono text-[10px] font-bold text-chalk-dim">
                                             VS
@@ -322,7 +353,15 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                             </span>
                                         )}
                                     </div>
-                                    <MatchupSide team={m.teamB} isMe={m.teamB.teamId === myTeamId} isWinner={bHighlight} align="right" name={bName} />
+                                    <MatchupSide
+                                        team={m.teamB}
+                                        isMe={m.teamB.teamId === myTeamId}
+                                        isWinner={bHighlight}
+                                        align="right"
+                                        name={bName}
+                                        backgroundImageUrl={teamsById.get(m.teamB.teamId)?.background_image_url}
+                                        backgroundOpacity={teamsById.get(m.teamB.teamId)?.background_opacity}
+                                    />
                                 </div>
                                 <p className="mt-2 font-mono text-xs uppercase tracking-widest text-bell">
                                     {!m.played
