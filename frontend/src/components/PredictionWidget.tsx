@@ -8,12 +8,15 @@ interface PredictionWidgetProps {
     canVote: boolean;
     saving: boolean;
     onPick: (teamId: string) => void;
+    /** Null until at least one vote exists - nothing to show a percentage
+     * split of yet. */
+    voteSplit: { teamAPercent: number; teamBPercent: number; totalVotes: number } | null;
 }
 
 // Deliberately subtle - two small text buttons, no loud graphics. Hidden
 // entirely (not just disabled) for anyone without a claimed team, since
 // voting requires being logged into one.
-export function PredictionWidget({ teamAId, teamAName, teamBId, teamBName, currentPick, locked, canVote, saving, onPick }: PredictionWidgetProps) {
+export function PredictionWidget({ teamAId, teamAName, teamBId, teamBName, currentPick, locked, canVote, saving, onPick, voteSplit }: PredictionWidgetProps) {
     if (!canVote) return null;
 
     return (
@@ -29,6 +32,7 @@ export function PredictionWidget({ teamAId, teamAName, teamBId, teamBName, curre
                 }`}
             >
                 {teamAName}
+                {voteSplit && <span className="ml-1 text-chalk-dim">{Math.round(voteSplit.teamAPercent)}%</span>}
             </button>
             <button
                 onClick={() => onPick(teamBId)}
@@ -38,6 +42,7 @@ export function PredictionWidget({ teamAId, teamAName, teamBId, teamBName, curre
                 }`}
             >
                 {teamBName}
+                {voteSplit && <span className="ml-1 text-chalk-dim">{Math.round(voteSplit.teamBPercent)}%</span>}
             </button>
         </div>
     );

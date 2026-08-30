@@ -36,6 +36,11 @@ interface UsePredictionsResult {
     error: string | null;
     saving: boolean;
     getMyPrediction: (voterTeamId: string, week: number, teamAId: string, teamBId: string) => string | null;
+    /** Percentage split between the two choices, based on votes actually
+     * cast on this specific matchup (so the two percentages always sum to
+     * 100) - not a share of all league owners, since not everyone votes on
+     * every matchup. Null if nobody has voted yet (nothing to divide by). */
+    getVoteSplit: (week: number, teamAId: string, teamBId: string) => { teamAPercent: number; teamBPercent: number; totalVotes: number } | null;
     submitPrediction: (voterTeamId: string, deviceToken: string, week: number, teamAId: string, teamBId: string, predictedWinnerTeamId: string) => Promise<{ success: boolean; error?: string }>;
     blocks: PredictionBlock[];
 }
@@ -80,6 +85,23 @@ export function usePredictions(teams: Team[], matchupsByWeek: Map<number, Matchu
             ((r.team_a_id === teamAId && r.team_b_id === teamBId) || (r.team_a_id === teamBId && r.team_b_id === teamAId))
         );
         return row?.predicted_winner_team_id ?? null;
+    }, [rows]);
+
+    const getVoteSplit = useCallback((week: number, teamAId: string, teamBId: string) => {
+        const matchingRows = rows.filter(r =>
+            r.week === week &&
+            ((r.team_a_id === teamAId && r.team_b_id === teamBId) || (r.team_a_id === teamBId && r.team_b_id === teamAId))
+        );
+        const totalVotes = matchingRows.length;
+        if (totalVotes === 0) return null;
+
+        const votesForA = matchingRows.filter(r => r.predicted_winner_team_id === teamAId).length;
+        const votesForB = totalVotes - votesForA;
+        return {
+            teamAPercent: (votesForA / totalVotes) * 100,
+            teamBPercent: (votesForB / totalVotes) * 100,
+            totalVotes
+        };
     }, [rows]);
 
     const submitPrediction = useCallback(async (
@@ -155,5 +177,5 @@ export function usePredictions(teams: Team[], matchupsByWeek: Map<number, Matchu
         };
     });
 
-    return { loading, error, saving, getMyPrediction, submitPrediction, blocks };
+    return { loading, error, saving, getMyPrediction, getVoteSplit, submitPrediction, blocks };
 }

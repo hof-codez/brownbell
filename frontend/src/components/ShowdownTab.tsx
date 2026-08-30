@@ -341,6 +341,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                     teamBId={m.teamB.teamId}
                                     teamBName={bName || m.teamB.teamName}
                                     currentPick={myTeamId ? predictions.getMyPrediction(myTeamId, m.week, m.teamA.teamId, m.teamB.teamId) : null}
+                                    voteSplit={predictions.getVoteSplit(m.week, m.teamA.teamId, m.teamB.teamId)}
                                     locked={m.played}
                                     canVote={canVote}
                                     saving={predictions.saving}
