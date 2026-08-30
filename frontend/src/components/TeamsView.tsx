@@ -12,9 +12,10 @@ interface TeamsViewProps {
     currentWeekScores?: Map<string, number>;
     onNameDuo?: (awardType: AwardType) => void;
     onCustomize?: () => void;
+    onViewHistory?: (teamId: string) => void;
 }
 
-export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, currentWeekScores, onNameDuo, onCustomize }: TeamsViewProps) {
+export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, currentWeekScores, onNameDuo, onCustomize, onViewHistory }: TeamsViewProps) {
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading teams&hellip;</p>;
     }
@@ -64,6 +65,7 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
                             currentWeekScore={currentWeekScores?.get(myTeam.team.id)}
                             onNameDuo={onNameDuo}
                             onCustomize={onCustomize}
+                            onViewHistory={onViewHistory ? () => onViewHistory(myTeam.team.id) : undefined}
                         />
                     </div>
                 </section>
@@ -82,6 +84,8 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
                                 byePlayerIds={byePlayerIds}
                                 duoNames={duoNames}
                                 currentWeekScore={currentWeekScores?.get(teamWithDuos.team.id)}
+                                onViewHistory={onViewHistory ? () => onViewHistory(teamWithDuos.team.id) : undefined}
+                                collapsible
                             />
                         ))}
                     </div>
