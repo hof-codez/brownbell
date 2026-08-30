@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { AwardType, EligibleRosterResponse, EligibleCandidate } from '../types';
 
+// Preferred ordering for offensive positions specifically - IDP positions
+// (DL/LB/DB) and anything else not in this list still get included, just
+// appended afterward. A candidate's position not being anticipated here is
+// never a reason to silently drop them from the list.
 const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'K'];
 
 function groupByPosition(candidates: EligibleCandidate[]): [string, EligibleCandidate[]][] {
@@ -10,9 +14,9 @@ function groupByPosition(candidates: EligibleCandidate[]): [string, EligibleCand
         list.push(c);
         groups.set(c.position, list);
     }
-    return POSITION_ORDER
-        .filter(pos => groups.has(pos))
-        .map(pos => [pos, groups.get(pos)!]);
+    const orderedKnown = POSITION_ORDER.filter(pos => groups.has(pos));
+    const remaining = [...groups.keys()].filter(pos => !POSITION_ORDER.includes(pos)).sort();
+    return [...orderedKnown, ...remaining].map(pos => [pos, groups.get(pos)!]);
 }
 
 interface DuoPickerModalProps {
