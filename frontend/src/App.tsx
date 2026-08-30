@@ -150,9 +150,10 @@ export default function App() {
 
       {showBackgroundModal && myTeam && (
         <TeamBackgroundModal
-          team={myTeam.team}
+          teamWithDuos={myTeam}
           uploadBackground={background.uploadBackground}
           resetBackground={background.resetBackground}
+          setOpacity={background.setOpacity}
           saving={background.saving}
           onDone={() => {
             setShowBackgroundModal(false);

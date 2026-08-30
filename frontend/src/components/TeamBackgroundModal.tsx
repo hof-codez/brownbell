@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
-import type { Team } from '../types';
+import type { TeamWithDuos } from '../types';
+import { TeamCard } from './TeamCard';
 
 interface TeamBackgroundModalProps {
-    team: Team;
+    teamWithDuos: TeamWithDuos;
     uploadBackground: (file: File, opacity: number) => Promise<{ success: boolean; error?: string }>;
     resetBackground: () => Promise<{ success: boolean; error?: string }>;
+    setOpacity: (opacity: number) => Promise<{ success: boolean; error?: string }>;
     saving: boolean;
     onDone: () => void;
     onClose: () => void;
@@ -13,10 +15,11 @@ interface TeamBackgroundModalProps {
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
-export function TeamBackgroundModal({ team, uploadBackground, resetBackground, saving, onDone, onClose }: TeamBackgroundModalProps) {
+export function TeamBackgroundModal({ teamWithDuos, uploadBackground, resetBackground, setOpacity, saving, onDone, onClose }: TeamBackgroundModalProps) {
+    const { team } = teamWithDuos;
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(team.background_image_url);
-    const [opacity, setOpacityValue] = useState(team.background_opacity);
+    const [opacityValue, setOpacityValue] = useState(team.background_opacity);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -44,16 +47,26 @@ export function TeamBackgroundModal({ team, uploadBackground, resetBackground, s
 
     async function handleSave() {
         setError(null);
-        if (!selectedFile) {
-            onClose();
+
+        if (selectedFile) {
+            // A new image was chosen - upload it together with the current
+            // opacity setting in one call.
+            const result = await uploadBackground(selectedFile, opacityValue);
+            if (result.success) { onDone(); } else { setError(result.error || 'Could not save - try again.'); }
             return;
         }
-        const result = await uploadBackground(selectedFile, opacity);
-        if (result.success) {
-            onDone();
-        } else {
-            setError(result.error || 'Could not save - try again.');
+
+        if (opacityValue !== team.background_opacity) {
+            // No new image, but the opacity slider moved - this still needs
+            // to actually save. Previously this branch silently closed the
+            // modal without persisting the change at all.
+            const result = await setOpacity(opacityValue);
+            if (result.success) { onDone(); } else { setError(result.error || 'Could not save - try again.'); }
+            return;
         }
+
+        // Nothing actually changed - just close.
+        onClose();
     }
 
     async function handleReset() {
@@ -66,9 +79,24 @@ export function TeamBackgroundModal({ team, uploadBackground, resetBackground, s
         }
     }
 
+    // Accurate preview: the REAL TeamCard component, with only the
+    // background fields overridden to reflect what's currently selected but
+    // not yet saved. This is the same rendering path the real Teams tab
+    // uses, so there's no separate preview logic that could drift out of
+    // sync with how the card actually looks - what you see here is exactly
+    // what everyone else will see.
+    const previewTeamWithDuos: TeamWithDuos = {
+        ...teamWithDuos,
+        team: {
+            ...team,
+            background_image_url: previewUrl,
+            background_opacity: opacityValue
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" role="dialog" aria-modal="true">
-            <div className="max-h-[80vh] w-full max-w-sm overflow-y-auto rounded-t-lg border border-panel-line bg-panel p-5 sm:rounded-lg">
+            <div className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-t-lg border border-panel-line bg-panel p-5 sm:rounded-lg">
                 <h2 className="font-display text-2xl font-bold uppercase tracking-wide text-chalk">
                     Customize Card
                 </h2>
@@ -76,16 +104,9 @@ export function TeamBackgroundModal({ team, uploadBackground, resetBackground, s
                     Visible to everyone on the Teams tab, same as your duo nicknames.
                 </p>
 
-                <div
-                    className="relative mt-4 h-32 overflow-hidden rounded border border-panel-line bg-field"
-                    style={previewUrl ? { backgroundImage: `url(${previewUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
-                >
-                    <div className="absolute inset-0 bg-field" style={{ opacity: previewUrl ? 1 - opacity : 1 }} />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="font-body text-sm text-chalk-dim">
-                            {previewUrl ? 'Preview' : 'No custom background'}
-                        </span>
-                    </div>
+                <p className="mt-4 font-mono text-xs uppercase tracking-widest text-chalk-dim">Preview</p>
+                <div className="mt-1.5 pointer-events-none">
+                    <TeamCard teamWithDuos={previewTeamWithDuos} />
                 </div>
 
                 <label className="mt-4 block">
@@ -100,14 +121,14 @@ export function TeamBackgroundModal({ team, uploadBackground, resetBackground, s
 
                 <label className="mt-4 block">
                     <span className="font-mono text-xs uppercase tracking-widest text-chalk-dim">
-                        Image strength: {Math.round(opacity * 100)}%
+                        Image strength: {Math.round(opacityValue * 100)}%
                     </span>
                     <input
                         type="range"
                         min={0}
                         max={1}
                         step={0.05}
-                        value={opacity}
+                        value={opacityValue}
                         onChange={e => setOpacityValue(Number(e.target.value))}
                         className="mt-1.5 block w-full"
                     />
