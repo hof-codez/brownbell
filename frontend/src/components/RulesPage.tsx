@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { BellIcon, SproutIcon, BoltIcon } from './icons';
 
-function RuleSection({ title, children, id }: { title: string; children: ReactNode; id?: string }) {
+export function RuleSection({ title, children, id }: { title: string; children: ReactNode; id?: string }) {
     return (
         <section id={id} className="scroll-mt-4 rounded-lg border border-panel-line bg-panel p-5">
             <h3 className="font-display text-xl font-bold uppercase tracking-wide text-chalk">{title}</h3>
@@ -12,9 +12,10 @@ function RuleSection({ title, children, id }: { title: string; children: ReactNo
 }
 
 interface RulesPageProps {
-    /** Scrolls to and briefly highlights a specific rule section on mount -
-     * used by the Bonus tab's "Learn more" link to jump straight to the
-     * bonus matchup rules instead of leaving the reader to hunt for them. */
+    /** Scrolls to and briefly highlights a specific rule section on mount,
+     * if some future deep link ever needs one - nothing currently uses
+     * this (the one existing deep link, the bonus matchup rules, now lives
+     * in the Misc tab's Bonus sub-tab instead - see BonusRulesSection). */
     scrollToId?: string | null;
 }
 
@@ -51,24 +52,6 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                 <p>
                     Only players currently on your Sleeper roster are eligible. If a player you&rsquo;d want isn&rsquo;t
                     showing up as an option, they&rsquo;re not on your roster right now.
-                </p>
-            </RuleSection>
-
-            <RuleSection title="Weekly bonus matchups" id="bonus-matchups-rule">
-                <p>
-                    Every week, your Brown Bell duo goes head-to-head against another team&rsquo;s &mdash; a
-                    separate schedule from anything in Sleeper itself, rotating through every possible opponent
-                    before repeating. Win your matchup (score more combined points than your opponent&rsquo;s duo
-                    that week) and you&rsquo;re eligible for a bonus. Lose, and there&rsquo;s no bonus that week,
-                    but it doesn&rsquo;t affect your actual Brown Bell total either.
-                </p>
-                <p className="mt-2">
-                    Among that week&rsquo;s six winners, bonuses range from <span className="text-chalk">15</span> points
-                    for the highest-scoring winner down to <span className="text-chalk">3</span> for the lowest &mdash;
-                    with a deliberate gap between 1st and 2nd, so a standout week really stands out. A tie splits
-                    that tier&rsquo;s bonus evenly between both teams rather than picking one over the other. Still,
-                    your season-long Brown Bell total is what really matters &mdash; these are a fun weekly wrinkle,
-                    not a replacement for it.
                 </p>
             </RuleSection>
 

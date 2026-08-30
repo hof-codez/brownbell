@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLeagueScores } from '../hooks/useLeagueScores';
 import { useBonusResults } from '../hooks/useBonusResults';
+import { usePredictions } from '../hooks/usePredictions';
 import { SeasonRankingsTable } from './SeasonRankingsTable';
 import { WeeklyScoresTable } from './WeeklyScoresTable';
 import { PillToggle } from './PillToggle';
@@ -15,11 +16,13 @@ interface LeagueTabProps {
 export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
     const { main, nextup, boom, loading, error } = useLeagueScores(teams);
     // The Brown Bell Award is decided by Main Award season points PLUS
-    // accumulated bonus points combined - reusing the same bonus totals
-    // already shown on the Showdown tab, so there's no risk of two
-    // independent computations disagreeing on the number that actually
-    // determines who's winning.
-    const { seasonRankings: bonusRankings } = useBonusResults(teams);
+    // accumulated bonus points combined - both the weekly matchup bonus AND
+    // the prediction-poll block bonus feed into this same total, reusing
+    // the same computations already shown on the Showdown tab, so there's
+    // no risk of independent calculations disagreeing on the number that
+    // actually determines who's winning.
+    const { seasonRankings: bonusRankings, matchupsByWeek } = useBonusResults(teams);
+    const { blocks: predictionBlocks } = usePredictions(teams.map(t => t.team), matchupsByWeek);
     const [award, setAward] = useState<AwardType>('main');
     const [view, setView] = useState<'rankings' | 'weekly'>('rankings');
 
@@ -39,6 +42,13 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
     if (!activeScores) return null;
 
     const bonusTotals = new Map(bonusRankings.map(r => [r.teamId, r.totalBonus]));
+    for (const block of predictionBlocks) {
+        for (const standing of block.standings) {
+            if (standing.pointsAwarded > 0) {
+                bonusTotals.set(standing.teamId, (bonusTotals.get(standing.teamId) ?? 0) + standing.pointsAwarded);
+            }
+        }
+    }
 
     return (
         <div>

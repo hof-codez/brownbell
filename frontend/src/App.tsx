@@ -39,11 +39,12 @@ export default function App() {
   const [namingAward, setNamingAward] = useState<AwardType | null>(null);
   const [showBackgroundModal, setShowBackgroundModal] = useState(false);
   const [activeTab, setActiveTab] = useState('teams');
-  // Set alongside switching to the Misc tab so MiscTab knows to force its
-  // Rules sub-tab open and which section to scroll to - cleared once
-  // RulesPage has consumed it via its own effect, but simplest to just
-  // always pass the latest value down.
-  const [rulesScrollTarget, setRulesScrollTarget] = useState<string | null>(null);
+  // Set alongside switching to the Misc tab so MiscTab knows to force the
+  // Bonus sub-tab open (currently the only deep-linked section) and which
+  // element to scroll to - cleared once the target component has consumed
+  // it via its own effect, but simplest to just always pass the latest
+  // value down.
+  const [miscScrollTarget, setMiscScrollTarget] = useState<string | null>(null);
 
   const myTeam = claimedTeam ? teams.find(t => t.team.id === claimedTeam.teamId) ?? null : null;
   const otherTeams = myTeam ? teams.filter(t => t.team.id !== myTeam.team.id) : teams;
@@ -54,8 +55,8 @@ export default function App() {
   const naming = useDuoNaming(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
   const background = useTeamBackground(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
 
-  function goToRulesSection(id: string) {
-    setRulesScrollTarget(id);
+  function goToMiscSection(id: string) {
+    setMiscScrollTarget(id);
     setActiveTab('misc');
   }
 
@@ -98,13 +99,13 @@ export default function App() {
             teams={teams}
             myTeamId={claimedTeam?.teamId ?? null}
             deviceToken={claimedTeam?.deviceToken ?? null}
-            onLearnMore={() => goToRulesSection('bonus-matchups-rule')}
+            onLearnMore={() => goToMiscSection('bonus-matchups-rule')}
             duoNames={duoNames}
           />
         )}
 
         {activeTab === 'misc' && (
-          <MiscTab teams={teams.map(t => t.team)} rulesScrollTarget={rulesScrollTarget} />
+          <MiscTab teams={teams.map(t => t.team)} miscScrollTarget={miscScrollTarget} />
         )}
       </main>
 
