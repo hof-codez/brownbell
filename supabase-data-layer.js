@@ -93,7 +93,7 @@ class SupabaseDataLayer {
 
         if (error) throw new Error(`Failed to load duos: ${error.message}`);
 
-        const knownDuos = { main: {}, nextup: {} };
+        const knownDuos = { main: {}, nextup: {}, boom: {} };
         for (const d of duos) {
             const teamName = this.teamNameById[d.team_id];
             if (!teamName) continue;
@@ -108,7 +108,7 @@ class SupabaseDataLayer {
         }
 
         // Drop any team left with a null slot (an incomplete duo isn't valid to run against)
-        for (const awardType of ['main', 'nextup']) {
+        for (const awardType of ['main', 'nextup', 'boom']) {
             for (const [teamName, duo] of Object.entries(knownDuos[awardType])) {
                 if (!duo[0] || !duo[1]) delete knownDuos[awardType][teamName];
             }
@@ -326,7 +326,7 @@ class SupabaseDataLayer {
     // (this matches updateAllScores()'s existing internal structure - see update-standings.js)
     async saveWeeklyScores(scores, playerIds, playersData, wasBye) {
         const rows = [];
-        for (const awardType of ['main', 'nextup']) {
+        for (const awardType of ['main', 'nextup', 'boom']) {
             for (const [teamName, byWeek] of Object.entries(scores[awardType] || {})) {
                 const teamId = this.teamIdByName[teamName];
                 if (!teamId) continue;

@@ -12,7 +12,7 @@ class BrownBellAutomator {
 
         // Populated from Supabase via loadKnownDuos() before any run - no hardcoded
         // team/player data lives in this file. See supabase-data-layer.js.
-        this.knownDuos = { main: {}, nextup: {} };
+        this.knownDuos = { main: {}, nextup: {}, boom: {} };
         this.inactiveTeams = {};
         this.managerChanges = {};
 
@@ -1478,18 +1478,18 @@ class BrownBellAutomator {
         console.log('Updating all weekly scores...');
 
         const currentWeek = await this.getCurrentWeek();
-        const scores = { main: {}, nextup: {} };
-        const playerIds = { main: {}, nextup: {} };
-        const wasBye = { main: {}, nextup: {} }; // captured alongside scores - who was on bye, per week, for the historical badge
+        const scores = { main: {}, nextup: {}, boom: {} };
+        const playerIds = { main: {}, nextup: {}, boom: {} };
+        const wasBye = { main: {}, nextup: {}, boom: {} }; // captured alongside scores - who was on bye, per week, for the historical badge
 
         existingSubstitutions = existingSubstitutions || [];
         rosterChanges = rosterChanges || [];
         // Fallback source for inactive teams' historical weeks only - see PRIORITY 3 below.
-        existingScores = existingScores || { main: {}, nextup: {} };
+        existingScores = existingScores || { main: {}, nextup: {}, boom: {} };
 
         // Process each award type
-        for (const awardType of ['main', 'nextup']) {
-            const duos = this.knownDuos[awardType];
+        for (const awardType of ['main', 'nextup', 'boom']) {
+            const duos = this.knownDuos[awardType] || {};
 
             for (const [teamName, originalDuo] of Object.entries(duos)) {
                 scores[awardType][teamName] = {};
@@ -1890,7 +1890,7 @@ class BrownBellAutomator {
         const newlyDetectedChanges = scheduleCheck.changes.filter(c => !existingChangeKeys.has(changeKey(c)));
 
         // Update scores
-        const existingScoresForFallback = { main: {}, nextup: {} }; // inactive-team historical fallback; see updateAllScores
+        const existingScoresForFallback = { main: {}, nextup: {}, boom: {} }; // inactive-team historical fallback; see updateAllScores
         const { scores: allScores, playerIds: allPlayerIds, wasBye: allWasBye } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
 
         // Process every duo slot: pre-lock slots are skipped entirely (fully

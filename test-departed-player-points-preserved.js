@@ -25,7 +25,8 @@ async function run() {
     // (auto-filled after X was traded/injured) from week 3 onward.
     automator.knownDuos = {
         main: { TeamA: [{ name: 'Player Y', position: 'RB', sleeperId: 'p-y' }, { name: 'Player Z', position: 'WR', sleeperId: 'p-z' }] },
-        nextup: {}
+        nextup: {},
+        boom: {}
     };
     automator.playersData = {
         'p-x': { first_name: 'Player', last_name: 'X', position: 'RB', team: 'DAL', injury_status: null, years_exp: 4 },
