@@ -56,6 +56,14 @@ export interface EligibleCandidate {
 
 export type SwapSituation = 'healthy-locked' | 'temporary' | 'permanent' | null;
 
+export interface MatchupPrediction {
+  week: number;
+  voterTeamId: string;
+  teamAId: string;
+  teamBId: string;
+  predictedWinnerTeamId: string;
+}
+
 export interface EligibleRosterResponse {
   locked: boolean;
   situation: SwapSituation;

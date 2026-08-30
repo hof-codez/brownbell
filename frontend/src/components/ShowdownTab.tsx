@@ -2,12 +2,18 @@ import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useBonusResults } from '../hooks/useBonusResults';
 import { useWeeklyRecap } from '../hooks/useWeeklyRecap';
+import { usePredictions } from '../hooks/usePredictions';
 import { duoNameKey } from '../hooks/useDuoNames';
+import { PredictionWidget } from './PredictionWidget';
+import { PredictionStandings } from './PredictionStandings';
 import type { TeamWithDuos } from '../types';
 
 interface ShowdownTabProps {
     teams: TeamWithDuos[];
     myTeamId?: string | null;
+    /** Required to actually submit a prediction - voting requires being
+     * logged into a claimed team. */
+    deviceToken?: string | null;
     /** Jumps to the bonus rules section of the Rules tab. */
     onLearnMore?: () => void;
     /** Matchups are always about the Main Award duo specifically. */
@@ -166,10 +172,20 @@ function WeeklyRecapSection({ teams, week }: { teams: TeamWithDuos[]; week: numb
     );
 }
 
-export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: ShowdownTabProps) {
+export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoNames }: ShowdownTabProps) {
     const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
-    const [view, setView] = useState<'matchups' | 'season' | 'recap'>('matchups');
+    const predictions = usePredictions(teams.map(t => t.team), matchupsByWeek);
+    const [view, setView] = useState<'matchups' | 'season' | 'recap' | 'predictions'>('matchups');
     const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+    const [predictionError, setPredictionError] = useState<string | null>(null);
+    const canVote = !!myTeamId && !!deviceToken;
+
+    async function handlePick(week: number, teamAId: string, teamBId: string, pickedTeamId: string) {
+        if (!myTeamId || !deviceToken) return;
+        setPredictionError(null);
+        const result = await predictions.submitPrediction(myTeamId, deviceToken, week, teamAId, teamBId, pickedTeamId);
+        if (!result.success) setPredictionError(result.error || 'Could not save your prediction.');
+    }
 
     useEffect(() => {
         if (selectedWeek !== null || weeksAvailable.length === 0) return;
@@ -238,7 +254,7 @@ export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: Showdown
 
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <PillToggle
-                    options={[{ id: 'matchups', label: 'Matchups' }, { id: 'season', label: 'Season' }, { id: 'recap', label: 'Recap' }]}
+                    options={[{ id: 'matchups', label: 'Matchups' }, { id: 'season', label: 'Season' }, { id: 'recap', label: 'Recap' }, { id: 'predictions', label: 'Predictions' }]}
                     value={view}
                     onChange={setView}
                 />
@@ -319,9 +335,25 @@ export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: Showdown
                                                 ? `Final - Tier ${m.tier} win, +${m.bonusPointsEach.toFixed(2)} bonus`
                                                 : `Live - Tier ${m.tier} so far, +${m.bonusPointsEach.toFixed(2)} bonus (not final)`)}
                                 </p>
+                                <PredictionWidget
+                                    teamAId={m.teamA.teamId}
+                                    teamAName={aName || m.teamA.teamName}
+                                    teamBId={m.teamB.teamId}
+                                    teamBName={bName || m.teamB.teamName}
+                                    currentPick={myTeamId ? predictions.getMyPrediction(myTeamId, m.week, m.teamA.teamId, m.teamB.teamId) : null}
+                                    locked={m.played}
+                                    canVote={canVote}
+                                    saving={predictions.saving}
+                                    onPick={pickedTeamId => handlePick(m.week, m.teamA.teamId, m.teamB.teamId, pickedTeamId)}
+                                />
                             </div>
                         );
                     })}
+                    {predictionError && (
+                        <p className="rounded border border-brick/50 bg-brick/10 px-3 py-2 font-body text-sm text-chalk">
+                            {predictionError}
+                        </p>
+                    )}
                 </div>
             )}
 
@@ -366,6 +398,10 @@ export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: Showdown
 
             {view === 'recap' && selectedWeek !== null && (
                 <WeeklyRecapSection teams={teams} week={selectedWeek} />
+            )}
+
+            {view === 'predictions' && (
+                <PredictionStandings blocks={predictions.blocks} />
             )}
         </div>
     );

@@ -97,6 +97,7 @@ export default function App() {
           <ShowdownTab
             teams={teams}
             myTeamId={claimedTeam?.teamId ?? null}
+            deviceToken={claimedTeam?.deviceToken ?? null}
             onLearnMore={() => goToRulesSection('bonus-matchups-rule')}
             duoNames={duoNames}
           />
