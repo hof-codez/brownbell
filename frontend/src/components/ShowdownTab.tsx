@@ -79,11 +79,11 @@ function WeeklyRecapSection({ teams, week }: { teams: TeamWithDuos[]; week: numb
     if (error) return <p className="font-body text-sm text-chalk-dim">Couldn&rsquo;t load recap: {error}</p>;
     if (!recap) return null;
 
-    if (!recap.weekHasStarted) {
+    if (!recap.weekIsFinal) {
         return (
             <div className="rounded border border-dashed border-panel-line px-4 py-6 text-center">
                 <p className="font-body text-sm text-chalk-dim">
-                    Week {week} hasn&rsquo;t started yet &mdash; nothing to recap until real scores come in.
+                    Week {week} isn&rsquo;t final yet &mdash; the recap fills in once every game for the week has wrapped up.
                 </p>
             </div>
         );
@@ -209,7 +209,7 @@ export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: Showdown
         <div>
             <div className="mb-4 rounded-lg border border-panel-line bg-panel/60 px-4 py-3">
                 <p className="font-body text-sm text-chalk-dim">
-                    Every week your Main Award duo faces off against another team&rsquo;s. Win, and you&rsquo;re in
+                    Every week your Brown Bell duo faces off against another team&rsquo;s. Win, and you&rsquo;re in
                     the running for a bonus &mdash; the closer your combined score is to the top among that
                     week&rsquo;s winners, the bigger the bonus.
                     {onLearnMore && (
@@ -271,7 +271,7 @@ export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: Showdown
                         // The lower-probability side actually won - the "defied the
                         // odds" moment this whole feature exists to surface. Ties
                         // don't count as an upset either way.
-                        const isUpset = m.played && teamAWinPct !== null && m.winnerTeamIds.length === 1 && (
+                        const isUpset = m.played && m.isFinal && teamAWinPct !== null && m.winnerTeamIds.length === 1 && (
                             (aWins && teamAWinPct < 0.5) || (bWins && (teamBWinPct as number) < 0.5)
                         );
 
@@ -312,8 +312,12 @@ export function ShowdownTab({ teams, myTeamId, onLearnMore, duoNames }: Showdown
                                     {!m.played
                                         ? 'Upcoming - not played yet'
                                         : m.winnerTeamIds.length === 2
-                                            ? `Tie - Tier ${m.tier} split, +${m.bonusPointsEach.toFixed(2)} each`
-                                            : `Final - Tier ${m.tier} win, +${m.bonusPointsEach.toFixed(2)} bonus`}
+                                            ? (m.isFinal
+                                                ? `Final - Tier ${m.tier} split, +${m.bonusPointsEach.toFixed(2)} each`
+                                                : `Live - Tier ${m.tier} split so far, +${m.bonusPointsEach.toFixed(2)} each (not final)`)
+                                            : (m.isFinal
+                                                ? `Final - Tier ${m.tier} win, +${m.bonusPointsEach.toFixed(2)} bonus`
+                                                : `Live - Tier ${m.tier} so far, +${m.bonusPointsEach.toFixed(2)} bonus (not final)`)}
                                 </p>
                             </div>
                         );

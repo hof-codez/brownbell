@@ -88,7 +88,7 @@ export function HistoryTab({ teams }: HistoryTabProps) {
                                     </span>
                                     <span className="font-body text-sm text-chalk">{entry.teamName}</span>
                                     <span className="font-mono text-xs uppercase tracking-wide text-chalk-dim">
-                                        {entry.awardType === 'main' ? 'Main' : entry.awardType === 'boom' ? 'Boom' : 'Next Up'}
+                                        {entry.awardType === 'main' ? 'Brown Bell' : entry.awardType === 'boom' ? 'Boom' : 'Next Up'}
                                     </span>
                                 </div>
                                 <p className="mt-1 font-body text-sm text-chalk-dim">

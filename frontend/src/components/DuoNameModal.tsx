@@ -31,7 +31,7 @@ export function DuoNameModal({ awardType, currentName, suggesting, saving, error
         if (ok) onClose();
     }
 
-    const awardLabel = awardType === 'main' ? 'Main Award' : awardType === 'boom' ? 'Season of Boom' : 'Next Up Award';
+    const awardLabel = awardType === 'main' ? 'Brown Bell' : awardType === 'boom' ? 'Season of Boom' : 'Next Up Award';
 
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" role="dialog" aria-modal="true">

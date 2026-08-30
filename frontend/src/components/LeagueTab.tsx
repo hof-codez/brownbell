@@ -44,7 +44,7 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
         <div>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <PillToggle
-                    options={[{ id: 'main', label: 'Main Award' }, { id: 'nextup', label: 'Next Up' }, { id: 'boom', label: 'Season of Boom' }]}
+                    options={[{ id: 'main', label: 'Brown Bell' }, { id: 'nextup', label: 'Next Up' }, { id: 'boom', label: 'Season of Boom' }]}
                     value={award}
                     onChange={setAward}
                 />

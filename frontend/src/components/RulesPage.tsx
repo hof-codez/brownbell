@@ -30,7 +30,7 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
             <section className="rounded-lg border border-panel-line bg-panel p-5">
                 <div className="flex items-center gap-2">
                     <BellIcon className="h-5 w-5 text-bell" />
-                    <h2 className="font-display text-2xl font-bold uppercase tracking-wide text-chalk">Main Award</h2>
+                    <h2 className="font-display text-2xl font-bold uppercase tracking-wide text-chalk">Brown Bell</h2>
                 </div>
                 <p className="mt-2 font-body text-sm text-chalk-dim">
                     Every team fields a duo of two players. The duo&rsquo;s combined weekly points determine your
@@ -40,7 +40,7 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
 
             <RuleSection title="Duo format">
                 <p>
-                    Your Main Award duo can be any two <span className="text-chalk">different</span> positions among{' '}
+                    Your Brown Bell duo can be any two <span className="text-chalk">different</span> positions among{' '}
                     <span className="text-chalk">QB, RB, WR, and TE</span>. Two players at the same position &mdash;
                     two RBs, two WRs, two TEs, two QBs &mdash; is never a valid pairing. Kickers aren&rsquo;t eligible
                     for this award.
@@ -56,18 +56,18 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
 
             <RuleSection title="Weekly bonus matchups" id="bonus-matchups-rule">
                 <p>
-                    Every week, your Main Award duo goes head-to-head against another team&rsquo;s &mdash; a
+                    Every week, your Brown Bell duo goes head-to-head against another team&rsquo;s &mdash; a
                     separate schedule from anything in Sleeper itself, rotating through every possible opponent
                     before repeating. Win your matchup (score more combined points than your opponent&rsquo;s duo
                     that week) and you&rsquo;re eligible for a bonus. Lose, and there&rsquo;s no bonus that week,
-                    but it doesn&rsquo;t affect your actual Main Award total either.
+                    but it doesn&rsquo;t affect your actual Brown Bell total either.
                 </p>
                 <p className="mt-2">
                     Among that week&rsquo;s six winners, bonuses range from <span className="text-chalk">15</span> points
                     for the highest-scoring winner down to <span className="text-chalk">3</span> for the lowest &mdash;
                     with a deliberate gap between 1st and 2nd, so a standout week really stands out. A tie splits
                     that tier&rsquo;s bonus evenly between both teams rather than picking one over the other. Still,
-                    your season-long Main Award total is what really matters &mdash; these are a fun weekly wrinkle,
+                    your season-long Brown Bell total is what really matters &mdash; these are a fun weekly wrinkle,
                     not a replacement for it.
                 </p>
             </RuleSection>
@@ -188,7 +188,7 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                 <p>
                     Your Season of Boom duo can be <span className="text-chalk">any two</span> players at{' '}
                     <span className="text-chalk">DL, LB, or DB</span> &mdash; there&rsquo;s no position-diversity
-                    rule here the way there is for Main Award or Next Up. Two linebackers is a perfectly valid
+                    rule here the way there is for Brown Bell or Next Up. Two linebackers is a perfectly valid
                     pairing.
                 </p>
                 <p className="mt-2">
@@ -206,7 +206,7 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
 
             <RuleSection title="If a player gets hurt, traded, or released">
                 <p>
-                    This is where Season of Boom works differently from Main Award and Next Up. Instead of
+                    This is where Season of Boom works differently from Brown Bell and Next Up. Instead of
                     auto-sub immediately stepping in, <span className="text-chalk">you get first crack at picking
                     your own replacement</span> &mdash; auto-sub is a safety net, not the default.
                 </p>
@@ -224,7 +224,7 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                     based on stats that have already happened or are already live.
                 </p>
                 <p className="mt-2">
-                    The same 2-swap-per-season budget from Main Award and Next Up applies here too: a permanent
+                    The same 2-swap-per-season budget from Brown Bell and Next Up applies here too: a permanent
                     departure (trade or release) gives you the same pick-it-yourself window on its first
                     occurrence; a second permanent departure in the same season auto-fills immediately with no
                     window at all, and your manual-pick privilege is done for the rest of the season. A

@@ -51,7 +51,7 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, onN
 
             <div className="mt-4 space-y-4">
                 <section aria-labelledby={`main-${team.id}`}>
-                    {renderAwardHeader('main', BellIcon, 'Main Award', main)}
+                    {renderAwardHeader('main', BellIcon, 'Brown Bell', main)}
                     <div className="space-y-1.5">
                         <DuoSlotDisplay slot={main[0]} onEdit={onEditSlot ? () => onEditSlot('main', 0) : undefined} isBye={isBye(main[0])} />
                         <DuoSlotDisplay slot={main[1]} onEdit={onEditSlot ? () => onEditSlot('main', 1) : undefined} isBye={isBye(main[1])} />
