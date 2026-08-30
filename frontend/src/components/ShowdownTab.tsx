@@ -44,33 +44,12 @@ interface MatchupSideProps {
     isWinner: boolean;
     align: 'left' | 'right';
     name?: string;
-    backgroundImageUrl?: string | null;
-    backgroundOpacity?: number;
 }
 
-function MatchupSide({ team, isMe, isWinner, align, name, backgroundImageUrl, backgroundOpacity }: MatchupSideProps) {
+function MatchupSide({ team, isMe, isWinner, align, name }: MatchupSideProps) {
     const alignClass = align === 'right' ? 'items-end text-right' : 'items-start text-left';
     return (
-        <div className={`relative min-w-0 overflow-hidden rounded ${backgroundImageUrl ? 'p-1.5' : ''}`}>
-            {backgroundImageUrl && (
-                <>
-                    <div
-                        className="absolute inset-0"
-                        style={{
-                            backgroundImage: `url(${backgroundImageUrl})`,
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center',
-                            opacity: backgroundOpacity ?? 0.25
-                        }}
-                        aria-hidden="true"
-                    />
-                    {/* Same fixed readability scrim as TeamCard - independent of
-                        the owner's chosen opacity, so a strong background can
-                        never make this side's score/players unreadable. */}
-                    <div className="absolute inset-0 bg-panel/70" aria-hidden="true" />
-                </>
-            )}
-            <div className={`relative z-10 flex min-w-0 flex-col ${alignClass}`}>
+        <div className={`flex min-w-0 flex-col ${alignClass}`}>
             <p className={`truncate font-body text-sm font-semibold ${isWinner ? 'text-chalk' : 'text-chalk-dim'}`}>
                 {team.teamName}
                 {isMe && <span className="ml-1 text-xs text-bell">(You)</span>}
@@ -86,7 +65,6 @@ function MatchupSide({ team, isMe, isWinner, align, name, backgroundImageUrl, ba
             <p className={`mt-1.5 font-mono text-xl font-bold ${isWinner ? 'text-chalk' : 'text-chalk-dim'}`}>
                 {team.score.toFixed(1)}
             </p>
-            </div>
         </div>
     );
 }
@@ -317,12 +295,49 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                         return (
                             <div
                                 key={i}
-                                className={`rounded-lg border p-3 ${
+                                className={`relative overflow-hidden rounded-lg border p-3 ${
                                     m.isMatchupOfTheWeek
                                         ? 'border-bell bg-bell/10 shadow-[0_0_0_1px_theme(colors.bell)]'
                                         : `border-panel-line ${involvesMe ? 'bg-bell/10' : 'bg-panel'}`
                                 }`}
                             >
+                                {/* Each side's background spans the FULL card
+                                    height, not just the player-list area above -
+                                    it needs to sit behind the shared status line
+                                    and prediction widget too, split down the
+                                    middle where the two teams' halves meet. */}
+                                {teamsById.get(m.teamA.teamId)?.background_image_url && (
+                                    <div
+                                        className="absolute inset-y-0 left-0 w-1/2"
+                                        style={{
+                                            backgroundImage: `url(${teamsById.get(m.teamA.teamId)!.background_image_url})`,
+                                            backgroundSize: 'cover',
+                                            backgroundPosition: 'center',
+                                            opacity: teamsById.get(m.teamA.teamId)!.background_opacity
+                                        }}
+                                        aria-hidden="true"
+                                    />
+                                )}
+                                {teamsById.get(m.teamB.teamId)?.background_image_url && (
+                                    <div
+                                        className="absolute inset-y-0 right-0 w-1/2"
+                                        style={{
+                                            backgroundImage: `url(${teamsById.get(m.teamB.teamId)!.background_image_url})`,
+                                            backgroundSize: 'cover',
+                                            backgroundPosition: 'center',
+                                            opacity: teamsById.get(m.teamB.teamId)!.background_opacity
+                                        }}
+                                        aria-hidden="true"
+                                    />
+                                )}
+                                {/* Same fixed readability scrim as TeamCard, covering
+                                    the whole card regardless of either side's chosen
+                                    opacity - independent scrims per half would leave
+                                    a visible seam right where the two meet. */}
+                                {(teamsById.get(m.teamA.teamId)?.background_image_url || teamsById.get(m.teamB.teamId)?.background_image_url) && (
+                                    <div className="absolute inset-0 bg-panel/70" aria-hidden="true" />
+                                )}
+                                <div className="relative z-10">
                                 {m.isMatchupOfTheWeek && (
                                     <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell">
                                         &#9733; Matchup of the Week
@@ -340,8 +355,6 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                         isWinner={aHighlight}
                                         align="left"
                                         name={aName}
-                                        backgroundImageUrl={teamsById.get(m.teamA.teamId)?.background_image_url}
-                                        backgroundOpacity={teamsById.get(m.teamA.teamId)?.background_opacity}
                                     />
                                     <div className="flex flex-col items-center pt-1">
                                         <span className="rounded-full border border-panel-line bg-field px-2 py-1 font-mono text-[10px] font-bold text-chalk-dim">
@@ -359,8 +372,6 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                         isWinner={bHighlight}
                                         align="right"
                                         name={bName}
-                                        backgroundImageUrl={teamsById.get(m.teamB.teamId)?.background_image_url}
-                                        backgroundOpacity={teamsById.get(m.teamB.teamId)?.background_opacity}
                                     />
                                 </div>
                                 <p className="mt-2 font-mono text-xs uppercase tracking-widest text-bell">
@@ -386,6 +397,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                     saving={predictions.saving}
                                     onPick={pickedTeamId => handlePick(m.week, m.teamA.teamId, m.teamB.teamId, pickedTeamId)}
                                 />
+                                </div>
                             </div>
                         );
                     })}
