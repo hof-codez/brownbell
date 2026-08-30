@@ -122,8 +122,14 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
             <RuleSection title="Injuries - temporary swaps">
                 <p>
                     If your locked player is ruled out, doubtful, or placed on IR &mdash; but is still on your
-                    roster &mdash; that&rsquo;s a temporary situation. You can pick a replacement from your current
-                    roster, and there&rsquo;s no limit on how many times this can happen over the season.
+                    roster &mdash; that&rsquo;s a temporary situation. Auto-sub fills the slot immediately with
+                    the best eligible replacement from your roster, so you&rsquo;re never left scoring zero
+                    while you&rsquo;re not paying attention.
+                </p>
+                <p className="mt-2">
+                    You&rsquo;re not stuck with that pick, though &mdash; you can go in any time and swap in
+                    someone else from your roster instead, and there&rsquo;s no limit on how many times this can
+                    happen over the season.
                 </p>
                 <p className="mt-2">
                     The moment the original player is active again, they&rsquo;re <span className="text-chalk">automatically
@@ -206,9 +212,12 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
 
             <RuleSection title="If a player gets hurt, traded, or released">
                 <p>
-                    This is where Season of Boom works differently from Brown Bell and Next Up. Instead of
-                    auto-sub immediately stepping in, <span className="text-chalk">you get first crack at picking
-                    your own replacement</span> &mdash; auto-sub is a safety net, not the default.
+                    This is where Season of Boom handles timing differently from Brown Bell and Next Up. Those
+                    two auto-fill the slot immediately when an injury is detected, and you can go in afterward
+                    and swap in someone else if you want &mdash; the pick is never locked to the automation&rsquo;s
+                    choice. Season of Boom flips that order: <span className="text-chalk">the slot stays empty
+                    and waits for you first</span>, with auto-sub only stepping in as a fallback once kickoff is
+                    close and nobody&rsquo;s picked yet.
                 </p>
                 <p className="mt-2">
                     You can pick (or change your pick) right up until{' '}
