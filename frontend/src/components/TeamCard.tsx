@@ -8,12 +8,16 @@ interface TeamCardProps {
     onEditSlot?: (awardType: AwardType, playerIndex: 0 | 1) => void;
     byePlayerIds?: Set<string>;
     duoNames?: Map<string, string>;
+    /** This team's Brown Bell score for the currently-displayed week -
+     * undefined if not yet computed/loaded, distinct from 0 (a real score
+     * of zero, e.g. before any games this week have started). */
+    currentWeekScore?: number;
     onNameDuo?: (awardType: AwardType) => void;
     /** Only passed for the owner's own card - matches onNameDuo's visibility pattern. */
     onCustomize?: () => void;
 }
 
-export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, onNameDuo, onCustomize }: TeamCardProps) {
+export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, currentWeekScore, onNameDuo, onCustomize }: TeamCardProps) {
     const { team, main, nextup, boom } = teamWithDuos;
 
     function isBye(slot: TeamWithDuos['main'][number]): boolean {
@@ -71,6 +75,11 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, onN
                         </button>
                     )}
                 </div>
+                {currentWeekScore !== undefined && (
+                    <p className="mt-0.5 font-mono text-xs text-chalk-dim">
+                        This week &middot; <span className="text-chalk">{currentWeekScore.toFixed(1)} pts</span>
+                    </p>
+                )}
                 <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-chalk-dim">
                     {team.permanent_swaps_used}/2 permanent swaps used
                     {!team.manual_privilege && (

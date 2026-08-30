@@ -9,11 +9,12 @@ interface TeamsViewProps {
     onEditSlot: (awardType: AwardType, playerIndex: 0 | 1) => void;
     byePlayerIds?: Set<string>;
     duoNames?: Map<string, string>;
+    currentWeekScores?: Map<string, number>;
     onNameDuo?: (awardType: AwardType) => void;
     onCustomize?: () => void;
 }
 
-export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, onNameDuo, onCustomize }: TeamsViewProps) {
+export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, currentWeekScores, onNameDuo, onCustomize }: TeamsViewProps) {
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading teams&hellip;</p>;
     }
@@ -55,7 +56,15 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
                 <section className="mb-8">
                     <h2 className="mb-2 font-mono text-xs uppercase tracking-widest text-bell">Your Team</h2>
                     <div className="max-w-sm">
-                        <TeamCard teamWithDuos={myTeam} onEditSlot={onEditSlot} byePlayerIds={byePlayerIds} duoNames={duoNames} onNameDuo={onNameDuo} onCustomize={onCustomize} />
+                        <TeamCard
+                            teamWithDuos={myTeam}
+                            onEditSlot={onEditSlot}
+                            byePlayerIds={byePlayerIds}
+                            duoNames={duoNames}
+                            currentWeekScore={currentWeekScores?.get(myTeam.team.id)}
+                            onNameDuo={onNameDuo}
+                            onCustomize={onCustomize}
+                        />
                     </div>
                 </section>
             )}
@@ -67,7 +76,13 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
                     )}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {otherTeams.map((teamWithDuos) => (
-                            <TeamCard key={teamWithDuos.team.id} teamWithDuos={teamWithDuos} byePlayerIds={byePlayerIds} duoNames={duoNames} />
+                            <TeamCard
+                                key={teamWithDuos.team.id}
+                                teamWithDuos={teamWithDuos}
+                                byePlayerIds={byePlayerIds}
+                                duoNames={duoNames}
+                                currentWeekScore={currentWeekScores?.get(teamWithDuos.team.id)}
+                            />
                         ))}
                     </div>
                 </>

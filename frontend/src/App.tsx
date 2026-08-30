@@ -3,6 +3,8 @@ import { useSeasonData } from './hooks/useSeasonData';
 import { useTeamClaim } from './hooks/useTeamClaim';
 import { useDuoPicker } from './hooks/useDuoPicker';
 import { useLockCountdown } from './hooks/useLockCountdown';
+import { useLeagueScores } from './hooks/useLeagueScores';
+import { pickDefaultWeek } from './lib/displayWeek';
 import { useCurrentWeekByeStatus } from './hooks/useCurrentWeekByeStatus';
 import { useDuoNames, duoNameKey } from './hooks/useDuoNames';
 import { useDuoNaming } from './hooks/useDuoNaming';
@@ -34,6 +36,21 @@ export default function App() {
   const { lockTime } = useLockCountdown(season?.id ?? null);
   const byePlayerIds = useCurrentWeekByeStatus(season);
   const { names: duoNames, refetch: refetchDuoNames } = useDuoNames(teams.map(t => t.team));
+  // Current-week Brown Bell score per team, shown directly on each Teams
+  // tab card so checking how someone's doing right now doesn't require
+  // switching to League. Reuses the same "which week counts as current"
+  // logic as the League tab's own default week selection, so the number
+  // shown here always matches what League would show for the same week.
+  const { main: mainScores } = useLeagueScores(teams);
+  const currentWeekScores = new Map<string, number>();
+  if (mainScores) {
+    const displayWeek = pickDefaultWeek(mainScores.weeksAvailable);
+    if (displayWeek !== null) {
+      for (const w of mainScores.weekly) {
+        if (w.week === displayWeek) currentWeekScores.set(w.teamId, w.points);
+      }
+    }
+  }
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
   const [namingAward, setNamingAward] = useState<AwardType | null>(null);
@@ -85,6 +102,7 @@ export default function App() {
             onEditSlot={(awardType, playerIndex) => setEditingSlot({ awardType, playerIndex })}
             byePlayerIds={byePlayerIds}
             duoNames={duoNames}
+            currentWeekScores={currentWeekScores}
             onNameDuo={claimedTeam ? (awardType) => setNamingAward(awardType) : undefined}
             onCustomize={claimedTeam ? () => setShowBackgroundModal(true) : undefined}
           />
