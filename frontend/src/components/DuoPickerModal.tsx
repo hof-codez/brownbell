@@ -23,7 +23,7 @@ interface DuoPickerModalProps {
     awardType: AwardType;
     playerIndex: 0 | 1;
     fetchEligible: (awardType: AwardType, playerIndex: 0 | 1) => Promise<EligibleRosterResponse | null>;
-    setDuo: (awardType: AwardType, playerIndex: 0 | 1, sleeperPlayerId: string) => Promise<boolean>;
+    setDuo: (awardType: AwardType, playerIndex: 0 | 1, sleeperPlayerId: string) => Promise<{ success: boolean; error?: string }>;
     saving: boolean;
     onDone: () => void;
     onClose: () => void;
@@ -48,11 +48,11 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
 
     async function handlePick(sleeperPlayerId: string) {
         setPickError(null);
-        const ok = await setDuo(awardType, playerIndex, sleeperPlayerId);
-        if (ok) {
+        const result = await setDuo(awardType, playerIndex, sleeperPlayerId);
+        if (result.success) {
             onDone();
         } else {
-            setPickError('Could not save that pick - it may no longer be eligible. Try another.');
+            setPickError(result.error || 'Could not save that pick - try another.');
         }
     }
 

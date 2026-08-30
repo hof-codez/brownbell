@@ -177,7 +177,8 @@ Deno.serve(async (req: Request) => {
         }, { onConflict: 'team_id,award_type,player_index' });
 
         if (upsertError) {
-            return jsonResponse({ success: false, error: 'Failed to save' }, 500);
+            console.error('duos upsert failed:', upsertError);
+            return jsonResponse({ success: false, error: `Failed to save: ${upsertError.message}` }, 500);
         }
 
         if (isPermanentSwap) {

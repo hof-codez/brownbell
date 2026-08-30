@@ -7,7 +7,7 @@ interface UseDuoPickerResult {
     saving: boolean;
     error: string | null;
     fetchEligible: (awardType: AwardType, playerIndex: 0 | 1) => Promise<EligibleRosterResponse | null>;
-    setDuo: (awardType: AwardType, playerIndex: 0 | 1, sleeperPlayerId: string) => Promise<boolean>;
+    setDuo: (awardType: AwardType, playerIndex: 0 | 1, sleeperPlayerId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function useDuoPicker(teamId: string, deviceToken: string): UseDuoPickerResult {
@@ -43,10 +43,11 @@ export function useDuoPicker(teamId: string, deviceToken: string): UseDuoPickerR
         setSaving(false);
 
         if (fnError || !data?.success) {
-            setError(data?.error || 'Could not save your pick - try again.');
-            return false;
+            const message = data?.error || 'Could not save your pick - try again.';
+            setError(message);
+            return { success: false, error: message };
         }
-        return true;
+        return { success: true };
     }, [teamId, deviceToken]);
 
     return { fetching, saving, error, fetchEligible, setDuo };
