@@ -918,7 +918,13 @@ class BrownBellAutomator {
         const validPositions = awardType === 'nextup'
             ? ['QB', 'RB', 'WR', 'TE', 'K']
             : awardType === 'boom'
-                ? ['DL', 'LB', 'DB']
+                // Includes both Sleeper's broad IDP categories AND granular
+                // NFL position labels - confirmed inconsistent across
+                // players via a real support report (Danielle Hunter still
+                // tagged "DE" rather than the broad "DL"). See the matching
+                // comment on BOOM_POSITIONS in the Edge Functions' shared
+                // eligibility.ts - keep both lists in sync.
+                ? ['DL', 'LB', 'DB', 'DE', 'DT', 'NT', 'ILB', 'OLB', 'MLB', 'CB', 'S', 'FS', 'SS']
                 : ['QB', 'RB', 'WR', 'TE'];
 
         const eligibleCandidates = [];

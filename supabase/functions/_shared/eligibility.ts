@@ -40,4 +40,17 @@ export const NEXTUP_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE', 'K']);
 // Main Award (different positions required) or Next Up (different
 // position AND experience tier required), so there's no isValidBoomCombo
 // function to go with this - nothing to validate beyond the position list.
-export const BOOM_POSITIONS = new Set(['DL', 'LB', 'DB']);
+//
+// Includes both Sleeper's broad IDP categories (DL/LB/DB) AND the more
+// granular NFL position labels (DE/DT/CB/S/etc) - confirmed via a real
+// support report that Sleeper's position data isn't perfectly consistent
+// across every IDP: some players carry the broad category, at least one
+// (Danielle Hunter) was found still tagged with the granular "DE" instead
+// of "DL". Including both costs nothing and can only ever make a genuinely
+// eligible player show up, never incorrectly exclude one.
+export const BOOM_POSITIONS = new Set([
+    'DL', 'LB', 'DB',
+    'DE', 'DT', 'NT',
+    'ILB', 'OLB', 'MLB',
+    'CB', 'S', 'FS', 'SS'
+]);
