@@ -15,6 +15,7 @@ export interface Team {
   manual_privilege: boolean;
   background_image_url: string | null;
   background_opacity: number;
+  accent_color: string | null;
 }
 
 export interface DuoRow {

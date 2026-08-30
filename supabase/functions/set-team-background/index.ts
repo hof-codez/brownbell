@@ -1,17 +1,23 @@
 // set-team-background/index.ts
-// POST (multipart/form-data) { teamId, deviceToken, action, file?, opacity? } ->
-//   { success, backgroundImageUrl?, backgroundOpacity?, error? }
+// POST (multipart/form-data) { teamId, deviceToken, action, file?, opacity?, accentColor? } ->
+//   { success, backgroundImageUrl?, backgroundOpacity?, accentColor?, error? }
 //
 // action is one of:
-//   'upload'      - file required, opacity optional (defaults kept if omitted)
-//   'reset'       - removes the stored file and clears background_image_url
-//   'set-opacity' - opacity required, adjusts an already-uploaded image
-//                   without re-uploading it
+//   'upload'         - file required; opacity and accentColor optional,
+//                       applied together in the same call if provided
+//   'reset'          - removes the stored file and clears background_image_url
+//                       (accent color is untouched - a separate personalization
+//                       axis, resetting the image shouldn't also wipe it)
+//   'set-appearance' - opacity and/or accentColor, whichever provided -
+//                       adjusts an already-uploaded image's opacity and/or
+//                       the accent color without re-uploading anything
 //
 // Device-token validation mirrors set-duo exactly - nothing here trusts the
-// client beyond that proof of ownership. File size and MIME type are
-// validated here as the real gate; the bucket's own limits (see
-// 018-team-backgrounds.sql) are a second line of defense, not a substitute.
+// client beyond that proof of ownership. File size/MIME type and hex color
+// format are all validated here as the real gate; the bucket's own limits
+// (see 018-team-backgrounds.sql) and the column's own check constraint
+// (see 020-team-accent-color.sql) are a second line of defense, not a
+// substitute for validating before ever reaching the database.
 //
 // Stored at a FIXED, extension-less path (the team's id) with upsert:true,
 // so every re-upload overwrites the previous file rather than accumulating
@@ -24,9 +30,10 @@
 import { corsHeaders, handleCorsPreflightRequest } from '../_shared/cors.ts';
 import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const BUCKET = 'team-backgrounds';
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -38,7 +45,7 @@ Deno.serve(async (req: Request) => {
         const deviceToken = form.get('deviceToken');
         const action = form.get('action');
 
-        if (typeof teamId !== 'string' || typeof deviceToken !== 'string' || !['upload', 'reset', 'set-opacity'].includes(action as string)) {
+        if (typeof teamId !== 'string' || typeof deviceToken !== 'string' || !['upload', 'reset', 'set-appearance'].includes(action as string)) {
             return jsonResponse({ success: false, error: 'Missing or invalid input' }, 400);
         }
 
@@ -56,8 +63,6 @@ Deno.serve(async (req: Request) => {
 
         if (action === 'reset') {
             const { error: removeError } = await supabase.storage.from(BUCKET).remove([teamId]);
-            // A "not found" removal is fine (nothing was ever uploaded) - only
-            // a genuine storage failure should block clearing the column.
             if (removeError && !removeError.message?.toLowerCase().includes('not found')) {
                 console.error('Failed to remove background file:', removeError);
                 return jsonResponse({ success: false, error: 'Could not remove the current background - try again' }, 500);
@@ -72,20 +77,36 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: true, backgroundImageUrl: null });
         }
 
-        if (action === 'set-opacity') {
+        if (action === 'set-appearance') {
+            const updatePayload: Record<string, unknown> = {};
+
             const opacityRaw = form.get('opacity');
-            const opacity = typeof opacityRaw === 'string' ? Number(opacityRaw) : NaN;
-            if (Number.isNaN(opacity) || opacity < 0 || opacity > 1) {
-                return jsonResponse({ success: false, error: 'Opacity must be a number between 0 and 1' }, 400);
+            if (typeof opacityRaw === 'string') {
+                const opacity = Number(opacityRaw);
+                if (Number.isNaN(opacity) || opacity < 0 || opacity > 1) {
+                    return jsonResponse({ success: false, error: 'Opacity must be a number between 0 and 1' }, 400);
+                }
+                updatePayload.background_opacity = opacity;
             }
 
-            const { error: updateError } = await supabase
-                .from('teams').update({ background_opacity: opacity }).eq('id', teamId);
+            const accentColorRaw = form.get('accentColor');
+            if (typeof accentColorRaw === 'string' && accentColorRaw.length > 0) {
+                if (!HEX_COLOR_RE.test(accentColorRaw)) {
+                    return jsonResponse({ success: false, error: 'Accent color must be a valid hex color (e.g. #FF5733)' }, 400);
+                }
+                updatePayload.accent_color = accentColorRaw;
+            }
+
+            if (Object.keys(updatePayload).length === 0) {
+                return jsonResponse({ success: false, error: 'Nothing to update' }, 400);
+            }
+
+            const { error: updateError } = await supabase.from('teams').update(updatePayload).eq('id', teamId);
             if (updateError) {
-                return jsonResponse({ success: false, error: 'Could not update opacity' }, 500);
+                return jsonResponse({ success: false, error: 'Could not save changes' }, 500);
             }
 
-            return jsonResponse({ success: true, backgroundOpacity: opacity });
+            return jsonResponse({ success: true, backgroundOpacity: updatePayload.background_opacity, accentColor: updatePayload.accent_color });
         }
 
         // action === 'upload'
@@ -110,12 +131,11 @@ Deno.serve(async (req: Request) => {
         }
 
         const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(teamId);
-        // Cache-bust so a re-upload at the same path is reflected immediately
-        // rather than showing a stale cached image at the same URL.
         const backgroundImageUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
 
-        const opacityRaw = form.get('opacity');
         const updatePayload: Record<string, unknown> = { background_image_url: backgroundImageUrl };
+
+        const opacityRaw = form.get('opacity');
         if (typeof opacityRaw === 'string') {
             const opacity = Number(opacityRaw);
             if (!Number.isNaN(opacity) && opacity >= 0 && opacity <= 1) {
@@ -123,12 +143,25 @@ Deno.serve(async (req: Request) => {
             }
         }
 
+        const accentColorRaw = form.get('accentColor');
+        if (typeof accentColorRaw === 'string' && accentColorRaw.length > 0) {
+            if (!HEX_COLOR_RE.test(accentColorRaw)) {
+                return jsonResponse({ success: false, error: 'Accent color must be a valid hex color (e.g. #FF5733)' }, 400);
+            }
+            updatePayload.accent_color = accentColorRaw;
+        }
+
         const { error: updateError } = await supabase.from('teams').update(updatePayload).eq('id', teamId);
         if (updateError) {
             return jsonResponse({ success: false, error: 'Image uploaded but could not save - try again' }, 500);
         }
 
-        return jsonResponse({ success: true, backgroundImageUrl, backgroundOpacity: updatePayload.background_opacity });
+        return jsonResponse({
+            success: true,
+            backgroundImageUrl,
+            backgroundOpacity: updatePayload.background_opacity,
+            accentColor: updatePayload.accent_color
+        });
 
     } catch (err) {
         console.error('set-team-background error:', err);

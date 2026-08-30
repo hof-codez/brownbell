@@ -5,20 +5,17 @@ interface BackgroundResult {
     success: boolean;
     backgroundImageUrl?: string | null;
     backgroundOpacity?: number;
+    accentColor?: string;
     error?: string;
 }
 
 interface UseTeamBackgroundResult {
     saving: boolean;
-    uploadBackground: (file: File, opacity: number) => Promise<BackgroundResult>;
+    uploadBackground: (file: File, opacity: number, accentColor?: string | null) => Promise<BackgroundResult>;
     resetBackground: () => Promise<BackgroundResult>;
-    setOpacity: (opacity: number) => Promise<BackgroundResult>;
+    setAppearance: (changes: { opacity?: number; accentColor?: string | null }) => Promise<BackgroundResult>;
 }
 
-// Every call sends multipart/form-data - Supabase's client detects a
-// FormData body and sets the right content-type automatically rather than
-// JSON-stringifying it, which is what makes sending an actual file through
-// an Edge Function possible at all.
 export function useTeamBackground(teamId: string, deviceToken: string): UseTeamBackgroundResult {
     const [saving, setSaving] = useState(false);
 
@@ -33,13 +30,14 @@ export function useTeamBackground(teamId: string, deviceToken: string): UseTeamB
         return data as BackgroundResult;
     }, []);
 
-    const uploadBackground = useCallback((file: File, opacity: number) => {
+    const uploadBackground = useCallback((file: File, opacity: number, accentColor?: string | null) => {
         const form = new FormData();
         form.set('teamId', teamId);
         form.set('deviceToken', deviceToken);
         form.set('action', 'upload');
         form.set('file', file);
         form.set('opacity', String(opacity));
+        if (accentColor) form.set('accentColor', accentColor);
         return invoke(form);
     }, [teamId, deviceToken, invoke]);
 
@@ -51,14 +49,15 @@ export function useTeamBackground(teamId: string, deviceToken: string): UseTeamB
         return invoke(form);
     }, [teamId, deviceToken, invoke]);
 
-    const setOpacity = useCallback((opacity: number) => {
+    const setAppearance = useCallback((changes: { opacity?: number; accentColor?: string | null }) => {
         const form = new FormData();
         form.set('teamId', teamId);
         form.set('deviceToken', deviceToken);
-        form.set('action', 'set-opacity');
-        form.set('opacity', String(opacity));
+        form.set('action', 'set-appearance');
+        if (changes.opacity !== undefined) form.set('opacity', String(changes.opacity));
+        if (changes.accentColor) form.set('accentColor', changes.accentColor);
         return invoke(form);
     }, [teamId, deviceToken, invoke]);
 
-    return { saving, uploadBackground, resetBackground, setOpacity };
+    return { saving, uploadBackground, resetBackground, setAppearance };
 }

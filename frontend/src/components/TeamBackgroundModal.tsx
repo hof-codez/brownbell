@@ -5,21 +5,23 @@ import { TeamCard } from './TeamCard';
 
 interface TeamBackgroundModalProps {
     teamWithDuos: TeamWithDuos;
-    uploadBackground: (file: File, opacity: number) => Promise<{ success: boolean; error?: string }>;
+    uploadBackground: (file: File, opacity: number, accentColor?: string | null) => Promise<{ success: boolean; error?: string }>;
     resetBackground: () => Promise<{ success: boolean; error?: string }>;
-    setOpacity: (opacity: number) => Promise<{ success: boolean; error?: string }>;
+    setAppearance: (changes: { opacity?: number; accentColor?: string | null }) => Promise<{ success: boolean; error?: string }>;
     saving: boolean;
     onDone: () => void;
     onClose: () => void;
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_PICKER_COLOR = '#D4A574';
 
-export function TeamBackgroundModal({ teamWithDuos, uploadBackground, resetBackground, setOpacity, saving, onDone, onClose }: TeamBackgroundModalProps) {
+export function TeamBackgroundModal({ teamWithDuos, uploadBackground, resetBackground, setAppearance, saving, onDone, onClose }: TeamBackgroundModalProps) {
     const { team } = teamWithDuos;
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(team.background_image_url);
     const [opacityValue, setOpacityValue] = useState(team.background_opacity);
+    const [accentColorValue, setAccentColorValue] = useState(team.accent_color ?? DEFAULT_PICKER_COLOR);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -45,27 +47,27 @@ export function TeamBackgroundModal({ teamWithDuos, uploadBackground, resetBackg
         setSelectedFile(file);
     }
 
+    const accentColorChanged = accentColorValue !== (team.accent_color ?? DEFAULT_PICKER_COLOR);
+    const opacityChanged = opacityValue !== team.background_opacity;
+
     async function handleSave() {
         setError(null);
 
         if (selectedFile) {
-            // A new image was chosen - upload it together with the current
-            // opacity setting in one call.
-            const result = await uploadBackground(selectedFile, opacityValue);
+            const result = await uploadBackground(selectedFile, opacityValue, accentColorChanged ? accentColorValue : undefined);
             if (result.success) { onDone(); } else { setError(result.error || 'Could not save - try again.'); }
             return;
         }
 
-        if (opacityValue !== team.background_opacity) {
-            // No new image, but the opacity slider moved - this still needs
-            // to actually save. Previously this branch silently closed the
-            // modal without persisting the change at all.
-            const result = await setOpacity(opacityValue);
+        if (opacityChanged || accentColorChanged) {
+            const result = await setAppearance({
+                opacity: opacityChanged ? opacityValue : undefined,
+                accentColor: accentColorChanged ? accentColorValue : undefined
+            });
             if (result.success) { onDone(); } else { setError(result.error || 'Could not save - try again.'); }
             return;
         }
 
-        // Nothing actually changed - just close.
         onClose();
     }
 
@@ -79,18 +81,13 @@ export function TeamBackgroundModal({ teamWithDuos, uploadBackground, resetBackg
         }
     }
 
-    // Accurate preview: the REAL TeamCard component, with only the
-    // background fields overridden to reflect what's currently selected but
-    // not yet saved. This is the same rendering path the real Teams tab
-    // uses, so there's no separate preview logic that could drift out of
-    // sync with how the card actually looks - what you see here is exactly
-    // what everyone else will see.
     const previewTeamWithDuos: TeamWithDuos = {
         ...teamWithDuos,
         team: {
             ...team,
             background_image_url: previewUrl,
-            background_opacity: opacityValue
+            background_opacity: opacityValue,
+            accent_color: accentColorValue
         }
     };
 
@@ -134,6 +131,18 @@ export function TeamBackgroundModal({ teamWithDuos, uploadBackground, resetBackg
                     />
                 </label>
 
+                <label className="mt-4 flex items-center justify-between">
+                    <span className="font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                        Accent color <span className="normal-case text-chalk-dim/70">(name &amp; border)</span>
+                    </span>
+                    <input
+                        type="color"
+                        value={accentColorValue}
+                        onChange={e => setAccentColorValue(e.target.value)}
+                        className="h-8 w-14 cursor-pointer rounded border border-panel-line bg-transparent"
+                    />
+                </label>
+
                 {error && (
                     <p className="mt-3 rounded border border-brick/50 bg-brick/10 px-3 py-2 font-body text-sm text-chalk">
                         {error}
@@ -155,7 +164,7 @@ export function TeamBackgroundModal({ teamWithDuos, uploadBackground, resetBackg
                             disabled={saving}
                             className="w-full rounded border border-panel-line px-4 py-2 font-body text-sm text-chalk-dim disabled:opacity-50"
                         >
-                            Reset to default
+                            Reset background to default
                         </button>
                     )}
 

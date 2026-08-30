@@ -62,6 +62,10 @@ export default function App() {
   // it via its own effect, but simplest to just always pass the latest
   // value down.
   const [miscScrollTarget, setMiscScrollTarget] = useState<string | null>(null);
+  // Set by a team card's "History" link - separate from miscScrollTarget
+  // since it carries a team id (a filter) rather than a section anchor,
+  // and always targets the History sub-tab specifically.
+  const [historyTeamFilter, setHistoryTeamFilter] = useState<string | null>(null);
 
   const myTeam = claimedTeam ? teams.find(t => t.team.id === claimedTeam.teamId) ?? null : null;
   const otherTeams = myTeam ? teams.filter(t => t.team.id !== myTeam.team.id) : teams;
@@ -74,6 +78,11 @@ export default function App() {
 
   function goToMiscSection(id: string) {
     setMiscScrollTarget(id);
+    setActiveTab('misc');
+  }
+
+  function goToHistoryFor(teamId: string) {
+    setHistoryTeamFilter(teamId);
     setActiveTab('misc');
   }
 
@@ -103,6 +112,7 @@ export default function App() {
             byePlayerIds={byePlayerIds}
             duoNames={duoNames}
             currentWeekScores={currentWeekScores}
+            onViewHistory={goToHistoryFor}
             onNameDuo={claimedTeam ? (awardType) => setNamingAward(awardType) : undefined}
             onCustomize={claimedTeam ? () => setShowBackgroundModal(true) : undefined}
           />
@@ -123,7 +133,12 @@ export default function App() {
         )}
 
         {activeTab === 'misc' && (
-          <MiscTab teams={teams.map(t => t.team)} miscScrollTarget={miscScrollTarget} />
+          <MiscTab
+            teams={teams.map(t => t.team)}
+            miscScrollTarget={miscScrollTarget}
+            historyTeamFilter={historyTeamFilter}
+            onClearHistoryFilter={() => setHistoryTeamFilter(null)}
+          />
         )}
       </main>
 
@@ -173,7 +188,7 @@ export default function App() {
           teamWithDuos={myTeam}
           uploadBackground={background.uploadBackground}
           resetBackground={background.resetBackground}
-          setOpacity={background.setOpacity}
+          setAppearance={background.setAppearance}
           saving={background.saving}
           onDone={() => {
             setShowBackgroundModal(false);
