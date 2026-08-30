@@ -3,9 +3,11 @@ import type { ReactNode } from 'react';
 import { useBonusResults } from '../hooks/useBonusResults';
 import { useWeeklyRecap } from '../hooks/useWeeklyRecap';
 import { usePredictions } from '../hooks/usePredictions';
+import { useTaunts } from '../hooks/useTaunts';
 import { duoNameKey } from '../hooks/useDuoNames';
 import { PredictionWidget } from './PredictionWidget';
 import { PredictionStandings } from './PredictionStandings';
+import { TauntBox } from './TauntBox';
 import type { TeamWithDuos } from '../types';
 
 interface ShowdownTabProps {
@@ -175,9 +177,11 @@ function WeeklyRecapSection({ teams, week }: { teams: TeamWithDuos[]; week: numb
 export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoNames }: ShowdownTabProps) {
     const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
     const predictions = usePredictions(teams.map(t => t.team), matchupsByWeek);
+    const taunts = useTaunts();
     const [view, setView] = useState<'matchups' | 'season' | 'recap' | 'predictions'>('matchups');
     const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
     const [predictionError, setPredictionError] = useState<string | null>(null);
+    const [tauntError, setTauntError] = useState<string | null>(null);
     const canVote = !!myTeamId && !!deviceToken;
     const teamsById = new Map(teams.map(t => [t.team.id, t.team]));
 
@@ -186,6 +190,13 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
         setPredictionError(null);
         const result = await predictions.submitPrediction(myTeamId, deviceToken, week, teamAId, teamBId, pickedTeamId);
         if (!result.success) setPredictionError(result.error || 'Could not save your prediction.');
+    }
+
+    async function handleSendTaunt(week: number, opponentTeamId: string, emoji: string) {
+        if (!myTeamId || !deviceToken) return;
+        setTauntError(null);
+        const result = await taunts.sendTaunt(myTeamId, deviceToken, week, opponentTeamId, emoji);
+        if (!result.success) setTauntError(result.error || 'Could not send taunt.');
     }
 
     useEffect(() => {
@@ -397,6 +408,14 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                     saving={predictions.saving}
                                     onPick={pickedTeamId => handlePick(m.week, m.teamA.teamId, m.teamB.teamId, pickedTeamId)}
                                 />
+                                {involvesMe && canVote && myTeamId && (
+                                    <TauntBox
+                                        taunts={taunts.getTauntsFor(m.week, m.teamA.teamId, m.teamB.teamId)}
+                                        myTeamId={myTeamId}
+                                        sending={taunts.sending}
+                                        onSend={emoji => handleSendTaunt(m.week, m.teamA.teamId === myTeamId ? m.teamB.teamId : m.teamA.teamId, emoji)}
+                                    />
+                                )}
                                 </div>
                             </div>
                         );
@@ -404,6 +423,11 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                     {predictionError && (
                         <p className="rounded border border-brick/50 bg-brick/10 px-3 py-2 font-body text-sm text-chalk">
                             {predictionError}
+                        </p>
+                    )}
+                    {tauntError && (
+                        <p className="rounded border border-brick/50 bg-brick/10 px-3 py-2 font-body text-sm text-chalk">
+                            {tauntError}
                         </p>
                     )}
                 </div>

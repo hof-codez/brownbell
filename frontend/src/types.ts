@@ -65,6 +65,15 @@ export interface MatchupPrediction {
   predictedWinnerTeamId: string;
 }
 
+export interface MatchupTaunt {
+  id: string;
+  week: number;
+  senderTeamId: string;
+  recipientTeamId: string;
+  emoji: string;
+  createdAt: string;
+}
+
 export interface EligibleRosterResponse {
   locked: boolean;
   situation: SwapSituation;
