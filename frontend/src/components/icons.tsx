@@ -37,3 +37,18 @@ export function SproutIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/** Signature glyph for Season of Boom (IDP duos) - a simple line-drawn lightning bolt. */
+export function BoltIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M13 3 5 13.5h5.5L11 21l8-10.5h-5.5L13 3Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

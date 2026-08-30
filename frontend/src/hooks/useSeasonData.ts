@@ -76,14 +76,15 @@ export function useSeasonData(): UseSeasonDataResult {
       const teamsWithDuos: TeamWithDuos[] = (teams ?? []).map((team: Team) => {
         const main: [DuoRow | null, DuoRow | null] = [null, null];
         const nextup: [DuoRow | null, DuoRow | null] = [null, null];
+        const boom: [DuoRow | null, DuoRow | null] = [null, null];
 
         for (const duo of duos) {
           if (duo.team_id !== team.id) continue;
-          const target = duo.award_type === 'main' ? main : nextup;
+          const target = duo.award_type === 'main' ? main : duo.award_type === 'boom' ? boom : nextup;
           target[duo.player_index] = duo;
         }
 
-        return { team, main, nextup };
+        return { team, main, nextup, boom };
       });
 
       if (!cancelled) {

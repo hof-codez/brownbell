@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { BellIcon, SproutIcon } from './icons';
+import { BellIcon, SproutIcon, BoltIcon } from './icons';
 
 function RuleSection({ title, children, id }: { title: string; children: ReactNode; id?: string }) {
     return (
@@ -170,6 +170,66 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                 <p>
                     Claim your team once (pick your team, set a PIN) to unlock editing. Before a slot locks, you can
                     set or swap it freely &mdash; no need to go through the commissioner.
+                </p>
+            </RuleSection>
+
+            <section className="rounded-lg border border-panel-line bg-panel p-5">
+                <div className="flex items-center gap-2">
+                    <BoltIcon className="h-5 w-5 text-bell" />
+                    <h2 className="font-display text-2xl font-bold uppercase tracking-wide text-chalk">Season of Boom Award (SOB)</h2>
+                </div>
+                <p className="mt-2 font-body text-sm text-chalk-dim">
+                    A third, completely separate duo built around defensive players &mdash; its own standalone
+                    award, not combined into the Brown Bell Award total.
+                </p>
+            </section>
+
+            <RuleSection title="Duo format">
+                <p>
+                    Your Season of Boom duo can be <span className="text-chalk">any two</span> players at{' '}
+                    <span className="text-chalk">DL, LB, or DB</span> &mdash; there&rsquo;s no position-diversity
+                    rule here the way there is for Main Award or Next Up. Two linebackers is a perfectly valid
+                    pairing.
+                </p>
+                <p className="mt-2">
+                    Every roster carries at least 3 IDPs (defensive players) &mdash; two make up your active duo,
+                    and the 3rd sits as your bench option in case you need it.
+                </p>
+            </RuleSection>
+
+            <RuleSection title="Scoring">
+                <p>
+                    No weekly bonus matchups here &mdash; Season of Boom is purely a season-long total, same
+                    straightforward format as Next Up.
+                </p>
+            </RuleSection>
+
+            <RuleSection title="If a player gets hurt, traded, or released">
+                <p>
+                    This is where Season of Boom works differently from Main Award and Next Up. Instead of
+                    auto-sub immediately stepping in, <span className="text-chalk">you get first crack at picking
+                    your own replacement</span> &mdash; auto-sub is a safety net, not the default.
+                </p>
+                <p className="mt-2">
+                    You can pick (or change your pick) right up until{' '}
+                    <span className="text-chalk">1 minute before that player&rsquo;s own kickoff</span>. If you
+                    haven&rsquo;t picked by then, auto-sub steps in on your behalf &mdash; it gives itself a wider
+                    15-minute safety margin before kickoff, since it only checks periodically rather than
+                    watching the clock continuously the way you can.
+                </p>
+                <p className="mt-2">
+                    One rule applies no matter who&rsquo;s picking, you or auto-sub:{' '}
+                    <span className="text-chalk">a player whose own game has already started can never be
+                    subbed in</span>, even as an emergency option. This stops anyone from picking a replacement
+                    based on stats that have already happened or are already live.
+                </p>
+                <p className="mt-2">
+                    The same 2-swap-per-season budget from Main Award and Next Up applies here too: a permanent
+                    departure (trade or release) gives you the same pick-it-yourself window on its first
+                    occurrence; a second permanent departure in the same season auto-fills immediately with no
+                    window at all, and your manual-pick privilege is done for the rest of the season. A
+                    temporary departure (injury) never counts against this budget, no matter how many times it
+                    happens.
                 </p>
             </RuleSection>
         </div>

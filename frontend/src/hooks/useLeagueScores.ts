@@ -43,6 +43,7 @@ export interface AwardScores {
 interface UseLeagueScoresResult {
     main: AwardScores | null;
     nextup: AwardScores | null;
+    boom: AwardScores | null;
     loading: boolean;
     error: string | null;
 }
@@ -50,6 +51,7 @@ interface UseLeagueScoresResult {
 export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
     const [main, setMain] = useState<AwardScores | null>(null);
     const [nextup, setNextup] = useState<AwardScores | null>(null);
+    const [boom, setBoom] = useState<AwardScores | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -129,7 +131,7 @@ export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
 
                 const seasonRankings: SeasonRanking[] = teams
                     .map(t => {
-                        const slots = awardType === 'main' ? t.main : t.nextup;
+                        const slots = awardType === 'main' ? t.main : awardType === 'boom' ? t.boom : t.nextup;
                         const players: PlayerScore[] = slots
                             .filter((s): s is NonNullable<typeof s> => s !== null && !!s.sleeper_player_id)
                             .map(s => ({
@@ -160,6 +162,7 @@ export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
             if (!cancelled) {
                 setMain(buildAward('main'));
                 setNextup(buildAward('nextup'));
+                setBoom(buildAward('boom'));
                 setLoading(false);
             }
         }
@@ -172,5 +175,5 @@ export function useLeagueScores(teams: TeamWithDuos[]): UseLeagueScoresResult {
         return () => { cancelled = true; clearInterval(intervalId); };
     }, [teams]);
 
-    return { main, nextup, loading, error };
+    return { main, nextup, boom, loading, error };
 }

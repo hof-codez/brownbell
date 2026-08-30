@@ -1,21 +1,18 @@
 import type { TeamWithDuos, AwardType } from '../types';
-import { BellIcon, SproutIcon } from './icons';
+import { BellIcon, SproutIcon, BoltIcon } from './icons';
 import { DuoSlotDisplay } from './DuoSlotDisplay';
 import { duoNameKey } from '../hooks/useDuoNames';
 
 interface TeamCardProps {
     teamWithDuos: TeamWithDuos;
     onEditSlot?: (awardType: AwardType, playerIndex: 0 | 1) => void;
-    /** Sleeper player IDs on bye this week - see useCurrentWeekByeStatus. */
     byePlayerIds?: Set<string>;
-    /** All duo nicknames, keyed by duoNameKey(teamId, awardType) - shown to everyone. */
     duoNames?: Map<string, string>;
-    /** Opens the naming modal - only passed for the owner's own card. */
     onNameDuo?: (awardType: AwardType) => void;
 }
 
 export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, onNameDuo }: TeamCardProps) {
-    const { team, main, nextup } = teamWithDuos;
+    const { team, main, nextup, boom } = teamWithDuos;
 
     function isBye(slot: TeamWithDuos['main'][number]): boolean {
         return !!slot?.sleeper_player_id && !!byePlayerIds?.has(slot.sleeper_player_id);
@@ -66,6 +63,14 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, onN
                     <div className="space-y-1.5">
                         <DuoSlotDisplay slot={nextup[0]} onEdit={onEditSlot ? () => onEditSlot('nextup', 0) : undefined} isBye={isBye(nextup[0])} />
                         <DuoSlotDisplay slot={nextup[1]} onEdit={onEditSlot ? () => onEditSlot('nextup', 1) : undefined} isBye={isBye(nextup[1])} />
+                    </div>
+                </section>
+
+                <section aria-labelledby={`boom-${team.id}`}>
+                    {renderAwardHeader('boom', BoltIcon, 'Season of Boom', boom)}
+                    <div className="space-y-1.5">
+                        <DuoSlotDisplay slot={boom[0]} onEdit={onEditSlot ? () => onEditSlot('boom', 0) : undefined} isBye={isBye(boom[0])} />
+                        <DuoSlotDisplay slot={boom[1]} onEdit={onEditSlot ? () => onEditSlot('boom', 1) : undefined} isBye={isBye(boom[1])} />
                     </div>
                 </section>
             </div>

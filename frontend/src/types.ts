@@ -1,4 +1,4 @@
-export type AwardType = 'main' | 'nextup';
+export type AwardType = 'main' | 'nextup' | 'boom';
 
 export interface Season {
   id: string;
@@ -34,6 +34,7 @@ export interface TeamWithDuos {
   team: Team;
   main: DuoSlots;
   nextup: DuoSlots;
+  boom: DuoSlots;
 }
 
 /** What's stored in localStorage after a successful claim - proves nothing on

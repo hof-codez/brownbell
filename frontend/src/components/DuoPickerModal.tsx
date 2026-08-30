@@ -52,7 +52,7 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
         }
     }
 
-    const awardLabel = awardType === 'main' ? 'Main Award' : 'Next Up Award';
+    const awardLabel = awardType === 'main' ? 'Main Award' : awardType === 'boom' ? 'Season of Boom' : 'Next Up Award';
 
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" role="dialog" aria-modal="true">

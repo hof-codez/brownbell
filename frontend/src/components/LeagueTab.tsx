@@ -30,7 +30,7 @@ function PillToggle<T extends string>({ options, value, onChange }: { options: {
 }
 
 export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
-    const { main, nextup, loading, error } = useLeagueScores(teams);
+    const { main, nextup, boom, loading, error } = useLeagueScores(teams);
     // The Brown Bell Award is decided by Main Award season points PLUS
     // accumulated bonus points combined - reusing the same bonus totals
     // already shown on the Showdown tab, so there's no risk of two
@@ -52,7 +52,7 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
         );
     }
 
-    const activeScores = award === 'main' ? main : nextup;
+    const activeScores = award === 'main' ? main : award === 'boom' ? boom : nextup;
     if (!activeScores) return null;
 
     const bonusTotals = new Map(bonusRankings.map(r => [r.teamId, r.totalBonus]));
@@ -61,7 +61,7 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
         <div>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <PillToggle
-                    options={[{ id: 'main', label: 'Main Award' }, { id: 'nextup', label: 'Next Up' }]}
+                    options={[{ id: 'main', label: 'Main Award' }, { id: 'nextup', label: 'Next Up' }, { id: 'boom', label: 'Season of Boom' }]}
                     value={award}
                     onChange={setAward}
                 />
