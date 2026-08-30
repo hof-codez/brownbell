@@ -5,6 +5,11 @@ import type { Team } from '../types';
 
 interface HistoryTabProps {
     teams: Team[];
+    /** Pre-filters the log to just this team, with a visible "clear" option
+     * to see everyone again - set when arriving here via a team card's
+     * History link rather than by picking the Misc tab directly. */
+    teamFilter?: string | null;
+    onClearFilter?: () => void;
 }
 
 const BADGE_STYLES: Record<ActivityBadge, string> = {
@@ -60,11 +65,26 @@ function StatCorrectionsSection({ teams }: { teams: Team[] }) {
     );
 }
 
-export function HistoryTab({ teams }: HistoryTabProps) {
-    const { entries, loading, error } = useActivityLog(teams);
+export function HistoryTab({ teams, teamFilter, onClearFilter }: HistoryTabProps) {
+    const { entries: allEntries, loading, error } = useActivityLog(teams);
+    const entries = teamFilter ? allEntries.filter(e => e.teamId === teamFilter) : allEntries;
+    const filteredTeamName = teamFilter ? teams.find(t => t.id === teamFilter)?.display_name : null;
 
     return (
         <div>
+            {filteredTeamName && (
+                <div className="mb-3 flex items-center justify-between rounded border border-panel-line bg-panel/60 px-3 py-2">
+                    <span className="font-body text-sm text-chalk-dim">
+                        Showing only <span className="text-chalk">{filteredTeamName}</span>
+                    </span>
+                    {onClearFilter && (
+                        <button onClick={onClearFilter} className="font-mono text-[10px] uppercase tracking-widest text-bell">
+                            Show everyone
+                        </button>
+                    )}
+                </div>
+            )}
+
             <StatCorrectionsSection teams={teams} />
 
             {loading ? (
@@ -75,7 +95,9 @@ export function HistoryTab({ teams }: HistoryTabProps) {
                 </div>
             ) : entries.length === 0 ? (
                 <div className="rounded border border-dashed border-panel-line px-4 py-6 text-center">
-                    <p className="font-body text-sm text-chalk-dim">No changes recorded yet this season.</p>
+                    <p className="font-body text-sm text-chalk-dim">
+                        {filteredTeamName ? `No changes recorded yet for ${filteredTeamName} this season.` : 'No changes recorded yet this season.'}
+                    </p>
                 </div>
             ) : (
                 <div className="space-y-1.5">
