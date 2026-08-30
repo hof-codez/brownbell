@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
     try {
         const { teamId, deviceToken, awardType, name } = await req.json();
 
-        if (!teamId || !deviceToken || !['main', 'nextup'].includes(awardType)) {
+        if (!teamId || !deviceToken || !['main', 'nextup', 'boom'].includes(awardType)) {
             return jsonResponse({ success: false, error: 'Missing or invalid input' }, 400);
         }
 
