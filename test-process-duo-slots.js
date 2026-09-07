@@ -66,6 +66,7 @@ async function run() {
         'p-b-cover': { first_name: 'Cover', last_name: 'QB', position: 'QB', team: 'DAL', injury_status: null, years_exp: 3 },
 
         'p-c-rb': { first_name: 'C', last_name: 'RB', position: 'RB', team: 'DAL', injury_status: null, years_exp: 5 },
+        'p-c-bench-te': { first_name: 'C', last_name: 'BenchTE', position: 'TE', team: 'DAL', injury_status: null, years_exp: 5 },
         // p-gone-c intentionally NOT in playersData's roster list below (traded away)
         'p-gone-c': { first_name: 'Gone', last_name: 'QB', position: 'QB', team: 'SEA', injury_status: null, years_exp: 5 },
 
@@ -78,7 +79,7 @@ async function run() {
         rosters: [
             { owner_id: 'oa', roster_id: 1, players: ['p-healthy', 'p-healthy-rb'] },
             { owner_id: 'ob', roster_id: 2, players: ['p-hurt', 'p-b-rb', 'p-b-cover'] },
-            { owner_id: 'oc', roster_id: 3, players: ['p-c-rb'] }, // p-gone-c NOT here - traded away
+            { owner_id: 'oc', roster_id: 3, players: ['p-c-rb', 'p-c-bench-te'] }, // p-gone-c NOT here - traded away
             { owner_id: 'od', roster_id: 4, players: ['p-d-rb', 'p-d-cover'] } // p-gone-d NOT here - traded away
         ],
         userMap: { oa: 'TeamA', ob: 'TeamB', oc: 'TeamC', od: 'TeamD' }
@@ -90,6 +91,16 @@ async function run() {
     // started THIS week" (an exclusion filter when picking replacements,
     // should be false - it's still pregame for the week being evaluated).
     automator.hasPlayerGameStarted = async (playerId, week) => week === 1;
+    // resolveVacancy checks the best candidate's own kickoff via
+    // isEligibleForSub regardless of award type - without a cached
+    // schedule it attempts a live fetch, which fails in this offline test
+    // environment and falls back to treating kickoff as "unknown," which
+    // is conservatively treated as no time left. A far-future date makes
+    // this test correctly exercise the "plenty of time, wait" path.
+    automator.cachedSchedule = {
+        3: { DAL: { date: new Date(Date.now() + 120 * 60000) } },
+        4: { DAL: { date: new Date(Date.now() + 120 * 60000) } }
+    };
     automator.isPlayerOnBye = async () => false;
     automator.getWeeklyScores = async () => ({ 'p-b-cover': 15, 'p-d-cover': 12 });
 
@@ -110,11 +121,13 @@ async function run() {
     allPassed &= check('TeamB original frozen to the hurt player', teamBSlot0.original_sleeper_player_id === 'p-hurt');
     allPassed &= check('TeamB slot marked source: auto', teamBSlot0.source === 'auto');
 
-    // --- TeamC: permanent departure, budget not yet used - slot cleared ---
-    const teamCSlot0Exists = supabase._store.duos.some(d => d.team_id === teamCId && d.player_index === 0);
-    allPassed &= check('TeamC slot 0 cleared (permanent departure, budget not yet used - left for owner)', !teamCSlot0Exists);
+    // --- TeamC: permanent departure, budget not yet used - slot cleared but PRESERVED
+    //     (sleeper_player_id: null, not deleted) so original_sleeper_player_id
+    //     survives for a later re-check - same as boom always did. ---
+    const teamCSlot0 = supabase._store.duos.find(d => d.team_id === teamCId && d.player_index === 0);
+    allPassed &= check('TeamC slot 0 cleared but preserved, waiting for owner or auto-sub', teamCSlot0?.sleeper_player_id === null && teamCSlot0?.original_sleeper_player_id === 'p-gone-c');
     const teamCState = supabase._store.teams.find(t => t.id === teamCId);
-    allPassed &= check('TeamC swap budget UNCHANGED (clearing does not consume it - only an owner pick does)', teamCState.main_permanent_swap_used === false);
+    allPassed &= check('TeamC swap budget marked used the moment the vacancy was created (matches boom\'s existing behavior)', teamCState.main_permanent_swap_used === true);
 
     // --- TeamD: permanent departure, this award's budget already used - auto-filled ---
     const teamDSlot0 = supabase._store.duos.find(d => d.team_id === teamDId && d.player_index === 0);

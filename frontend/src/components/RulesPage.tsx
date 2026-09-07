@@ -107,7 +107,8 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                     If your locked player is ruled out, doubtful, or placed on IR &mdash; but is still on your
                     roster &mdash; that&rsquo;s a temporary situation. Auto-sub fills the slot immediately with
                     the best eligible replacement from your roster, so you&rsquo;re never left scoring zero
-                    while you&rsquo;re not paying attention.
+                    while you&rsquo;re not paying attention. This is the same for all three awards, including
+                    Season of Boom.
                 </p>
                 <p className="mt-2">
                     You&rsquo;re not stuck with that pick, though &mdash; you can go in any time and swap in
@@ -128,18 +129,41 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                     gets its <span className="text-chalk">own, independent</span> permanent swap: what happens in
                     one has no effect on the other two.
                 </p>
+                <p className="mt-2">
+                    Unlike an injury, a permanent departure doesn&rsquo;t auto-fill right away.{' '}
+                    <span className="text-chalk">The slot clears and waits for you first</span> &mdash; auto-sub
+                    only steps in as a fallback once kickoff is close and you haven&rsquo;t picked yet. This is
+                    the one situation where the automation deliberately gives you the first move rather than
+                    filling the gap immediately: an injury still leaves the same player in the league somewhere,
+                    but a trade or release genuinely changes who&rsquo;s available to you, and that&rsquo;s worth
+                    a real look before anything auto-fills.
+                </p>
+                <p className="mt-2">
+                    You can pick (or change your pick) right up until{' '}
+                    <span className="text-chalk">1 minute before that player&rsquo;s own kickoff</span>. If you
+                    haven&rsquo;t picked by then, auto-sub steps in on your behalf &mdash; it gives itself a wider
+                    15-minute safety margin before kickoff, since it only checks periodically rather than
+                    watching the clock continuously the way you can.
+                </p>
+                <p className="mt-2">
+                    One rule applies no matter who&rsquo;s picking, you or auto-sub:{' '}
+                    <span className="text-chalk">a player whose own game has already started can never be
+                    subbed in</span>, even as an emergency option. This stops anyone from picking a replacement
+                    based on stats that have already happened or are already live.
+                </p>
                 <ul className="ml-4 mt-2 list-disc space-y-1">
-                    <li><span className="text-chalk">That award&rsquo;s 1st permanent departure:</span> you pick the replacement yourself</li>
+                    <li><span className="text-chalk">That award&rsquo;s 1st permanent departure:</span> the slot clears and waits for your pick, auto-filling only as kickoff nears</li>
                     <li>
                         <span className="text-chalk">Any further permanent departure in that same award:</span> auto-sub
-                        fills it immediately, no manual pick offered
+                        fills it immediately, no window at all
                     </li>
                 </ul>
                 <p className="mt-2">
                     Once an award&rsquo;s permanent swap is used, manual control is gone for the rest of the season
                     for <span className="text-chalk">that award specifically</span> &mdash; not just for future
                     trades, but for injuries too. Your other two awards are completely unaffected and keep their
-                    own manual control until each independently uses its own swap.
+                    own manual control until each independently uses its own swap. A temporary departure
+                    (injury) never counts against this budget, no matter how many times it happens.
                 </p>
             </RuleSection>
 
@@ -197,35 +221,11 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
 
             <RuleSection title="If a player gets hurt, traded, or released">
                 <p>
-                    This is where Season of Boom handles timing differently from Brown Bell and Next Up. Those
-                    two auto-fill the slot immediately when an injury is detected, and you can go in afterward
-                    and swap in someone else if you want &mdash; the pick is never locked to the automation&rsquo;s
-                    choice. Season of Boom flips that order: <span className="text-chalk">the slot stays empty
-                    and waits for you first</span>, with auto-sub only stepping in as a fallback once kickoff is
-                    close and nobody&rsquo;s picked yet.
-                </p>
-                <p className="mt-2">
-                    You can pick (or change your pick) right up until{' '}
-                    <span className="text-chalk">1 minute before that player&rsquo;s own kickoff</span>. If you
-                    haven&rsquo;t picked by then, auto-sub steps in on your behalf &mdash; it gives itself a wider
-                    15-minute safety margin before kickoff, since it only checks periodically rather than
-                    watching the clock continuously the way you can.
-                </p>
-                <p className="mt-2">
-                    One rule applies no matter who&rsquo;s picking, you or auto-sub:{' '}
-                    <span className="text-chalk">a player whose own game has already started can never be
-                    subbed in</span>, even as an emergency option. This stops anyone from picking a replacement
-                    based on stats that have already happened or are already live.
-                </p>
-                <p className="mt-2">
-                    Season of Boom has its <span className="text-chalk">own, independent</span> permanent swap,
-                    entirely separate from Brown Bell&rsquo;s and Next Up&rsquo;s: a permanent departure (trade or
-                    release) gives you the same pick-it-yourself window on Season of Boom&rsquo;s first
-                    occurrence; any further permanent departure in Season of Boom specifically auto-fills
-                    immediately with no window at all, and manual-pick privilege for this award is done for the
-                    rest of the season &mdash; your other two awards are unaffected either way. A temporary
-                    departure (injury) never counts against this budget, no matter how many times it
-                    happens.
+                    Season of Boom follows the exact same rules as Brown Bell and Next Up for both
+                    situations &mdash; see <span className="text-chalk">&ldquo;Injuries - temporary swaps&rdquo;</span>{' '}
+                    and <span className="text-chalk">&ldquo;Trades &amp; releases - permanent swaps&rdquo;</span>{' '}
+                    above. That includes its own independent permanent-swap budget, entirely separate from Brown
+                    Bell&rsquo;s and Next Up&rsquo;s.
                 </p>
             </RuleSection>
         </div>

@@ -60,6 +60,13 @@ async function run() {
     automator.getWeeklyScores = async () => ({});
     automator.hasPlayerGameStarted = async (playerId, week) => week === 1; // locked for the season, no games started this week
     automator.fetchNFLSchedule = async () => ({});
+    // resolveVacancy checks the best candidate's own kickoff via
+    // isEligibleForSub regardless of award type - the fetchNFLSchedule stub
+    // above never populates cachedSchedule internally, so without this the
+    // candidate's kickoff reads as "unknown" and is conservatively treated
+    // as no time left, triggering immediate auto-fill instead of the
+    // intended "clear and wait" path this test is actually checking.
+    automator.cachedSchedule = { 3: { DAL: { date: new Date(Date.now() + 120 * 60000) } } };
 
     process.env.CRON_SCHEDULE = '0 14 * * 2'; // Tuesday full check
 
@@ -75,13 +82,16 @@ async function run() {
     console.log(JSON.stringify(finalSubs, null, 2));
 
     const slot0After = finalDuos.find(d => d.team_id === teamAId && d.award_type === 'main' && d.player_index === 0);
-    const slotCleared = slot0After === undefined;
+    // Cleared but PRESERVED (sleeper_player_id: null, not a deleted row) so
+    // original_sleeper_player_id survives for a later re-check - same as
+    // boom always did, now the universal pattern for all three awards.
+    const slotCleared = slot0After?.sleeper_player_id === null && slot0After?.original_sleeper_player_id === '1001';
     const clearLogged = finalSubs.some(s =>
-        s.team_id === teamAId && s.original_name === 'Original QB' && (s.reason || '').includes('slot cleared')
+        s.team_id === teamAId && s.original_name === 'Original QB' && (s.reason || '').includes('cleared')
     );
 
     console.log('\n--- CHECKS ---');
-    console.log(slotCleared ? '✅ 1st permanent departure correctly clears the slot (not auto-filled)' : '❌ FAILED - slot still shows a player');
+    console.log(slotCleared ? '✅ This award\'s 1st permanent departure correctly clears the slot (not auto-filled)' : '❌ FAILED - slot missing or still shows a player');
     console.log(clearLogged ? '✅ The clear was logged to substitutions history' : '❌ FAILED - no history entry for the clear');
     process.exit(slotCleared && clearLogged ? 0 : 1);
 }
