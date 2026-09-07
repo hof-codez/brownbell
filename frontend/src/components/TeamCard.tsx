@@ -74,7 +74,20 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, cur
                 <div className="flex items-start justify-between gap-2">
                     <h2
                         className={`font-display text-2xl font-bold uppercase tracking-wide ${team.accent_color ? '' : 'text-chalk'}`}
-                        style={team.accent_color ? { color: team.accent_color } : undefined}
+                        style={{
+                            ...(team.accent_color ? { color: team.accent_color } : {}),
+                            // A background image's colors and brightness are
+                            // unpredictable and can land close to whatever
+                            // accent color (or the default chalk) an owner
+                            // picked, defeating the scrim alone in some
+                            // combinations - a shadow guarantees separation
+                            // from the busiest possible background
+                            // regardless of hue, without requiring anyone
+                            // to redo their color choice.
+                            ...(team.background_image_url
+                                ? { textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }
+                                : {})
+                        }}
                     >
                         {team.display_name}
                     </h2>
