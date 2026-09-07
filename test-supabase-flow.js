@@ -22,13 +22,13 @@ async function run() {
     const teamBId = 'team-b';
 
     // Seed season + teams + duos directly into the mock store. TeamA's default swap
-    // state (no permanent_swaps_used/manual_privilege set) means the mock store falls
+    // state (no per-award swap flags set) means the mock store falls
     // back to { permanentSwapsUsed: 0, manualPrivilege: true } - so this is a team's
     // FIRST permanent departure of the season.
     await supabase.from('seasons').insert({ id: seasonId, year: 2026, current_week: 3, sleeper_league_id: '1313661584425385984' });
     await supabase.from('teams').insert([
-        { id: teamAId, season_id: seasonId, sleeper_roster_id: '1', sleeper_owner_id: 'owner1', display_name: 'TeamA', permanent_swaps_used: 0, manual_privilege: true },
-        { id: teamBId, season_id: seasonId, sleeper_roster_id: '2', sleeper_owner_id: 'owner2', display_name: 'TeamB', permanent_swaps_used: 0, manual_privilege: true }
+        { id: teamAId, season_id: seasonId, sleeper_roster_id: '1', sleeper_owner_id: 'owner1', display_name: 'TeamA', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false },
+        { id: teamBId, season_id: seasonId, sleeper_roster_id: '2', sleeper_owner_id: 'owner2', display_name: 'TeamB', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false }
     ]);
     // TeamA's duo shows the original QB (1001) still in slot 0 - but that player has
     // since been dropped from the roster entirely (see the roster stub below).

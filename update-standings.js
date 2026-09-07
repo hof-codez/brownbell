@@ -1358,11 +1358,11 @@ class BrownBellAutomator {
 
             } else {
                 // PERMANENT - not on roster at all (traded or released)
-                const swapState = this.dataLayer.getTeamSwapState(row.teamName);
+                const swapState = this.dataLayer.getTeamSwapState(row.teamName, row.awardType);
 
-                if (!swapState.manualPrivilege || swapState.permanentSwapsUsed >= 1) {
-                    // Privilege already gone, OR this is the 2nd permanent departure -
-                    // auto-fill immediately either way.
+                if (swapState.permanentSwapUsed) {
+                    // This award's one permanent swap is already used - auto-fill
+                    // immediately. Independent of the other two awards' state.
                     const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo);
                     if (replacement) {
                         await this.dataLayer.upsertDuoSlot({
@@ -1371,21 +1371,14 @@ class BrownBellAutomator {
                             sleeperPlayerId: replacement.id, source: 'auto'
                         });
 
-                        const wasPrivilegeLoss = swapState.manualPrivilege && swapState.permanentSwapsUsed >= 1;
-                        if (wasPrivilegeLoss) {
-                            await this.dataLayer.updateTeamSwapState(row.teamName, { permanentSwapsUsed: 2, manualPrivilege: false });
-                        }
-
                         await this.dataLayer.logSubstitution({
                             teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
                             originalName: row.playerName, originalPosition: row.playerPosition,
                             substituteName: replacement.name, substitutePlayerId: replacement.id, substitutePosition: replacement.position,
                             week, source: 'auto',
-                            reason: wasPrivilegeLoss
-                                ? 'Permanent departure - 2nd of the season, auto-filled, manual privilege revoked for rest of season'
-                                : 'Permanent departure - manual privilege already used up, auto-filled'
+                            reason: 'Permanent departure - this award\'s manual swap is already used up this season, auto-filled'
                         });
-                        events.push({ type: wasPrivilegeLoss ? 'permanent-auto-fill-privilege-revoked' : 'permanent-auto-fill', teamName: row.teamName, awardType: row.awardType });
+                        events.push({ type: 'permanent-auto-fill', teamName: row.teamName, awardType: row.awardType });
                     } else {
                         // No eligible replacement anywhere on the roster. Leaving the
                         // slot pointing at a player who's no longer even on this
@@ -1404,28 +1397,28 @@ class BrownBellAutomator {
                         events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
                     }
                 } else if (row.awardType === 'boom') {
-                    // 1st permanent departure of the season, boom specifically -
-                    // same owner-window-then-auto-fallback pattern as the
-                    // temporary case above, not an unconditional clear.
+                    // This award's one permanent departure of the season, boom
+                    // specifically - same owner-window-then-auto-fallback pattern
+                    // as the temporary case above, not an unconditional clear.
                     const event = await this.resolveBoomVacancy(
                         row.teamName, row.playerIndex, excludeIds, row.playerName, row.playerPosition,
-                        'Permanent departure - cleared (1st permanent swap of the season) - pick a replacement or auto-sub kicks in near kickoff',
-                        'Permanent departure - auto-subbed (kickoff approaching, no owner pick made) - 1st permanent swap of the season',
-                        'Permanent departure - no eligible replacement currently available - still waiting (1st permanent swap of the season)',
+                        'Permanent departure - cleared (this award\'s one permanent swap of the season) - pick a replacement or auto-sub kicks in near kickoff',
+                        'Permanent departure - auto-subbed (kickoff approaching, no owner pick made) - this award\'s permanent swap for the season',
+                        'Permanent departure - no eligible replacement currently available - still waiting (this award\'s permanent swap of the season)',
                         'boom-permanent-cleared-for-owner', 'permanent-auto-fill', week
                     );
                     events.push(event);
-                    // Still counts as the season's 1st permanent swap, same
-                    // budget accounting as Main Award/Next Up.
-                    await this.dataLayer.updateTeamSwapState(row.teamName, { permanentSwapsUsed: 1, manualPrivilege: true });
+                    // Uses up this award's one permanent swap - independent of
+                    // Main Award/Next Up's own budgets for the same team.
+                    await this.dataLayer.updateTeamSwapState(row.teamName, row.awardType, true);
                 } else {
-                    // 1st permanent departure of the season - leave it open for the owner
+                    // This award's one permanent departure of the season - leave it open for the owner
                     await this.dataLayer.clearDuoSlot(row.teamName, row.awardType, row.playerIndex);
                     await this.dataLayer.logSubstitution({
                         teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
                         originalName: row.playerName, originalPosition: row.playerPosition,
                         substituteName: null, substitutePlayerId: null, substitutePosition: null,
-                        week, source: 'auto', reason: 'Permanent departure - slot cleared, awaiting owner pick (1st permanent swap of the season)'
+                        week, source: 'auto', reason: 'Permanent departure - slot cleared, awaiting owner pick (this award\'s permanent swap of the season)'
                     });
                     events.push({ type: 'permanent-cleared-for-owner', teamName: row.teamName, awardType: row.awardType });
                 }

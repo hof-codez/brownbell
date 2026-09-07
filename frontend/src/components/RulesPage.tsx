@@ -124,20 +124,22 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                 <p>
                     If your locked player is traded away or released &mdash; no longer on your roster at all
                     &mdash; that&rsquo;s permanent. There&rsquo;s no auto-revert, because there&rsquo;s no original
-                    player left to come back. Each team gets <span className="text-chalk">two</span> of these
-                    permanent swaps per season:
+                    player left to come back. Each award &mdash; Brown Bell, Next Up, and Season of Boom &mdash;
+                    gets its <span className="text-chalk">own, independent</span> permanent swap: what happens in
+                    one has no effect on the other two.
                 </p>
                 <ul className="ml-4 mt-2 list-disc space-y-1">
-                    <li><span className="text-chalk">1st permanent swap:</span> you pick the replacement yourself</li>
+                    <li><span className="text-chalk">That award&rsquo;s 1st permanent departure:</span> you pick the replacement yourself</li>
                     <li>
-                        <span className="text-chalk">2nd permanent swap:</span> auto-sub fills it immediately, no
-                        manual pick offered
+                        <span className="text-chalk">Any further permanent departure in that same award:</span> auto-sub
+                        fills it immediately, no manual pick offered
                     </li>
                 </ul>
                 <p className="mt-2">
-                    Once that 2nd swap happens, manual control is gone for the rest of the season &mdash; not just
-                    for future trades, but for injuries too. Every gap after that, for either award, is filled by
-                    auto-sub.
+                    Once an award&rsquo;s permanent swap is used, manual control is gone for the rest of the season
+                    for <span className="text-chalk">that award specifically</span> &mdash; not just for future
+                    trades, but for injuries too. Your other two awards are completely unaffected and keep their
+                    own manual control until each independently uses its own swap.
                 </p>
             </RuleSection>
 
@@ -216,11 +218,13 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                     based on stats that have already happened or are already live.
                 </p>
                 <p className="mt-2">
-                    The same 2-swap-per-season budget from Brown Bell and Next Up applies here too: a permanent
-                    departure (trade or release) gives you the same pick-it-yourself window on its first
-                    occurrence; a second permanent departure in the same season auto-fills immediately with no
-                    window at all, and your manual-pick privilege is done for the rest of the season. A
-                    temporary departure (injury) never counts against this budget, no matter how many times it
+                    Season of Boom has its <span className="text-chalk">own, independent</span> permanent swap,
+                    entirely separate from Brown Bell&rsquo;s and Next Up&rsquo;s: a permanent departure (trade or
+                    release) gives you the same pick-it-yourself window on Season of Boom&rsquo;s first
+                    occurrence; any further permanent departure in Season of Boom specifically auto-fills
+                    immediately with no window at all, and manual-pick privilege for this award is done for the
+                    rest of the season &mdash; your other two awards are unaffected either way. A temporary
+                    departure (injury) never counts against this budget, no matter how many times it
                     happens.
                 </p>
             </RuleSection>

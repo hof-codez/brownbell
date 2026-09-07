@@ -34,7 +34,7 @@ async function run() {
 
     const supabase = createClient();
     await supabase.from('seasons').insert({ id: 's1', year: 2026 });
-    await supabase.from('teams').insert({ id: 't1', season_id: 's1', display_name: 'TeamA', permanent_swaps_used: 0, manual_privilege: true });
+    await supabase.from('teams').insert({ id: 't1', season_id: 's1', display_name: 'TeamA', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false });
     await supabase.from('duos').insert([
         { id: 'd1', team_id: 't1', award_type: 'boom', player_index: 0, player_name: 'Injured Guy', player_position: 'LB', sleeper_player_id: 'p-injured', original_sleeper_player_id: 'p-injured' },
         { id: 'd2', team_id: 't1', award_type: 'boom', player_index: 1, player_name: 'Bench DB', player_position: 'DB', sleeper_player_id: 'p-bench', original_sleeper_player_id: 'p-bench' }
@@ -83,13 +83,14 @@ async function run() {
     allPassed &= check('Run 4: reverted back to the original player now that they\'re healthy', d1.sleeper_player_id === 'p-injured');
     allPassed &= check('Run 4: correct event type logged', events.some(e => e.type === 'reverted'));
 
-    // --- Separately: confirm the 2nd permanent departure still auto-fills
-    //     immediately, with NO owner window - the one case meant to stay unchanged ---
+    // --- Separately: confirm a permanent departure still auto-fills
+    //     immediately, with NO owner window, once THIS award's (boom's) own
+    //     swap is already used - independent of main/nextup's budgets ---
     {
         const supabase2 = createClient();
         Object.keys(supabase2._store).forEach(k => delete supabase2._store[k]);
         await supabase2.from('seasons').insert({ id: 's2', year: 2026 });
-        await supabase2.from('teams').insert({ id: 't2', season_id: 's2', display_name: 'TeamB', permanent_swaps_used: 1, manual_privilege: false });
+        await supabase2.from('teams').insert({ id: 't2', season_id: 's2', display_name: 'TeamB', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: true });
         await supabase2.from('duos').insert([
             { id: 'd3', team_id: 't2', award_type: 'boom', player_index: 0, player_name: 'Gone Guy', player_position: 'LB', sleeper_player_id: 'p-gone', original_sleeper_player_id: 'p-gone' },
             { id: 'd4', team_id: 't2', award_type: 'boom', player_index: 1, player_name: 'Other DB', player_position: 'DB', sleeper_player_id: 'p-other', original_sleeper_player_id: 'p-other' }
@@ -113,9 +114,11 @@ async function run() {
         await automator2.processDuoSlots(3);
         const d3 = supabase2._store.duos.find(d => d.id === 'd3');
         allPassed &= check(
-            '2nd permanent departure still auto-fills IMMEDIATELY (no owner window) - the one case explicitly unchanged',
+            'Permanent departure auto-fills IMMEDIATELY (no owner window) once boom\'s own swap is already used',
             d3.sleeper_player_id === 'p-idp2'
         );
+        const teamBState = supabase2._store.teams.find(t => t.id === 't2');
+        allPassed &= check('TeamB\'s main/nextup budgets are untouched by boom\'s already-used state - independent per award', teamBState.main_permanent_swap_used === false && teamBState.nextup_permanent_swap_used === false);
     }
 
     console.log(allPassed ? '\n✅ ALL CHECKS PASSED' : '\n❌ SOME CHECKS FAILED');

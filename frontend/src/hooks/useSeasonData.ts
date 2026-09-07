@@ -48,7 +48,7 @@ export function useSeasonData(): UseSeasonDataResult {
 
       const { data: teams, error: teamsError } = await supabase
         .from('teams')
-        .select('id, display_name, sleeper_roster_id, permanent_swaps_used, manual_privilege, background_image_url, background_opacity, accent_color')
+        .select('id, display_name, sleeper_roster_id, main_permanent_swap_used, nextup_permanent_swap_used, boom_permanent_swap_used, background_image_url, background_opacity, accent_color')
         .eq('season_id', season.id)
         .order('display_name', { ascending: true });
 

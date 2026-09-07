@@ -11,8 +11,11 @@ export interface Team {
   id: string;
   display_name: string;
   sleeper_roster_id: string;
-  permanent_swaps_used: number;
-  manual_privilege: boolean;
+  // Independent per award - a permanent departure in one doesn't touch
+  // the swap budget for the other two.
+  main_permanent_swap_used: boolean;
+  nextup_permanent_swap_used: boolean;
+  boom_permanent_swap_used: boolean;
   background_image_url: string | null;
   background_opacity: number;
   accent_color: string | null;

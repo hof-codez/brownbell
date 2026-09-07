@@ -30,20 +30,29 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, cur
         return !!slot?.sleeper_player_id && !!byePlayerIds?.has(slot.sleeper_player_id);
     }
 
-    function renderAwardHeader(awardType: AwardType, Icon: typeof BellIcon, label: string, slots: TeamWithDuos['main']) {
+    function renderAwardHeader(awardType: AwardType, Icon: typeof BellIcon, label: string, slots: TeamWithDuos['main'], permanentSwapUsed: boolean) {
         const name = duoNames?.get(duoNameKey(team.id, awardType));
         const bothSet = !!slots[0] && !!slots[1];
         return (
-            <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4 text-bell" />
-                    <h3 className="font-mono text-xs uppercase tracking-widest text-chalk-dim">{label}</h3>
-                    {name && <span className="font-body text-sm italic text-chalk">&ldquo;{name}&rdquo;</span>}
+            <div className="mb-2">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 text-bell" />
+                        <h3 className="font-mono text-xs uppercase tracking-widest text-chalk-dim">{label}</h3>
+                        {name && <span className="font-body text-sm italic text-chalk">&ldquo;{name}&rdquo;</span>}
+                    </div>
+                    {onNameDuo && bothSet && (
+                        <button onClick={() => onNameDuo(awardType)} className="font-mono text-[10px] uppercase tracking-widest text-bell">
+                            {name ? 'Rename' : 'Name it'}
+                        </button>
+                    )}
                 </div>
-                {onNameDuo && bothSet && (
-                    <button onClick={() => onNameDuo(awardType)} className="font-mono text-[10px] uppercase tracking-widest text-bell">
-                        {name ? 'Rename' : 'Name it'}
-                    </button>
+                {expanded && (
+                    <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-chalk-dim">
+                        {permanentSwapUsed
+                            ? <span className="text-brick">Permanent swap used &middot; auto-fill only from here</span>
+                            : '1 permanent swap available this season'}
+                    </p>
                 )}
             </div>
         );
@@ -110,19 +119,10 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, cur
                     </p>
                 )}
 
-                {expanded && (
-                    <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-chalk-dim">
-                        {team.permanent_swaps_used}/2 permanent swaps used
-                        {!team.manual_privilege && (
-                            <span className="ml-1.5 text-brick">&middot; manual picks locked, auto-fill only</span>
-                        )}
-                    </p>
-                )}
-
                 {expanded ? (
                     <div className="mt-4 space-y-4">
                         <section aria-labelledby={`main-${team.id}`}>
-                            {renderAwardHeader('main', BellIcon, 'Brown Bell', main)}
+                            {renderAwardHeader('main', BellIcon, 'Brown Bell', main, team.main_permanent_swap_used)}
                             <div className="space-y-1.5">
                                 <DuoSlotDisplay slot={main[0]} onEdit={onEditSlot ? () => onEditSlot('main', 0) : undefined} isBye={isBye(main[0])} />
                                 <DuoSlotDisplay slot={main[1]} onEdit={onEditSlot ? () => onEditSlot('main', 1) : undefined} isBye={isBye(main[1])} />
@@ -130,7 +130,7 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, cur
                         </section>
 
                         <section aria-labelledby={`nextup-${team.id}`}>
-                            {renderAwardHeader('nextup', SproutIcon, 'Next Up Award', nextup)}
+                            {renderAwardHeader('nextup', SproutIcon, 'Next Up Award', nextup, team.nextup_permanent_swap_used)}
                             <div className="space-y-1.5">
                                 <DuoSlotDisplay slot={nextup[0]} onEdit={onEditSlot ? () => onEditSlot('nextup', 0) : undefined} isBye={isBye(nextup[0])} />
                                 <DuoSlotDisplay slot={nextup[1]} onEdit={onEditSlot ? () => onEditSlot('nextup', 1) : undefined} isBye={isBye(nextup[1])} />
@@ -138,7 +138,7 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, cur
                         </section>
 
                         <section aria-labelledby={`boom-${team.id}`}>
-                            {renderAwardHeader('boom', BoltIcon, 'Season of Boom', boom)}
+                            {renderAwardHeader('boom', BoltIcon, 'Season of Boom', boom, team.boom_permanent_swap_used)}
                             <div className="space-y-1.5">
                                 <DuoSlotDisplay slot={boom[0]} onEdit={onEditSlot ? () => onEditSlot('boom', 0) : undefined} isBye={isBye(boom[0])} />
                                 <DuoSlotDisplay slot={boom[1]} onEdit={onEditSlot ? () => onEditSlot('boom', 1) : undefined} isBye={isBye(boom[1])} />

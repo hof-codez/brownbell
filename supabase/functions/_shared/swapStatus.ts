@@ -3,9 +3,15 @@
 // duo slot:
 //   - healthy-locked: still rostered, not injured - the lock holds, no override
 //   - temporary: still rostered, genuinely injured - unlimited manual swaps as
-//     long as the team still has manual privilege; auto-reverts once healthy
-//   - permanent: no longer on the roster at all (traded/released) - no
-//     auto-revert, capped at 2 manual picks per team per season
+//     long as this AWARD hasn't used its permanent swap yet; auto-reverts
+//     once healthy
+//   - permanent: no longer on the roster at all (traded/released) - one
+//     manual pick per team PER AWARD per season, independent of the other
+//     two awards
+//
+// Independent per award: a permanent departure in Brown Bell doesn't touch
+// Next Up's or Season of Boom's budget, and vice versa - one award has
+// nothing to do with another.
 //
 // Always determined from live Sleeper data - never trusted from the client.
 // Both get-eligible-roster and set-duo use this so what the picker shows and
@@ -41,28 +47,21 @@ export interface SwapPermission {
     reason?: string;
 }
 
-// Given the situation and the team's current swap state (read from the teams
-// table - never mutated here, this is a pure read-time check), decides
-// whether a manual pick should be offered right now. The actual counter
-// increments happen in set-duo on a successful write, not here.
+// permanentSwapUsed is THIS AWARD's own flag (main/nextup/boom each track
+// their own) - not a team-wide value. Given the current situation and
+// whether this specific award has already used its one permanent swap,
+// decides whether a manual pick should be offered right now. The actual
+// flag update happens in set-duo on a successful write, not here.
 export function checkSwapPermission(
     situation: SwapSituation,
-    manualPrivilege: boolean,
-    permanentSwapsUsed: number
+    permanentSwapUsed: boolean
 ): SwapPermission {
     if (situation === 'healthy-locked') {
         return { allowed: false, reason: 'This slot is locked for the rest of the season.' };
     }
 
-    if (!manualPrivilege) {
-        return { allowed: false, reason: 'Manual swaps have been used up for this team - auto-sub fills gaps automatically from here on.' };
-    }
-
-    if (situation === 'permanent' && permanentSwapsUsed >= 1) {
-        return {
-            allowed: false,
-            reason: 'This is your 2nd permanent swap of the season - auto-sub fills this one automatically, and manual swaps are now used up for the rest of the season.'
-        };
+    if (permanentSwapUsed) {
+        return { allowed: false, reason: 'This award\u2019s manual swap has already been used this season - auto-sub fills any further gaps for it automatically.' };
     }
 
     return { allowed: true };

@@ -48,10 +48,10 @@ function setupFourTeams(automator) {
 async function seedTeams(supabase) {
     await supabase.from('seasons').insert({ id: 's1', year: 2026, current_week: 1, sleeper_league_id: 'test-league' });
     await supabase.from('teams').insert([
-        { id: 't1', season_id: 's1', display_name: 'TeamA', permanent_swaps_used: 0, manual_privilege: true },
-        { id: 't2', season_id: 's1', display_name: 'TeamB', permanent_swaps_used: 0, manual_privilege: true },
-        { id: 't3', season_id: 's1', display_name: 'TeamC', permanent_swaps_used: 0, manual_privilege: true },
-        { id: 't4', season_id: 's1', display_name: 'TeamD', permanent_swaps_used: 0, manual_privilege: true }
+        { id: 't1', season_id: 's1', display_name: 'TeamA', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false },
+        { id: 't2', season_id: 's1', display_name: 'TeamB', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false },
+        { id: 't3', season_id: 's1', display_name: 'TeamC', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false },
+        { id: 't4', season_id: 's1', display_name: 'TeamD', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false }
     ]);
     await supabase.from('duos').insert([
         { id: 'd1', team_id: 't1', award_type: 'main', player_index: 0, player_name: 'A One', player_position: 'QB', sleeper_player_id: 'p1' },

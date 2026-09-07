@@ -26,7 +26,7 @@ async function run() {
         const teamId = 'team-a';
 
         await supabase.from('seasons').insert({ id: seasonId, year: 2026, current_week: 3 });
-        await supabase.from('teams').insert({ id: teamId, season_id: seasonId, display_name: 'TeamA', permanent_swaps_used: 0, manual_privilege: true });
+        await supabase.from('teams').insert({ id: teamId, season_id: seasonId, display_name: 'TeamA', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false });
         await supabase.from('duos').insert([
             { id: 'd1', team_id: teamId, award_type: 'main', player_index: 0, player_name: 'Hurt QB', player_position: 'QB', sleeper_player_id: 'p-hurt', source: 'import' },
             { id: 'd2', team_id: teamId, award_type: 'main', player_index: 1, player_name: 'Healthy RB', player_position: 'RB', sleeper_player_id: 'p-healthy', source: 'import' }
@@ -69,8 +69,8 @@ async function run() {
         const teamId = 'team-b';
 
         await supabase.from('seasons').insert({ id: seasonId, year: 2026, current_week: 3 });
-        // manual_privilege already false -> forces the "auto-fill immediately" branch
-        await supabase.from('teams').insert({ id: teamId, season_id: seasonId, display_name: 'TeamB', permanent_swaps_used: 2, manual_privilege: false });
+        // main's own swap already used -> forces the "auto-fill immediately" branch
+        await supabase.from('teams').insert({ id: teamId, season_id: seasonId, display_name: 'TeamB', main_permanent_swap_used: true, nextup_permanent_swap_used: false, boom_permanent_swap_used: false });
         await supabase.from('duos').insert([
             { id: 'd3', team_id: teamId, award_type: 'main', player_index: 0, player_name: 'Gone QB', player_position: 'QB', sleeper_player_id: 'p-gone', source: 'import' },
             { id: 'd4', team_id: teamId, award_type: 'main', player_index: 1, player_name: 'Healthy RB', player_position: 'RB', sleeper_player_id: 'p-healthy-b', source: 'import' }

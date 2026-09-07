@@ -2,8 +2,9 @@
 // End-to-end offline test of processDuoSlots() - the core engine replacing
 // the old substitutions-layered model. Covers: healthy-locked (no action),
 // temporary injury (auto-fill, unlimited), auto-revert (original healthy
-// again), and the permanent-swap budget (1st = clear for owner, 2nd =
-// auto-fill + revoke privilege).
+// again), and the per-award permanent-swap budget (1st = clear for owner,
+// already-used = auto-fill immediately - independent per award, not shared
+// across Main Award/Next Up/Season of Boom).
 
 process.env.SUPABASE_URL = 'http://fake';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake';
@@ -24,15 +25,15 @@ async function run() {
     const seasonId = 's1';
     const teamAId = 'team-a'; // healthy-locked case
     const teamBId = 'team-b'; // temporary injury + auto-revert case
-    const teamCId = 'team-c'; // 1st permanent departure case
-    const teamDId = 'team-d'; // 2nd permanent departure case
+    const teamCId = 'team-c'; // permanent departure, budget not yet used
+    const teamDId = 'team-d'; // permanent departure, this award's budget already used
 
     await supabase.from('seasons').insert({ id: seasonId, year: 2026, current_week: 3 });
     await supabase.from('teams').insert([
-        { id: teamAId, season_id: seasonId, display_name: 'TeamA', permanent_swaps_used: 0, manual_privilege: true },
-        { id: teamBId, season_id: seasonId, display_name: 'TeamB', permanent_swaps_used: 0, manual_privilege: true },
-        { id: teamCId, season_id: seasonId, display_name: 'TeamC', permanent_swaps_used: 0, manual_privilege: true },
-        { id: teamDId, season_id: seasonId, display_name: 'TeamD', permanent_swaps_used: 1, manual_privilege: true }
+        { id: teamAId, season_id: seasonId, display_name: 'TeamA', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false },
+        { id: teamBId, season_id: seasonId, display_name: 'TeamB', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false },
+        { id: teamCId, season_id: seasonId, display_name: 'TeamC', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false },
+        { id: teamDId, season_id: seasonId, display_name: 'TeamD', main_permanent_swap_used: true, nextup_permanent_swap_used: false, boom_permanent_swap_used: false }
     ]);
 
     await supabase.from('duos').insert([
@@ -48,7 +49,8 @@ async function run() {
         { id: 'dc1', team_id: teamCId, award_type: 'main', player_index: 0, player_name: 'Gone QB', player_position: 'QB', sleeper_player_id: 'p-gone-c', source: 'import' },
         { id: 'dc2', team_id: teamCId, award_type: 'main', player_index: 1, player_name: 'C RB', player_position: 'RB', sleeper_player_id: 'p-c-rb', source: 'import' },
 
-        // TeamD: player no longer on roster (permanent, 2nd of the season - already used 1) - should auto-fill + revoke privilege
+        // TeamD: player no longer on roster (permanent - this award's swap
+        // already used) - should auto-fill immediately
         { id: 'dd1', team_id: teamDId, award_type: 'main', player_index: 0, player_name: 'Gone QB D', player_position: 'QB', sleeper_player_id: 'p-gone-d', source: 'owner' },
         { id: 'dd2', team_id: teamDId, award_type: 'main', player_index: 1, player_name: 'D RB', player_position: 'RB', sleeper_player_id: 'p-d-rb', source: 'import' }
     ]);
@@ -108,18 +110,18 @@ async function run() {
     allPassed &= check('TeamB original frozen to the hurt player', teamBSlot0.original_sleeper_player_id === 'p-hurt');
     allPassed &= check('TeamB slot marked source: auto', teamBSlot0.source === 'auto');
 
-    // --- TeamC: 1st permanent departure - slot cleared ---
+    // --- TeamC: permanent departure, budget not yet used - slot cleared ---
     const teamCSlot0Exists = supabase._store.duos.some(d => d.team_id === teamCId && d.player_index === 0);
-    allPassed &= check('TeamC slot 0 cleared (1st permanent departure - left for owner)', !teamCSlot0Exists);
+    allPassed &= check('TeamC slot 0 cleared (permanent departure, budget not yet used - left for owner)', !teamCSlot0Exists);
     const teamCState = supabase._store.teams.find(t => t.id === teamCId);
-    allPassed &= check('TeamC swap budget UNCHANGED (clearing does not consume it - only an owner pick does)', teamCState.permanent_swaps_used === 0 && teamCState.manual_privilege === true);
+    allPassed &= check('TeamC swap budget UNCHANGED (clearing does not consume it - only an owner pick does)', teamCState.main_permanent_swap_used === false);
 
-    // --- TeamD: 2nd permanent departure - auto-filled AND privilege revoked ---
+    // --- TeamD: permanent departure, this award's budget already used - auto-filled ---
     const teamDSlot0 = supabase._store.duos.find(d => d.team_id === teamDId && d.player_index === 0);
-    allPassed &= check('TeamD slot 0 auto-filled (2nd permanent departure)', teamDSlot0.sleeper_player_id !== 'p-gone-d' && !!teamDSlot0.sleeper_player_id);
+    allPassed &= check('TeamD slot 0 auto-filled (this award\'s permanent swap already used)', !!teamDSlot0 && teamDSlot0.sleeper_player_id !== 'p-gone-d' && !!teamDSlot0.sleeper_player_id);
     const teamDState = supabase._store.teams.find(t => t.id === teamDId);
-    allPassed &= check('TeamD permanent_swaps_used now 2', teamDState.permanent_swaps_used === 2);
-    allPassed &= check('TeamD manual_privilege revoked', teamDState.manual_privilege === false);
+    allPassed &= check('TeamD main_permanent_swap_used stays true', teamDState.main_permanent_swap_used === true);
+    allPassed &= check('TeamD nextup budget is untouched by main\'s departure - independent per award', teamDState.nextup_permanent_swap_used === false);
 
     console.log('\n=== RUN 2: hurt player is healthy again - should auto-revert ===');
     automator.playersData['p-hurt'].injury_status = null; // recovered

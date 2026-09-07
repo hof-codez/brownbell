@@ -21,7 +21,7 @@ async function run() {
     const teamId = 'team-x';
 
     await supabase.from('seasons').insert({ id: seasonId, year: 2026, current_week: 3 });
-    await supabase.from('teams').insert({ id: teamId, season_id: seasonId, display_name: 'TeamX', permanent_swaps_used: 0, manual_privilege: true });
+    await supabase.from('teams').insert({ id: teamId, season_id: seasonId, display_name: 'TeamX', main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false });
 
     await supabase.from('duos').insert([
         // Main Award: p-main-hurt (locked, about to be injured) + p-main-healthy

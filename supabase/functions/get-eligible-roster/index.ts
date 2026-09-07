@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
         const supabase = createAdminClient();
 
         const { data: team, error: teamError } = await supabase
-            .from('teams').select('id, sleeper_roster_id, season_id, permanent_swaps_used, manual_privilege').eq('id', teamId).maybeSingle();
+            .from('teams').select('id, sleeper_roster_id, season_id, main_permanent_swap_used, nextup_permanent_swap_used, boom_permanent_swap_used').eq('id', teamId).maybeSingle();
         if (teamError || !team) {
             return jsonResponse({ error: 'Team not found' }, 404);
         }
@@ -90,7 +90,10 @@ Deno.serve(async (req: Request) => {
 
         if (locked) {
             situation = classifySwapSituation(currentPlayer?.sleeper_player_id ?? null, rosterPlayerIds, allPlayers);
-            const permission = checkSwapPermission(situation, team.manual_privilege, team.permanent_swaps_used);
+            const permanentSwapUsed = awardType === 'nextup' ? team.nextup_permanent_swap_used
+                : awardType === 'boom' ? team.boom_permanent_swap_used
+                : team.main_permanent_swap_used;
+            const permission = checkSwapPermission(situation, permanentSwapUsed);
             allowSwap = permission.allowed;
             permissionReason = permission.reason;
         }

@@ -35,7 +35,7 @@ class SupabaseDataLayer {
 
         const { data: teams, error: teamsError } = await this.supabase
             .from('teams')
-            .select('id, display_name, permanent_swaps_used, manual_privilege')
+            .select('id, display_name, main_permanent_swap_used, nextup_permanent_swap_used, boom_permanent_swap_used')
             .eq('season_id', this.seasonId);
 
         if (teamsError) throw new Error(`Failed to load teams: ${teamsError.message}`);
@@ -46,32 +46,42 @@ class SupabaseDataLayer {
         for (const t of teams) {
             this.teamIdByName[t.display_name] = t.id;
             this.teamNameById[t.id] = t.display_name;
+            // Independent per award - a permanent departure in one doesn't
+            // touch the budget for the other two.
             this.teamSwapStateByName[t.display_name] = {
-                permanentSwapsUsed: t.permanent_swaps_used,
-                manualPrivilege: t.manual_privilege
+                main: t.main_permanent_swap_used,
+                nextup: t.nextup_permanent_swap_used,
+                boom: t.boom_permanent_swap_used
             };
         }
 
         return { seasonId: this.seasonId, currentWeek: season.current_week, sleeperLeagueId: season.sleeper_league_id };
     }
 
-    // Season-long swap budget for a team - read from the cache loadSeason
-    // already populated, no extra round trip.
-    getTeamSwapState(teamName) {
-        return this.teamSwapStateByName[teamName] || { permanentSwapsUsed: 0, manualPrivilege: true };
+    // This award's own season-long swap budget for a team - read from the
+    // cache loadSeason already populated, no extra round trip. Independent
+    // of the other two awards' state for the same team.
+    getTeamSwapState(teamName, awardType) {
+        const state = this.teamSwapStateByName[teamName];
+        return { permanentSwapUsed: state ? state[awardType] : false };
     }
 
-    async updateTeamSwapState(teamName, { permanentSwapsUsed, manualPrivilege }) {
+    async updateTeamSwapState(teamName, awardType, permanentSwapUsed) {
         const teamId = this.teamIdByName[teamName];
         if (!teamId) throw new Error(`Unknown team: ${teamName}`);
 
+        const column = awardType === 'nextup' ? 'nextup_permanent_swap_used'
+            : awardType === 'boom' ? 'boom_permanent_swap_used'
+            : 'main_permanent_swap_used';
+
         const { error } = await this.supabase
             .from('teams')
-            .update({ permanent_swaps_used: permanentSwapsUsed, manual_privilege: manualPrivilege })
+            .update({ [column]: permanentSwapUsed })
             .eq('id', teamId);
 
-        if (error) throw new Error(`Failed to update swap state for ${teamName}: ${error.message}`);
-        this.teamSwapStateByName[teamName] = { permanentSwapsUsed, manualPrivilege };
+        if (error) throw new Error(`Failed to update ${awardType} swap state for ${teamName}: ${error.message}`);
+        if (!this.teamSwapStateByName[teamName]) this.teamSwapStateByName[teamName] = { main: false, nextup: false, boom: false };
+        this.teamSwapStateByName[teamName][awardType] = permanentSwapUsed;
     }
 
     async setCurrentWeek(week) {
