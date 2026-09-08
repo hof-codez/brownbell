@@ -365,6 +365,13 @@ class BrownBellAutomator {
         // separately - one less thing to get inconsistent across them.
         this.dataLayer.playersData = players;
 
+        // Catches up any duos rows written before player_team existed -
+        // see backfillPlayerTeams for why this can't rely on normal
+        // upsertDuoSlot calls alone. Best-effort; logs its own errors
+        // rather than throwing, so a hiccup here never blocks the actual
+        // scoring run.
+        await this.dataLayer.backfillPlayerTeams();
+
         console.log(`Connected to league: ${league.name}`);
     }
 

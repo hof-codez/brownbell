@@ -167,6 +167,41 @@ class SupabaseDataLayer {
 
     // Direct write to duos - the automation's own auto-fill/lock-freeze/revert
     // path. Owner-driven writes go through set-duo (the Edge Function), not here.
+    // One-time-per-row catch-up for duos rows written before player_team
+    // existed. Ordinary operation only ever writes player_team through
+    // upsertDuoSlot, which only fires on an actual change (injury,
+    // departure, revert) - a healthy, untouched pick from before this
+    // column existed would otherwise never get it populated, no matter
+    // how many times the automation runs. Cheap after the first pass:
+    // once every existing row has a value, this query returns nothing and
+    // the loop below never executes.
+    async backfillPlayerTeams() {
+        const { data: rows, error } = await this.supabase
+            .from('duos')
+            .select('id, sleeper_player_id')
+            .is('player_team', null)
+            .not('sleeper_player_id', 'is', null);
+
+        if (error) {
+            console.error('Failed to query duos for player_team backfill:', error.message);
+            return;
+        }
+        if (!rows || rows.length === 0) return;
+
+        console.log(`Backfilling player_team for ${rows.length} existing duo slot(s)...`);
+        for (const row of rows) {
+            const team = this.playersData?.[row.sleeper_player_id]?.team || null;
+            if (!team) continue; // can't resolve it here either - leave it for a future pass
+            const { error: updateError } = await this.supabase
+                .from('duos')
+                .update({ player_team: team })
+                .eq('id', row.id);
+            if (updateError) {
+                console.error(`Failed to backfill player_team for duo row ${row.id}:`, updateError.message);
+            }
+        }
+    }
+
     async upsertDuoSlot({ teamName, awardType, playerIndex, playerName, playerPosition, sleeperPlayerId, source, originalSleeperPlayerId }) {
         const teamId = this.teamIdByName[teamName];
         if (!teamId) throw new Error(`Unknown team: ${teamName}`);
