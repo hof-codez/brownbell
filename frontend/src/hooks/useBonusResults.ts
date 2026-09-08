@@ -10,6 +10,11 @@ export interface MatchupPlayer {
     playerName: string;
     playerPosition: string;
     points: number;
+    /** Current NFL team, for "next game" info - only ever populated for the
+     * current/upcoming week's live duo picks (see currentMainDuoByTeamId
+     * below); null for past weeks' weekly_scores rows, since a "next game"
+     * for an already-played week doesn't mean anything. */
+    team: string | null;
 }
 
 export interface Matchup {
@@ -121,7 +126,8 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                         sleeperPlayerId: s.sleeper_player_id!,
                         playerName: s.player_name,
                         playerPosition: s.player_position,
-                        points: 0
+                        points: 0,
+                        team: s.player_team
                     }));
             });
 
@@ -143,7 +149,8 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                     sleeperPlayerId: row.sleeper_player_id,
                     playerName: row.player_name || 'Unknown player',
                     playerPosition: row.player_position || '',
-                    points: Number(row.points)
+                    points: Number(row.points),
+                    team: null
                 });
                 playersByWeekAndTeam.set(key, list);
             }

@@ -8,7 +8,8 @@ import { duoNameKey } from '../hooks/useDuoNames';
 import { PredictionWidget } from './PredictionWidget';
 import { PredictionStandings } from './PredictionStandings';
 import { TauntBox } from './TauntBox';
-import type { TeamWithDuos } from '../types';
+import { PlayerGameInfo } from './PlayerGameInfo';
+import type { TeamWithDuos, NFLGameInfo } from '../types';
 
 interface ShowdownTabProps {
     teams: TeamWithDuos[];
@@ -20,6 +21,9 @@ interface ShowdownTabProps {
     onLearnMore?: () => void;
     /** Matchups are always about the Main Award duo specifically. */
     duoNames?: Map<string, string>;
+    /** Looks up an NFL team's next game info (opponent, kickoff time) for
+     * the currently-displayed week - shown next to each player. */
+    getGameInfo?: (nflTeam: string | null) => NFLGameInfo | undefined;
 }
 
 function PillToggle<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
@@ -41,14 +45,19 @@ function PillToggle<T extends string>({ options, value, onChange }: { options: {
 }
 
 interface MatchupSideProps {
-    team: { teamId: string; teamName: string; score: number; players: { sleeperPlayerId: string; playerName: string; playerPosition: string; points: number }[] };
+    team: { teamId: string; teamName: string; score: number; players: { sleeperPlayerId: string; playerName: string; playerPosition: string; points: number; team: string | null }[] };
     isMe: boolean;
     isWinner: boolean;
     align: 'left' | 'right';
     name?: string;
+    /** Looks up an NFL team's next game info (opponent, kickoff time) for
+     * the currently-displayed week - only ever has anything to show for
+     * the current/upcoming week's live picks, since a "next game" for an
+     * already-played week doesn't mean anything (see MatchupPlayer.team). */
+    getGameInfo?: (nflTeam: string | null) => NFLGameInfo | undefined;
 }
 
-function MatchupSide({ team, isMe, isWinner, align, name }: MatchupSideProps) {
+function MatchupSide({ team, isMe, isWinner, align, name, getGameInfo }: MatchupSideProps) {
     const alignClass = align === 'right' ? 'items-end text-right' : 'items-start text-left';
     return (
         <div className={`flex min-w-0 flex-col ${alignClass}`}>
@@ -59,9 +68,12 @@ function MatchupSide({ team, isMe, isWinner, align, name }: MatchupSideProps) {
             {name && <p className="truncate font-body text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</p>}
             <div className="mt-1 space-y-0.5">
                 {team.players.map(p => (
-                    <p key={p.sleeperPlayerId} className="font-mono text-[11px] text-chalk-dim">
-                        {p.playerName} ({p.playerPosition}) <span className="text-chalk">{p.points.toFixed(1)}</span>
-                    </p>
+                    <div key={p.sleeperPlayerId} className="font-mono text-[11px] text-chalk-dim">
+                        <p>
+                            {p.playerName} ({p.playerPosition}) <span className="text-chalk">{p.points.toFixed(1)}</span>
+                        </p>
+                        <PlayerGameInfo gameInfo={getGameInfo?.(p.team)} />
+                    </div>
                 ))}
             </div>
             <p className={`mt-1.5 font-mono text-xl font-bold ${isWinner ? 'text-chalk' : 'text-chalk-dim'}`}>
@@ -174,7 +186,7 @@ function WeeklyRecapSection({ teams, week }: { teams: TeamWithDuos[]; week: numb
     );
 }
 
-export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoNames }: ShowdownTabProps) {
+export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoNames, getGameInfo }: ShowdownTabProps) {
     const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
     const predictions = usePredictions(teams.map(t => t.team), matchupsByWeek);
     const taunts = useTaunts();
@@ -366,6 +378,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                         isWinner={aHighlight}
                                         align="left"
                                         name={aName}
+                                        getGameInfo={getGameInfo}
                                     />
                                     <div className="flex flex-col items-center pt-1">
                                         <span className="rounded-full border border-panel-line bg-field px-2 py-1 font-mono text-[10px] font-bold text-chalk-dim">
@@ -383,6 +396,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                         isWinner={bHighlight}
                                         align="right"
                                         name={bName}
+                                        getGameInfo={getGameInfo}
                                     />
                                 </div>
                                 <p className="mt-2 font-mono text-xs uppercase tracking-widest text-bell">

@@ -134,6 +134,7 @@ export default function App() {
             deviceToken={claimedTeam?.deviceToken ?? null}
             onLearnMore={() => goToMiscSection('bonus-matchups-rule')}
             duoNames={duoNames}
+            getGameInfo={getGameInfo}
           />
         )}
 
