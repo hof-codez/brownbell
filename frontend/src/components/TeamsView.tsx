@@ -1,4 +1,4 @@
-import type { TeamWithDuos, AwardType } from '../types';
+import type { TeamWithDuos, AwardType, NFLGameInfo } from '../types';
 import { TeamCard } from './TeamCard';
 
 interface TeamsViewProps {
@@ -10,12 +10,15 @@ interface TeamsViewProps {
     byePlayerIds?: Set<string>;
     duoNames?: Map<string, string>;
     currentWeekScores?: Map<string, number>;
+    /** Looks up an NFL team's next game info (opponent, kickoff time) for
+     * the currently-displayed week - shown next to each player's name. */
+    getGameInfo?: (nflTeam: string | null) => NFLGameInfo | undefined;
     onNameDuo?: (awardType: AwardType) => void;
     onCustomize?: () => void;
     onViewHistory?: (teamId: string) => void;
 }
 
-export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, currentWeekScores, onNameDuo, onCustomize, onViewHistory }: TeamsViewProps) {
+export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, currentWeekScores, getGameInfo, onNameDuo, onCustomize, onViewHistory }: TeamsViewProps) {
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading teams&hellip;</p>;
     }
@@ -63,6 +66,7 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
                             byePlayerIds={byePlayerIds}
                             duoNames={duoNames}
                             currentWeekScore={currentWeekScores?.get(myTeam.team.id)}
+                            getGameInfo={getGameInfo}
                             onNameDuo={onNameDuo}
                             onCustomize={onCustomize}
                             onViewHistory={onViewHistory ? () => onViewHistory(myTeam.team.id) : undefined}
@@ -84,6 +88,7 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
                                 byePlayerIds={byePlayerIds}
                                 duoNames={duoNames}
                                 currentWeekScore={currentWeekScores?.get(teamWithDuos.team.id)}
+                                getGameInfo={getGameInfo}
                                 onViewHistory={onViewHistory ? () => onViewHistory(teamWithDuos.team.id) : undefined}
                                 collapsible
                             />

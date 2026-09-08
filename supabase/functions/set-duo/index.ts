@@ -176,6 +176,9 @@ Deno.serve(async (req: Request) => {
             player_name: `${newPlayer.first_name || ''} ${newPlayer.last_name || ''}`.trim(),
             player_position: newPlayer.position,
             sleeper_player_id: sleeperPlayerId,
+            // So the frontend can show "next game" info without a separate
+            // player lookup - see 024-duo-player-team.sql.
+            player_team: newPlayer.team || null,
             source: 'owner'
         }, { onConflict: 'team_id,award_type,player_index' });
 

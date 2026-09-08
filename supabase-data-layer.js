@@ -178,6 +178,12 @@ class SupabaseDataLayer {
             player_name: playerName,
             player_position: playerPosition,
             sleeper_player_id: sleeperPlayerId,
+            // Current NFL team, so the frontend can show "next game" info
+            // without a separate player lookup - resolved from the shared
+            // playersData reference the automator sets after loading
+            // players (see initializeLeagueData), not passed in by each
+            // caller individually.
+            player_team: sleeperPlayerId ? (this.playersData?.[sleeperPlayerId]?.team || null) : null,
             source
         };
         if (originalSleeperPlayerId !== undefined) row.original_sleeper_player_id = originalSleeperPlayerId;
@@ -330,6 +336,31 @@ class SupabaseDataLayer {
             const { error } = await this.supabase.from('substitutions').insert(rows);
             if (error) throw new Error(`Failed to insert substitutions: ${error.message}`);
         }
+    }
+
+    // Persists one week's NFL schedule (opponent, kickoff time, bye status
+    // per team) so the frontend can show "next game" info directly from
+    // Supabase, without ever calling ESPN's API itself. Upserted on the
+    // team/week unique constraint, so a re-fetch (flex move, weather
+    // reschedule) simply overwrites the stale row rather than creating a
+    // duplicate.
+    async saveNFLSchedule(week, schedule) {
+        if (!schedule) return; // fetchNFLSchedule returns null on a failed fetch - nothing to save
+        const rows = Object.entries(schedule).map(([team, info]) => ({
+            season_id: this.seasonId,
+            week,
+            nfl_team: team,
+            opponent_nfl_team: info.opponent || null,
+            kickoff_time: info.date ? info.date.toISOString() : null,
+            is_bye: info.date === null,
+            updated_at: new Date().toISOString()
+        }));
+
+        const { error } = await this.supabase
+            .from('nfl_schedule')
+            .upsert(rows, { onConflict: 'season_id,week,nfl_team' });
+
+        if (error) console.error(`Failed to save NFL schedule for week ${week}:`, error.message);
     }
 
     // scores/playerIds shape: { [awardType]: { [teamName]: { [week]: { [index]: value } } } }

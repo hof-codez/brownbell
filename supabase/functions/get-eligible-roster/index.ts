@@ -144,7 +144,10 @@ Deno.serve(async (req: Request) => {
                 sleeperPlayerId: id,
                 name: `${player!.first_name || ''} ${player!.last_name || ''}`.trim(),
                 position: player!.position,
-                yearsExp: player!.years_exp || 0
+                yearsExp: player!.years_exp || 0,
+                // So the picker can show each candidate's next game info
+                // without a separate lookup - see 024-duo-player-team.sql.
+                team: player!.team || null
             }));
 
         return jsonResponse({

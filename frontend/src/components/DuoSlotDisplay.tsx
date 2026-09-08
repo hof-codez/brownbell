@@ -1,4 +1,5 @@
-import type { DuoRow } from '../types';
+import type { DuoRow, NFLGameInfo } from '../types';
+import { PlayerGameInfo } from './PlayerGameInfo';
 
 interface DuoSlotDisplayProps {
     slot: DuoRow | null;
@@ -6,6 +7,9 @@ interface DuoSlotDisplayProps {
     /** True if this player is on their NFL bye this week - live check, only
      * meaningful for the CURRENT week (not shown for other weeks). */
     isBye?: boolean;
+    /** This player's next game info (opponent, kickoff time) - undefined
+     * if not yet known. */
+    gameInfo?: NFLGameInfo;
 }
 
 // Yellow -> orange -> red as severity increases. Out/IR/PUP share the same
@@ -19,7 +23,7 @@ const INJURY_DOT_COLOR: Record<string, string> = {
     PUP: 'bg-brick'
 };
 
-export function DuoSlotDisplay({ slot, onEdit, isBye }: DuoSlotDisplayProps) {
+export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo }: DuoSlotDisplayProps) {
     if (!slot) {
         return (
             <div className="flex items-center justify-between rounded border border-dashed border-panel-line px-3 py-2">
@@ -36,30 +40,37 @@ export function DuoSlotDisplay({ slot, onEdit, isBye }: DuoSlotDisplayProps) {
     const dotColor = slot.injury_status ? INJURY_DOT_COLOR[slot.injury_status] : undefined;
 
     return (
-        <div className="flex items-center justify-between rounded border border-panel-line bg-field/40 px-3 py-2">
-            <span className="flex items-center gap-2 font-body text-sm text-chalk">
-                {dotColor && (
-                    <span
-                        className={`h-2 w-2 shrink-0 rounded-full ${dotColor}`}
-                        title={slot.injury_status ?? undefined}
-                        aria-label={slot.injury_status ? `Injury status: ${slot.injury_status}` : undefined}
-                    />
-                )}
-                {slot.player_name}
-                {isBye && (
-                    <span className="rounded bg-brick/20 px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-brick">
-                        Bye
-                    </span>
-                )}
-            </span>
-            <div className="flex items-center gap-3">
-                <span className="font-mono text-xs uppercase tracking-wide text-bell">{slot.player_position}</span>
-                {onEdit && (
-                    <button onClick={onEdit} className="font-mono text-xs uppercase tracking-widest text-chalk-dim">
-                        Change
-                    </button>
-                )}
+        <div className="rounded border border-panel-line bg-field/40 px-3 py-2">
+            <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 font-body text-sm text-chalk">
+                    {dotColor && (
+                        <span
+                            className={`h-2 w-2 shrink-0 rounded-full ${dotColor}`}
+                            title={slot.injury_status ?? undefined}
+                            aria-label={slot.injury_status ? `Injury status: ${slot.injury_status}` : undefined}
+                        />
+                    )}
+                    {slot.player_name}
+                    {isBye && (
+                        <span className="rounded bg-brick/20 px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-brick">
+                            Bye
+                        </span>
+                    )}
+                </span>
+                <div className="flex items-center gap-3">
+                    <span className="font-mono text-xs uppercase tracking-wide text-bell">{slot.player_position}</span>
+                    {onEdit && (
+                        <button onClick={onEdit} className="font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                            Change
+                        </button>
+                    )}
+                </div>
             </div>
+            {gameInfo && (
+                <div className="mt-0.5">
+                    <PlayerGameInfo gameInfo={gameInfo} />
+                </div>
+            )}
         </div>
     );
 }

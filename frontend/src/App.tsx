@@ -4,6 +4,7 @@ import { useTeamClaim } from './hooks/useTeamClaim';
 import { useDuoPicker } from './hooks/useDuoPicker';
 import { useLockCountdown } from './hooks/useLockCountdown';
 import { useLeagueScores } from './hooks/useLeagueScores';
+import { useNFLSchedule } from './hooks/useNFLSchedule';
 import { pickDefaultWeek } from './lib/displayWeek';
 import { useCurrentWeekByeStatus } from './hooks/useCurrentWeekByeStatus';
 import { useDuoNames, duoNameKey } from './hooks/useDuoNames';
@@ -42,15 +43,18 @@ export default function App() {
   // logic as the League tab's own default week selection, so the number
   // shown here always matches what League would show for the same week.
   const { main: mainScores } = useLeagueScores(teams);
+  const displayWeek = mainScores ? pickDefaultWeek(mainScores.weeksAvailable) : null;
   const currentWeekScores = new Map<string, number>();
-  if (mainScores) {
-    const displayWeek = pickDefaultWeek(mainScores.weeksAvailable);
-    if (displayWeek !== null) {
-      for (const w of mainScores.weekly) {
-        if (w.week === displayWeek) currentWeekScores.set(w.teamId, w.points);
-      }
+  if (mainScores && displayWeek !== null) {
+    for (const w of mainScores.weekly) {
+      if (w.week === displayWeek) currentWeekScores.set(w.teamId, w.points);
     }
   }
+  // "Next game" info shown next to each player's name on Teams cards and
+  // in the replacement picker - reuses the exact same displayWeek as
+  // currentWeekScores above, so both always agree on which week is
+  // "current" rather than risking two independent notions of it.
+  const { getGameInfo } = useNFLSchedule(displayWeek);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
   const [namingAward, setNamingAward] = useState<AwardType | null>(null);
@@ -112,6 +116,7 @@ export default function App() {
             byePlayerIds={byePlayerIds}
             duoNames={duoNames}
             currentWeekScores={currentWeekScores}
+            getGameInfo={getGameInfo}
             onViewHistory={goToHistoryFor}
             onNameDuo={claimedTeam ? (awardType) => setNamingAward(awardType) : undefined}
             onCustomize={claimedTeam ? () => setShowBackgroundModal(true) : undefined}
@@ -159,6 +164,7 @@ export default function App() {
           fetchEligible={picker.fetchEligible}
           setDuo={picker.setDuo}
           saving={picker.saving}
+          getGameInfo={getGameInfo}
           onDone={() => {
             setEditingSlot(null);
             refetch();

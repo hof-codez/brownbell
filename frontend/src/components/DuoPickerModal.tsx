@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { AwardType, EligibleRosterResponse, EligibleCandidate } from '../types';
+import type { AwardType, EligibleRosterResponse, EligibleCandidate, NFLGameInfo } from '../types';
+import { PlayerGameInfo } from './PlayerGameInfo';
 
 // Preferred ordering for offensive positions specifically - IDP positions
 // (DL/LB/DB) and anything else not in this list still get included, just
@@ -25,11 +26,14 @@ interface DuoPickerModalProps {
     fetchEligible: (awardType: AwardType, playerIndex: 0 | 1) => Promise<EligibleRosterResponse | null>;
     setDuo: (awardType: AwardType, playerIndex: 0 | 1, sleeperPlayerId: string) => Promise<{ success: boolean; error?: string }>;
     saving: boolean;
+    /** Looks up an NFL team's next game info (opponent, kickoff time) for
+     * the currently-displayed week - shown next to each candidate. */
+    getGameInfo?: (nflTeam: string | null) => NFLGameInfo | undefined;
     onDone: () => void;
     onClose: () => void;
 }
 
-export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, saving, onDone, onClose }: DuoPickerModalProps) {
+export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, saving, getGameInfo, onDone, onClose }: DuoPickerModalProps) {
     const [data, setData] = useState<EligibleRosterResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [pickError, setPickError] = useState<string | null>(null);
@@ -84,7 +88,7 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
 
                 {!loading && data && data.candidates.length > 0 && data.situation === 'permanent' && (
                     <p className="mt-1 font-body text-xs italic text-chalk-dim">
-                        Permanent swap - no auto-revert, and this uses one of your team&rsquo;s two for the season.
+                        Permanent swap - no auto-revert, and this uses this award&rsquo;s one permanent swap for the season.
                     </p>
                 )}
 
@@ -120,7 +124,10 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
                                             disabled={saving}
                                             className="flex w-full items-center justify-between rounded border border-panel-line bg-field/40 px-3 py-2 text-left disabled:opacity-50"
                                         >
-                                            <span className="font-body text-sm text-chalk">{c.name}</span>
+                                            <span className="flex flex-col">
+                                                <span className="font-body text-sm text-chalk">{c.name}</span>
+                                                <PlayerGameInfo gameInfo={getGameInfo?.(c.team)} />
+                                            </span>
                                         </button>
                                     ))}
                                 </div>

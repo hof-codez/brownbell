@@ -76,6 +76,13 @@ class BrownBellAutomator {
             this.cachedSchedule[week] = weekSchedule;
 
             console.log(`Successfully fetched schedule for Week ${week} - ${Object.keys(weekSchedule).length} teams`);
+
+            // Persist to Supabase so the frontend can show "next game" info
+            // for each player without ever calling ESPN directly - best
+            // effort, logs its own errors internally rather than throwing,
+            // so a save hiccup here never blocks the actual scoring run.
+            await this.dataLayer.saveNFLSchedule(week, weekSchedule);
+
             return weekSchedule;
 
         } catch (error) {
@@ -352,6 +359,11 @@ class BrownBellAutomator {
 
         this.leagueData = { league, rosters, users, userMap };
         this.playersData = players;
+        // Shared reference so upsertDuoSlot (in the data layer) can resolve
+        // each player's current NFL team on its own, rather than every one
+        // of its several call sites needing to compute and pass it
+        // separately - one less thing to get inconsistent across them.
+        this.dataLayer.playersData = players;
 
         console.log(`Connected to league: ${league.name}`);
     }

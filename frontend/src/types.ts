@@ -28,6 +28,9 @@ export interface DuoRow {
   player_name: string;
   player_position: string;
   sleeper_player_id: string | null;
+  /** The player's current NFL team abbreviation (e.g. 'KC') - used to look
+   * up their next game from nfl_schedule. Null if unresolvable. */
+  player_team: string | null;
   experience: string | null;
   /** Sleeper's raw status - 'Questionable' | 'Doubtful' | 'Out' | 'IR' | 'PUP' | null if healthy. */
   injury_status: string | null;
@@ -35,6 +38,14 @@ export interface DuoRow {
 
 /** A team's two duo slots for one award. A slot is null if it hasn't been set yet. */
 export type DuoSlots = [DuoRow | null, DuoRow | null];
+
+/** One NFL team's game info for a given week - from the nfl_schedule table. */
+export interface NFLGameInfo {
+  nfl_team: string;
+  opponent_nfl_team: string | null;
+  kickoff_time: string | null;
+  is_bye: boolean;
+}
 
 export interface TeamWithDuos {
   team: Team;
@@ -56,6 +67,8 @@ export interface EligibleCandidate {
   name: string;
   position: string;
   yearsExp: number;
+  /** Current NFL team abbreviation, for looking up their next game. */
+  team: string | null;
 }
 
 export type SwapSituation = 'healthy-locked' | 'temporary' | 'permanent' | null;
