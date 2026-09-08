@@ -214,7 +214,17 @@ class BrownBellAutomator {
     // bye player hasn't played, there's nothing to protect against), but
     // genuinely unknown schedule data should be conservative and block a
     // pick rather than assume it's safe.
-    async getMinutesUntilKickoff(playerId, week) {
+    // Raw, fixed kickoff timestamp for this player's team this week - null
+    // if unknown, 'bye' if confirmed no game. Unlike getMinutesUntilKickoff
+    // (which recomputes relative to "now" at the exact moment of each
+    // call), this returns the actual Date object, so comparing two
+    // players' kickoffs directly is stable regardless of when each call
+    // happens - critical for the same-time-or-later replacement rule,
+    // where two players on the same NFL team share the literal same
+    // kickoff and must never be treated as different due to a few
+    // milliseconds of timing noise between two separate "minutes from
+    // now" calls.
+    async getKickoffDate(playerId, week) {
         const player = this.playersData[playerId];
         if (!player || !player.team) return null;
 
@@ -226,8 +236,15 @@ class BrownBellAutomator {
         if (!teamGame) return null;
         if (teamGame.date === null) return 'bye';
 
+        return teamGame.date;
+    }
+
+    async getMinutesUntilKickoff(playerId, week) {
+        const kickoffDate = await this.getKickoffDate(playerId, week);
+        if (kickoffDate === null || kickoffDate === 'bye') return kickoffDate;
+
         const now = new Date();
-        return (teamGame.date.getTime() - now.getTime()) / 60000;
+        return (kickoffDate.getTime() - now.getTime()) / 60000;
     }
 
     // Universal kickoff-timing eligibility rule: a candidate can only be
@@ -908,7 +925,7 @@ class BrownBellAutomator {
     // logic already verified for the old model (see findSubstitute), adapted to
     // take direct team/award/exclusion inputs instead of the old injuredPlayer/
     // originalDuo shapes duos no longer needs.
-    async selectAutoReplacement(teamName, awardType, week, excludeSleeperIds, otherSlotInfo, kickoffBufferMinutes = 0) {
+    async selectAutoReplacement(teamName, awardType, week, excludeSleeperIds, otherSlotInfo, kickoffBufferMinutes = 0, originalPlayerSleeperId = null) {
         const roster = this.leagueData.rosters.find(r => this.leagueData.userMap[r.owner_id] === teamName);
         if (!roster) {
             console.warn(`No roster found for ${teamName} - cannot select a replacement`);
@@ -926,6 +943,27 @@ class BrownBellAutomator {
                 // eligibility.ts - keep both lists in sync.
                 ? ['DL', 'LB', 'DB', 'DE', 'DT', 'NT', 'ILB', 'OLB', 'MLB', 'CB', 'S', 'FS', 'SS']
                 : ['QB', 'RB', 'WR', 'TE'];
+
+        // League rule: a replacement's own game must kick off at the same
+        // time or later than the starter they're replacing's game -
+        // otherwise you could swap in someone from an earlier game slot
+        // and effectively already know how they did by the time the
+        // starter's own game gets underway. Only enforced when both
+        // kickoff times are actually known - if either is unresolvable
+        // (unknown schedule data, or the original is on a bye with no
+        // game to compare against), this specific check is skipped rather
+        // than blocking every candidate outright, so an incomplete
+        // schedule fetch can't take down auto-sub entirely. Compares the
+        // raw, fixed kickoff Date objects directly (not "minutes from
+        // now") - two players on the same NFL team share the literal same
+        // kickoff, and comparing time-of-call-dependent values could flip
+        // the result between two calls microseconds apart for what is
+        // actually an identical timestamp.
+        let originalKickoffDate = null;
+        if (originalPlayerSleeperId) {
+            const value = await this.getKickoffDate(originalPlayerSleeperId, week);
+            if (value instanceof Date) originalKickoffDate = value;
+        }
 
         const eligibleCandidates = [];
 
@@ -953,6 +991,17 @@ class BrownBellAutomator {
                 if (!(await this.isEligibleForSub(playerId, week, kickoffBufferMinutes))) continue;
             } else {
                 if (await this.hasPlayerGameStarted(playerId, week)) continue;
+            }
+
+            if (originalKickoffDate !== null) {
+                const candidateKickoffDate = await this.getKickoffDate(playerId, week);
+                if (candidateKickoffDate instanceof Date && candidateKickoffDate.getTime() < originalKickoffDate.getTime()) {
+                    // Candidate's game starts strictly EARLIER than the
+                    // original's - not allowed. Equal timestamps (same
+                    // game, or two different games at the exact same
+                    // slot) correctly pass through here.
+                    continue;
+                }
             }
 
             if (awardType === 'nextup' && !this.isNextUpEligibleExperience(player.years_exp || 0)) continue;
@@ -1121,8 +1170,8 @@ class BrownBellAutomator {
     // processDuoSlots below) and the periodic re-check of an already-vacant
     // slot (checkPendingVacancy) - both need the identical decision, just
     // with different wording depending on what caused the vacancy.
-    async resolveVacancy(teamName, awardType, playerIndex, excludeIds, otherSlotInfo, currentPlayerName, currentPlayerPosition, reasonWhenWaiting, reasonWhenAutoFilled, reasonWhenNoneAvailable, eventTypeWaiting, eventTypeAutoFilled, week) {
-        const bestCandidate = await this.selectAutoReplacement(teamName, awardType, week, excludeIds, otherSlotInfo, 0);
+    async resolveVacancy(teamName, awardType, playerIndex, excludeIds, otherSlotInfo, originalPlayerSleeperId, currentPlayerName, currentPlayerPosition, reasonWhenWaiting, reasonWhenAutoFilled, reasonWhenNoneAvailable, eventTypeWaiting, eventTypeAutoFilled, week) {
+        const bestCandidate = await this.selectAutoReplacement(teamName, awardType, week, excludeIds, otherSlotInfo, 0, originalPlayerSleeperId);
 
         if (!bestCandidate) {
             await this.dataLayer.logSubstitution({
@@ -1223,7 +1272,7 @@ class BrownBellAutomator {
         const excludeIds = [pairRow?.sleeperPlayerId, ...otherAwardPlayerIds].filter(Boolean);
 
         return this.resolveVacancy(
-            row.teamName, row.awardType, row.playerIndex, excludeIds, otherSlotInfo, '(pending vacancy)', '-',
+            row.teamName, row.awardType, row.playerIndex, excludeIds, otherSlotInfo, row.originalSleeperPlayerId, '(pending vacancy)', '-',
             'Still awaiting owner pick - plenty of time before kickoff',
             'Auto-sub - kickoff approaching, no owner pick made',
             'No eligible replacement currently available - still waiting',
@@ -1339,7 +1388,7 @@ class BrownBellAutomator {
                 // after, same as Main Award/Next Up) keeps the slot always
                 // showing someone real.
 
-                const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo);
+                const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo, 0, row.sleeperPlayerId);
                 if (replacement) {
                     await this.dataLayer.upsertDuoSlot({
                         teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
@@ -1376,7 +1425,7 @@ class BrownBellAutomator {
                 if (swapState.permanentSwapUsed) {
                     // This award's one permanent swap is already used - auto-fill
                     // immediately. Independent of the other two awards' state.
-                    const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo);
+                    const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo, 0, row.sleeperPlayerId);
                     if (replacement) {
                         await this.dataLayer.upsertDuoSlot({
                             teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
@@ -1414,7 +1463,7 @@ class BrownBellAutomator {
                     // same owner-window-then-auto-fallback pattern for every
                     // award now (originally Season of Boom-only).
                     const event = await this.resolveVacancy(
-                        row.teamName, row.awardType, row.playerIndex, excludeIds, otherSlotInfo, row.playerName, row.playerPosition,
+                        row.teamName, row.awardType, row.playerIndex, excludeIds, otherSlotInfo, row.sleeperPlayerId, row.playerName, row.playerPosition,
                         'Permanent departure - cleared (this award\'s one permanent swap of the season) - pick a replacement or auto-sub kicks in near kickoff',
                         'Permanent departure - auto-subbed (kickoff approaching, no owner pick made) - this award\'s permanent swap for the season',
                         'Permanent departure - no eligible replacement currently available - still waiting (this award\'s permanent swap of the season)',

@@ -73,7 +73,11 @@ async function run() {
     await automator.dataLayer.loadSeason(2026, 'test-league');
 
     // --- Run 1: departure just detected, best candidate's kickoff is 30 min out ---
-    automator.cachedSchedule = { 3: { DAL: { date: minutesFromNow(120) }, KC: { date: minutesFromNow(30) } } };
+    // DAL (the departed original player's team) is fixed at a kickoff
+    // earlier than every candidate kickoff tested below (30/20/10 min out)
+    // - satisfying the new rule that a replacement's own game must start
+    // at the same time or later than the player being replaced.
+    automator.cachedSchedule = { 3: { DAL: { date: minutesFromNow(1) }, KC: { date: minutesFromNow(30) } } };
     let events = await automator.processDuoSlots(3);
     let d1 = supabase._store.duos.find(d => d.id === 'd1');
     allPassed &= check('Run 1 (30 min out): slot is CLEARED, not immediately auto-filled', d1.sleeper_player_id === null);
