@@ -327,6 +327,28 @@ class BrownBellAutomator {
         return index;
     }
 
+    // Keyword list scoped to distinctive betting-industry terms rather
+    // than generic words like "picks" or "line" that legitimate fantasy
+    // content also uses ("waiver wire pickups", "starting lineup") -
+    // false positives there would silently drop real player news. Checked
+    // against headline (and source name, since some outlets are
+    // betting-specific by nature) before saving any item, across all
+    // three news paths - RotoWire's own factual blurbs would essentially
+    // never match this, but applying it uniformly is cheap and keeps
+    // behavior consistent rather than only filtering the one source most
+    // likely to need it.
+    static BETTING_KEYWORDS = [
+        'sportsbook', 'draftkings', 'fanduel', 'betmgm', 'caesars sportsbook',
+        'prizepicks', 'prop bet', 'props bet', 'best bets', ' odds ', ' odds.',
+        'moneyline', 'point spread', 'parlay', 'underdog fantasy', 'bovada',
+        'over/under', 'against the spread', ' ats ', 'betting', ' wager'
+    ];
+
+    isSportsBettingContent(headline, sourceName) {
+        const text = `${headline} ${sourceName || ''}`.toLowerCase();
+        return BrownBellAutomator.BETTING_KEYWORDS.some(keyword => text.includes(keyword));
+    }
+
     // Fetches a specific player's own RotoWire profile page for a much
     // deeper news history than the shared feed's small rolling window
     // ever shows (confirmed directly: a profile page had 6+ dated entries
@@ -426,6 +448,8 @@ class BrownBellAutomator {
             const publishedAt = pubDateStr ? new Date(pubDateStr) : new Date();
             if (isNaN(publishedAt.getTime())) continue;
 
+            if (this.isSportsBettingContent(headline, sourceName)) continue;
+
             items.push({
                 rotowireGuid: `google-${sleeperPlayerId}-${guid}`,
                 sleeperPlayerId,
@@ -520,6 +544,8 @@ class BrownBellAutomator {
             if (seen.has(dedupKey)) continue;
             seen.add(dedupKey);
 
+            if (this.isSportsBettingContent(snippet, null)) continue;
+
             items.push({
                 rotowireGuid: `profile-${sleeperPlayerId}-${Buffer.from(dedupKey).toString('base64').slice(0, 24)}`,
                 sleeperPlayerId,
@@ -596,6 +622,8 @@ class BrownBellAutomator {
 
             const publishedAt = new Date(pubDate);
             if (isNaN(publishedAt.getTime())) continue;
+
+            if (this.isSportsBettingContent(headline, null)) continue;
 
             items.push({
                 rotowireGuid: guid,
