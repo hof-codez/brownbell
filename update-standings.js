@@ -180,6 +180,94 @@ class BrownBellAutomator {
     // the snippet, never stripped.
     static ROTOWIRE_NFL_NEWS_URL = 'https://www.rotowire.com/rss/news.php?sport=NFL';
 
+    // Verified directly against a real fetch of RotoWire's depth chart
+    // team selector - every slug below was seen in the actual page, not
+    // guessed. Maps this app's Sleeper-style team abbreviations to
+    // RotoWire's own slug for their per-team depth chart URL.
+    static ROTOWIRE_TEAM_SLUGS = {
+        ARI: 'arizona-cardinals-depth-chart-ari', ATL: 'atlanta-falcons-depth-chart-atl',
+        BAL: 'baltimore-ravens-depth-chart-bal', BUF: 'buffalo-bills-depth-chart-buf',
+        CAR: 'carolina-panthers-depth-chart-car', CHI: 'chicago-bears-depth-chart-chi',
+        CIN: 'cincinnati-bengals-depth-chart-cin', CLE: 'cleveland-browns-depth-chart-cle',
+        DAL: 'dallas-cowboys-depth-chart-dal', DEN: 'denver-broncos-depth-chart-den',
+        DET: 'detroit-lions-depth-chart-det', GB: 'green-bay-packers-depth-chart-gb',
+        HOU: 'houston-texans-depth-chart-hou', IND: 'indianapolis-colts-depth-chart-ind',
+        JAX: 'jacksonville-jaguars-depth-chart-jax', KC: 'kansas-city-chiefs-depth-chart-kc',
+        LAC: 'los-angeles-chargers-depth-chart-lac', LAR: 'los-angeles-rams-depth-chart-lar',
+        LV: 'las-vegas-raiders-depth-chart-lv', MIA: 'miami-dolphins-depth-chart-mia',
+        MIN: 'minnesota-vikings-depth-chart-min', NE: 'new-england-patriots-depth-chart-ne',
+        NO: 'new-orleans-saints-depth-chart-no', NYG: 'new-york-giants-depth-chart-nyg',
+        NYJ: 'new-york-jets-depth-chart-nyj', PHI: 'philadelphia-eagles-depth-chart-phi',
+        PIT: 'pittsburgh-steelers-depth-chart-pit', SEA: 'seattle-seahawks-depth-chart-sea',
+        SF: 'san-francisco-49ers-depth-chart-sf', TB: 'tampa-bay-buccaneers-depth-chart-tb',
+        TEN: 'tennessee-titans-depth-chart-ten', WAS: 'washington-commanders-depth-chart-was'
+    };
+
+    // Discovers RotoWire URLs directly from each relevant NFL team's own
+    // depth chart page, rather than waiting for a player to randomly
+    // appear in the shared feed's tiny 5-item window - confirmed directly
+    // that most players could otherwise go weeks without ever being
+    // discovered that way. Only covers offensive skill positions
+    // (QB/RB/WR/TE) - confirmed directly that RotoWire paywalls every
+    // defensive position, even on this per-team page, so this does
+    // nothing for Season of Boom's IDP players. Those still rely on the
+    // shared-feed discovery path in fetchAndSavePlayerNews alone.
+    async fetchAndSaveDepthChartLinks() {
+        const relevantTeams = new Set();
+        for (const awardType of ['main', 'nextup']) {
+            for (const duo of Object.values(this.knownDuos[awardType] || {})) {
+                for (const player of duo) {
+                    const team = player?.sleeperId ? this.playersData[player.sleeperId]?.team : null;
+                    if (team && BrownBellAutomator.ROTOWIRE_TEAM_SLUGS[team]) relevantTeams.add(team);
+                }
+            }
+        }
+
+        if (relevantTeams.size === 0) return;
+        console.log(`Discovering RotoWire player links from ${relevantTeams.size} team depth chart(s)...`);
+
+        const nameToSleeperPlayerId = this.buildNormalizedNameIndex();
+        let totalDiscovered = 0;
+
+        for (const team of relevantTeams) {
+            const slug = BrownBellAutomator.ROTOWIRE_TEAM_SLUGS[team];
+            try {
+                const html = await this.fetchText(`https://www.rotowire.com/football/nfl-depth-charts/${slug}`);
+                const links = this.parseRotowireDepthChartLinks(html, nameToSleeperPlayerId);
+                if (links.length > 0) {
+                    await this.dataLayer.saveRotowirePlayerLinks(links);
+                    totalDiscovered += links.length;
+                }
+            } catch (error) {
+                console.warn(`Failed to fetch/parse depth chart for ${team}: ${error.message}`);
+            }
+        }
+        console.log(`Discovered ${totalDiscovered} RotoWire player link(s) from depth charts this run`);
+    }
+
+    // Extracts every [Player Name](rotowire-url) link from a team's depth
+    // chart page and matches each to a Sleeper player by name. Anchored on
+    // the "/football/player/" URL segment specifically, since that's the
+    // one part of the link structure guaranteed to only ever point at an
+    // actual player profile (as opposed to nav links, team links, etc.
+    // elsewhere on the same page).
+    parseRotowireDepthChartLinks(html, nameToSleeperPlayerId) {
+        const linkPattern = /<a[^>]+href="(https:\/\/www\.rotowire\.com\/football\/player\/[^"]+)"[^>]*>([^<]+)<\/a>/g;
+        const results = [];
+        const seenIds = new Set();
+
+        for (const match of html.matchAll(linkPattern)) {
+            const url = match[1];
+            const name = this.decodeXmlEntities(match[2]).trim();
+            const sleeperPlayerId = nameToSleeperPlayerId.get(this.normalizePlayerName(name));
+            if (!sleeperPlayerId || seenIds.has(sleeperPlayerId)) continue;
+            seenIds.add(sleeperPlayerId);
+            results.push({ sleeperPlayerId, rotowireUrl: url });
+        }
+
+        return results;
+    }
+
     async fetchAndSavePlayerNews() {
         console.log('Fetching player news from RotoWire...');
         try {
@@ -2107,13 +2195,20 @@ class BrownBellAutomator {
         const { currentWeek: storedWeek } = await this.dataLayer.loadSeason(seasonYear, this.leagueId);
         await this.loadKnownDuos();
 
+        // Discovers RotoWire URLs directly from team depth chart pages
+        // (offense only - see fetchAndSaveDepthChartLinks) rather than
+        // waiting on the shared feed's tiny rolling window to randomly
+        // surface each player. Best effort per team.
+        await this.fetchAndSaveDepthChartLinks();
+
         // Deeper, per-player news history for whichever of this league's
         // current duo players we've already learned a RotoWire URL for
-        // (see fetchAndSavePlayerNews) - the shared feed above only ever
-        // shows a tiny rolling window across the whole NFL, but a
-        // player's own profile page keeps a much fuller history. Best
-        // effort per player - one player's page failing to parse never
-        // blocks the others or the actual scoring run below.
+        // (via the depth chart discovery above, or the shared feed in
+        // fetchAndSavePlayerNews) - the shared feed alone only ever shows
+        // a tiny rolling window across the whole NFL, but a player's own
+        // profile page keeps a much fuller history. Best effort per
+        // player - one player's page failing to parse never blocks the
+        // others or the actual scoring run below.
         await this.fetchAndSaveProfileNews();
 
         const currentWeek = await this.getCurrentWeek();

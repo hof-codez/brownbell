@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useActivityLog } from '../hooks/useActivityLog';
 import type { ActivityBadge } from '../hooks/useActivityLog';
 import { useTeamPlayerNews } from '../hooks/useTeamPlayerNews';
@@ -24,7 +24,7 @@ const BADGE_STYLES: Record<ActivityBadge, string> = {
 // render can distinguish them.
 type FeedEntry =
     | { kind: 'activity'; timestamp: string; id: string; awardType: AwardType; badge: ActivityBadge; originalName: string; originalPosition: string; substituteName: string | null; substitutePosition: string | null }
-    | { kind: 'news'; timestamp: string; id: string; playerName: string; headline: string; snippet: string; sourceUrl: string };
+    | { kind: 'news'; timestamp: string; id: string; sleeperPlayerId: string | null; playerName: string; headline: string; snippet: string; sourceUrl: string };
 
 function formatTimestamp(iso: string): string {
     const date = new Date(iso);
@@ -40,10 +40,28 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
     const activityTeams = useMemo(() => [myTeam.team], [myTeam.team.id]);
     const { entries: activityEntries, loading: activityLoading } = useActivityLog(activityTeams);
 
-    const sleeperPlayerIds = [...myTeam.main, ...myTeam.nextup, ...myTeam.boom]
-        .map(slot => slot?.sleeper_player_id)
-        .filter((id): id is string => !!id);
+    // One tab per current duo player, for direct navigation to just their
+    // own activity/news rather than scrolling the full combined feed.
+    // Deduplicated by sleeperPlayerId (falling back to name if a slot
+    // hasn't been set yet and has no id) since cross-award exclusivity
+    // means the same player never legitimately occupies two slots, but a
+    // defensive dedup costs nothing.
+    const playerTabs = useMemo(() => {
+        const slots = [...myTeam.main, ...myTeam.nextup, ...myTeam.boom].filter((s): s is NonNullable<typeof s> => !!s);
+        const seen = new Set<string>();
+        const tabs: { key: string; sleeperPlayerId: string | null; playerName: string }[] = [];
+        for (const slot of slots) {
+            const key = slot.sleeper_player_id || slot.player_name;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            tabs.push({ key, sleeperPlayerId: slot.sleeper_player_id, playerName: slot.player_name });
+        }
+        return tabs;
+    }, [myTeam]);
 
+    const [selectedKey, setSelectedKey] = useState<string | null>(null); // null = "All"
+
+    const sleeperPlayerIds = playerTabs.map(t => t.sleeperPlayerId).filter((id): id is string => !!id);
     const { items: newsItems, loading: newsLoading } = useTeamPlayerNews(sleeperPlayerIds);
 
     const loading = activityLoading || newsLoading;
@@ -64,12 +82,20 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
             kind: 'news',
             timestamp: n.publishedAt,
             id: n.id,
+            sleeperPlayerId: n.sleeperPlayerId,
             playerName: n.playerName,
             headline: n.headline,
             snippet: n.snippet,
             sourceUrl: n.sourceUrl
         }))
     ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    const selectedTab = playerTabs.find(t => t.key === selectedKey);
+    const filteredFeed = !selectedTab ? feed : feed.filter(entry =>
+        entry.kind === 'news'
+            ? (selectedTab.sleeperPlayerId ? entry.sleeperPlayerId === selectedTab.sleeperPlayerId : entry.playerName === selectedTab.playerName)
+            : (entry.originalName === selectedTab.playerName || entry.substituteName === selectedTab.playerName)
+    );
 
     return (
         <div>
@@ -78,17 +104,37 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
                 A combined feed of activity and news for every player currently in one of your three awards.
             </p>
 
+            <div className="mb-4 flex flex-wrap gap-1.5">
+                <button
+                    onClick={() => setSelectedKey(null)}
+                    className={`rounded px-2.5 py-1 font-mono text-xs uppercase tracking-widest ${!selectedTab ? 'bg-bell/20 text-bell' : 'text-chalk-dim'}`}
+                >
+                    All
+                </button>
+                {playerTabs.map(tab => (
+                    <button
+                        key={tab.key}
+                        onClick={() => setSelectedKey(tab.key)}
+                        className={`rounded px-2.5 py-1 font-mono text-xs uppercase tracking-widest ${selectedKey === tab.key ? 'bg-bell/20 text-bell' : 'text-chalk-dim'}`}
+                    >
+                        {tab.playerName}
+                    </button>
+                ))}
+            </div>
+
             {loading ? (
                 <div className="rounded border border-dashed border-panel-line px-4 py-6 text-center">
                     <p className="font-body text-sm text-chalk-dim">Loading...</p>
                 </div>
-            ) : feed.length === 0 ? (
+            ) : filteredFeed.length === 0 ? (
                 <div className="rounded border border-dashed border-panel-line px-4 py-6 text-center">
-                    <p className="font-body text-sm text-chalk-dim">No activity or news yet for your players.</p>
+                    <p className="font-body text-sm text-chalk-dim">
+                        {selectedTab ? `No activity or news yet for ${selectedTab.playerName}.` : 'No activity or news yet for your players.'}
+                    </p>
                 </div>
             ) : (
                 <div className="space-y-1.5">
-                    {feed.map(entry =>
+                    {filteredFeed.map(entry =>
                         entry.kind === 'activity' ? (
                             <div key={`activity-${entry.id}`} className="flex items-start justify-between rounded-lg border border-panel-line bg-panel p-3">
                                 <div>
