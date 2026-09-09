@@ -42,6 +42,24 @@ class BrownBellAutomator {
         });
     }
 
+    // Same shape as fetchJson but returns the raw response body unparsed -
+    // used for RotoWire's RSS feed (XML, not JSON).
+    async fetchText(url) {
+        return new Promise((resolve, reject) => {
+            const options = {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; BrownBellAutomation/2.0; +https://github.com/hof-codez/brownbell)',
+                    'Accept': 'application/xml'
+                }
+            };
+            https.get(url, options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => resolve(data));
+            }).on('error', reject);
+        });
+    }
+
     // ESPN uses a couple of team abbreviations that differ from the ones used elsewhere in
     // this file (knownDuos, roster/player data, etc). Normalize here.
     static ESPN_ABBR_FIX = { WSH: 'WAS' };
@@ -150,6 +168,141 @@ class BrownBellAutomator {
         }
 
         return schedule;
+    }
+
+    // RotoWire's free public RSS feed - the same underlying source Sleeper,
+    // ESPN, and NFL.com themselves use for their own player-news features
+    // (confirmed via RotoWire's own syndication page and their news team's
+    // public statement that their feed is "synced on Sleeper, ESPN, Yahoo
+    // and more"). Their own terms permit third-party display of this feed
+    // provided a link back to RotoWire.com is included - see
+    // ROTOWIRE_ATTRIBUTION_FOOTER below, always stored and shown alongside
+    // the snippet, never stripped.
+    static ROTOWIRE_NFL_NEWS_URL = 'https://www.rotowire.com/rss/news.php?sport=NFL';
+
+    async fetchAndSavePlayerNews() {
+        console.log('Fetching player news from RotoWire...');
+        try {
+            const xml = await this.fetchText(BrownBellAutomator.ROTOWIRE_NFL_NEWS_URL);
+            const items = this.parseRotowireFeed(xml);
+            console.log(`Fetched ${items.length} player news item(s) from RotoWire`);
+
+            const nameToSleeperPlayerId = this.buildNormalizedNameIndex();
+            let matched = 0;
+            for (const item of items) {
+                const sleeperPlayerId = nameToSleeperPlayerId.get(this.normalizePlayerName(item.playerName)) || null;
+                if (sleeperPlayerId) matched++;
+                item.sleeperPlayerId = sleeperPlayerId;
+            }
+            console.log(`Matched ${matched}/${items.length} news item(s) to a roster-able Sleeper player`);
+
+            await this.dataLayer.savePlayerNews(items);
+        } catch (error) {
+            console.warn(`Failed to fetch/save player news: ${error.message}`);
+        }
+    }
+
+    // Lowercase, trim, collapse whitespace, drop periods (e.g. "D.J." ->
+    // "dj") and a trailing generational suffix - enough to reconcile
+    // RotoWire's name formatting against Sleeper's without being so
+    // aggressive (e.g. stripping hyphens or apostrophes) that it risks
+    // merging two actually-different names together.
+    normalizePlayerName(name) {
+        return name
+            .toLowerCase()
+            .replace(/\./g, '')
+            .replace(/\s+(jr|sr|ii|iii|iv|v)$/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    // Built fresh each fetch rather than cached across runs - playersData
+    // itself is already reloaded every run, and this index is only ever
+    // used once per fetch (a handful of news items), so there's no
+    // meaningful cost to rebuilding it rather than tracking invalidation.
+    buildNormalizedNameIndex() {
+        const index = new Map();
+        for (const [sleeperPlayerId, player] of Object.entries(this.playersData || {})) {
+            if (!player.first_name && !player.last_name) continue;
+            const fullName = `${player.first_name || ''} ${player.last_name || ''}`.trim();
+            index.set(this.normalizePlayerName(fullName), sleeperPlayerId);
+        }
+        return index;
+    }
+
+    // Decodes the small set of XML entities RSS feeds actually use - not a
+    // general HTML entity decoder, just enough for names/text that can
+    // appear in this specific feed (e.g. an apostrophe in a player's name,
+    // an ampersand in a team name).
+    decodeXmlEntities(text) {
+        return text
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, "'")
+            .replace(/&#0*39;/g, "'");
+    }
+
+    extractXmlTag(block, tag) {
+        const match = block.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+        if (!match) return null;
+        // Strip a CDATA wrapper if present - this specific feed doesn't use
+        // one (confirmed against a real fetch), but handling it costs
+        // nothing and protects against RotoWire adding one later.
+        const inner = match[1].replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, '$1');
+        return this.decodeXmlEntities(inner.trim());
+    }
+
+    // Parses RotoWire's specific, simple RSS structure into structured
+    // rows. A custom parser rather than a general XML library dependency -
+    // matches this project's existing pattern (see parseEspnSchedule) of
+    // writing a small parser for one specific, verified external shape
+    // rather than depending on something built to handle arbitrary XML.
+    parseRotowireFeed(xml) {
+        const items = [];
+        const itemBlocks = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+
+        for (const block of itemBlocks) {
+            const guid = this.extractXmlTag(block, 'guid');
+            const rawTitle = this.extractXmlTag(block, 'title');
+            const link = this.extractXmlTag(block, 'link');
+            const rawDescription = this.extractXmlTag(block, 'description');
+            const pubDate = this.extractXmlTag(block, 'pubDate');
+
+            if (!guid || !rawTitle || !link || !rawDescription || !pubDate) continue;
+
+            // Title format is always "Player Name: Headline" - confirmed
+            // against a real fetch. Only the first colon is the separator;
+            // a headline that itself contains a colon must not be split
+            // again.
+            const colonIndex = rawTitle.indexOf(':');
+            if (colonIndex === -1) continue; // not a player-news item in the expected shape - skip rather than guess
+            const playerName = rawTitle.slice(0, colonIndex).trim();
+            const headline = rawTitle.slice(colonIndex + 1).trim();
+
+            // Strip RotoWire's own "Visit RotoWire.com..." footer, keeping
+            // just the factual snippet - the footer is re-added as a
+            // required attribution link in the UI itself, not duplicated
+            // into the stored text.
+            const snippet = rawDescription
+                .replace(/\s*Visit RotoWire\.com for more analysis on this update\.\s*$/i, '')
+                .trim();
+
+            const publishedAt = new Date(pubDate);
+            if (isNaN(publishedAt.getTime())) continue;
+
+            items.push({
+                rotowireGuid: guid,
+                playerName,
+                headline,
+                snippet,
+                sourceUrl: link,
+                publishedAt
+            });
+        }
+
+        return items;
     }
 
     async isPlayerOnBye(playerId, week) {
@@ -1824,6 +1977,13 @@ class BrownBellAutomator {
 
     async generateCompleteData() {
         await this.initializeLeagueData();
+
+        // Independent of season/week - RotoWire's feed is just timestamped
+        // real-world NFL news, not scoped to this league's fantasy season.
+        // Best-effort: fetchAndSavePlayerNews already logs its own errors
+        // rather than throwing, so a hiccup here never blocks the actual
+        // scoring run below.
+        await this.fetchAndSavePlayerNews();
 
         const seasonYear = Number(process.env.NFL_SEASON_YEAR || '2026');
         const { currentWeek: storedWeek } = await this.dataLayer.loadSeason(seasonYear, this.leagueId);

@@ -398,6 +398,31 @@ class SupabaseDataLayer {
         if (error) console.error(`Failed to save NFL schedule for week ${week}:`, error.message);
     }
 
+    // Upserted on RotoWire's own item guid, so the same story is never
+    // duplicated across repeated automation runs - see 025-player-news.sql.
+    // sleeperPlayerId may be null (name didn't match any known Sleeper
+    // player) - still stored rather than dropped, just never surfaced
+    // anywhere that requires a player match.
+    async savePlayerNews(items) {
+        if (!items || items.length === 0) return;
+        const rows = items.map(item => ({
+            rotowire_guid: item.rotowireGuid,
+            sleeper_player_id: item.sleeperPlayerId || null,
+            player_name: item.playerName,
+            headline: item.headline,
+            snippet: item.snippet,
+            source_url: item.sourceUrl,
+            published_at: item.publishedAt.toISOString(),
+            fetched_at: new Date().toISOString()
+        }));
+
+        const { error } = await this.supabase
+            .from('player_news')
+            .upsert(rows, { onConflict: 'rotowire_guid' });
+
+        if (error) console.error('Failed to save player news:', error.message);
+    }
+
     // scores/playerIds shape: { [awardType]: { [teamName]: { [week]: { [index]: value } } } }
     // (this matches updateAllScores()'s existing internal structure - see update-standings.js)
     async saveWeeklyScores(scores, playerIds, playersData, wasBye) {

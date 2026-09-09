@@ -47,6 +47,20 @@ export interface NFLGameInfo {
   is_bye: boolean;
 }
 
+/** A player news snippet pulled from RotoWire's free public RSS feed - see
+ * 025-player-news.sql. Always shown with sourceUrl as a required
+ * attribution link back to RotoWire, per their own terms for third-party
+ * display of this feed. */
+export interface PlayerNewsItem {
+  id: string;
+  sleeperPlayerId: string | null;
+  playerName: string;
+  headline: string;
+  snippet: string;
+  sourceUrl: string;
+  publishedAt: string;
+}
+
 export interface TeamWithDuos {
   team: Team;
   main: DuoSlots;

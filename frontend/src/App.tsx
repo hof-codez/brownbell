@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSeasonData } from './hooks/useSeasonData';
 import { useTeamClaim } from './hooks/useTeamClaim';
 import { useDuoPicker } from './hooks/useDuoPicker';
@@ -22,9 +22,10 @@ import { TeamsView } from './components/TeamsView';
 import { LeagueTab } from './components/LeagueTab';
 import { ShowdownTab } from './components/ShowdownTab';
 import { MiscTab } from './components/MiscTab';
+import { MyPlayersTab } from './components/MyPlayersTab';
 import type { AwardType } from './types';
 
-const TABS = [
+const BASE_TABS = [
   { id: 'teams', label: 'Teams' },
   { id: 'league', label: 'League' },
   { id: 'bonus', label: 'Showdown' },
@@ -72,6 +73,20 @@ export default function App() {
   const [historyTeamFilter, setHistoryTeamFilter] = useState<string | null>(null);
 
   const myTeam = claimedTeam ? teams.find(t => t.team.id === claimedTeam.teamId) ?? null : null;
+  // "My Players" only makes sense once a team is claimed - there's nothing
+  // to build a feed from otherwise. Inserted right after "Teams" since
+  // it's the other owner-specific view.
+  const TABS = myTeam
+    ? [BASE_TABS[0], { id: 'players', label: 'My Players' }, ...BASE_TABS.slice(1)]
+    : BASE_TABS;
+
+  // Guards against a rare edge case: if the owner forgets their claimed
+  // team while this tab is active, myTeam goes null and the tab itself
+  // disappears from TABS above - without this, activeTab would still say
+  // 'players' and nothing would render at all.
+  useEffect(() => {
+    if (activeTab === 'players' && !myTeam) setActiveTab('teams');
+  }, [activeTab, myTeam]);
   const otherTeams = myTeam ? teams.filter(t => t.team.id !== myTeam.team.id) : teams;
 
   // Only meaningful once there's a claimed team - both hooks need a real
@@ -121,6 +136,10 @@ export default function App() {
             onNameDuo={claimedTeam ? (awardType) => setNamingAward(awardType) : undefined}
             onCustomize={claimedTeam ? () => setShowBackgroundModal(true) : undefined}
           />
+        )}
+
+        {activeTab === 'players' && myTeam && (
+          <MyPlayersTab myTeam={myTeam} />
         )}
 
         {activeTab === 'league' && (

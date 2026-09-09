@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { DuoRow, NFLGameInfo } from '../types';
 import { PlayerGameInfo } from './PlayerGameInfo';
+import { PlayerNewsModal } from './PlayerNewsModal';
 
 interface DuoSlotDisplayProps {
     slot: DuoRow | null;
@@ -24,6 +26,8 @@ const INJURY_DOT_COLOR: Record<string, string> = {
 };
 
 export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo }: DuoSlotDisplayProps) {
+    const [showNews, setShowNews] = useState(false);
+
     if (!slot) {
         return (
             <div className="flex items-center justify-between rounded border border-dashed border-panel-line px-3 py-2">
@@ -50,7 +54,9 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo }: DuoSlotDisplay
                             aria-label={slot.injury_status ? `Injury status: ${slot.injury_status}` : undefined}
                         />
                     )}
-                    {slot.player_name}
+                    <button onClick={() => setShowNews(true)} className="underline decoration-dotted decoration-chalk-dim underline-offset-2">
+                        {slot.player_name}
+                    </button>
                     {isBye && (
                         <span className="rounded bg-brick/20 px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-brick">
                             Bye
@@ -70,6 +76,13 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo }: DuoSlotDisplay
                 <div className="mt-0.5">
                     <PlayerGameInfo gameInfo={gameInfo} />
                 </div>
+            )}
+            {showNews && (
+                <PlayerNewsModal
+                    playerName={slot.player_name}
+                    sleeperPlayerId={slot.sleeper_player_id}
+                    onClose={() => setShowNews(false)}
+                />
             )}
         </div>
     );
