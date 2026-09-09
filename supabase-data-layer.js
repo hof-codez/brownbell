@@ -457,14 +457,36 @@ class SupabaseDataLayer {
         return allRows;
     }
 
+    // Chunked rather than one .in() call with the full id list - confirmed
+    // directly as a real production failure: a single request with ~839
+    // UUIDs encodes as an enormous URL (.in() filters are built into the
+    // request URL as query params) and Supabase rejects it outright with
+    // "Bad Request". That failure was silent to the pruning logic itself
+    // (it correctly identified every disqualified row every run - the
+    // delete request was what failed), which is why the exact same
+    // articles kept reappearing across multiple runs despite the
+    // identification working correctly every time. Small chunks avoid
+    // the URL-length ceiling entirely; one chunk failing is logged and
+    // does not block the rest from being attempted.
     async deletePlayerNewsByIds(ids) {
         if (!ids || ids.length === 0) return;
-        const { error } = await this.supabase
-            .from('player_news')
-            .delete()
-            .in('id', ids);
 
-        if (error) console.error('Failed to delete disqualified player_news rows:', error.message);
+        const CHUNK_SIZE = 100;
+        let deleted = 0;
+        for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+            const chunk = ids.slice(i, i + CHUNK_SIZE);
+            const { error } = await this.supabase
+                .from('player_news')
+                .delete()
+                .in('id', chunk);
+
+            if (error) {
+                console.error(`Failed to delete a chunk of disqualified player_news rows (${chunk.length} ids): ${error.message}`);
+            } else {
+                deleted += chunk.length;
+            }
+        }
+        return deleted;
     }
 
     async savePlayerNews(items) {

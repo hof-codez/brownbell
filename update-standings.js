@@ -414,10 +414,12 @@ class BrownBellAutomator {
             }
         }
 
+        let actuallyDeleted = 0;
         if (disqualifiedIds.length > 0) {
-            await this.dataLayer.deletePlayerNewsByIds(disqualifiedIds);
+            actuallyDeleted = (await this.dataLayer.deletePlayerNewsByIds(disqualifiedIds)) || 0;
         }
-        console.log(`Pruned ${disqualifiedIds.length}/${rows.length} previously-saved news item(s) that no longer pass current filters`);
+        console.log(`Pruned ${actuallyDeleted}/${rows.length} previously-saved news item(s) that no longer pass current filters` +
+            (actuallyDeleted !== disqualifiedIds.length ? ` (identified ${disqualifiedIds.length}, but ${disqualifiedIds.length - actuallyDeleted} failed to delete - see errors above)` : ''));
     }
 
     async fetchAndSaveGoogleNews() {
