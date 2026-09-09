@@ -419,6 +419,34 @@ class SupabaseDataLayer {
     // sleeperPlayerId may be null (name didn't match any known Sleeper
     // player) - still stored rather than dropped, just never surfaced
     // anywhere that requires a player match.
+    // Minimal-field read of every player_news row, for re-validating
+    // already-saved items against the CURRENT filter rules in
+    // update-standings.js (see pruneDisqualifiedNews). Filter rules can
+    // change after items were already saved under looser rules - this is
+    // what lets a filter change clean up its own past output rather than
+    // only affecting saves from that point forward.
+    async loadAllPlayerNewsForPruning() {
+        const { data, error } = await this.supabase
+            .from('player_news')
+            .select('id, rotowire_guid, headline, source_name, sleeper_player_id, player_name');
+
+        if (error) {
+            console.error('Failed to load player_news for pruning:', error.message);
+            return [];
+        }
+        return data || [];
+    }
+
+    async deletePlayerNewsByIds(ids) {
+        if (!ids || ids.length === 0) return;
+        const { error } = await this.supabase
+            .from('player_news')
+            .delete()
+            .in('id', ids);
+
+        if (error) console.error('Failed to delete disqualified player_news rows:', error.message);
+    }
+
     async savePlayerNews(items) {
         if (!items || items.length === 0) return;
         const rows = items.map(item => ({

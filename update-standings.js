@@ -341,7 +341,8 @@ class BrownBellAutomator {
         'sportsbook', 'draftkings', 'fanduel', 'betmgm', 'caesars sportsbook',
         'prizepicks', 'prop bet', 'props bet', 'best bets', ' odds ', ' odds.',
         'moneyline', 'point spread', 'parlay', 'underdog fantasy', 'bovada',
-        'over/under', 'against the spread', ' ats ', 'betting', ' wager'
+        'over/under', 'against the spread', ' ats ', 'betting', ' wager',
+        'kalshi', 'polymarket', 'promo code'
     ];
 
     isSportsBettingContent(headline, sourceName) {
@@ -379,6 +380,46 @@ class BrownBellAutomator {
     // RotoWire's real documented feed, Google could change or restrict it
     // without notice. Logs a per-player count either way so a change in
     // behavior is immediately visible in the run log, not silent.
+    // Re-validates every already-saved player_news row against the
+    // CURRENT filter rules (isSportsBettingContent, and - for Google
+    // News-sourced items specifically - the last-name-in-headline check).
+    // Filter rules can be added or tightened after items were already
+    // saved under looser rules (exactly what happened here: 6223+ items
+    // were saved in one run before the betting/title filters existed),
+    // and without this, that old output sits in the table forever - new
+    // filters only ever affect saves from that point forward, never
+    // retroactively clean up what came before them. Deletes only rows
+    // that fail a check whose inputs are still verifiable (a Google item
+    // with no resolvable player/last name is left alone rather than
+    // guessed at).
+    async pruneDisqualifiedNews() {
+        const rows = await this.dataLayer.loadAllPlayerNewsForPruning();
+        if (rows.length === 0) return;
+
+        const disqualifiedIds = [];
+        for (const row of rows) {
+            if (this.isSportsBettingContent(row.headline, row.source_name)) {
+                disqualifiedIds.push(row.id);
+                continue;
+            }
+
+            // The last-name-in-headline requirement only ever applied to
+            // Google-sourced items ("google-" prefix) - RotoWire items
+            // guarantee the name is in the title/snippet by construction.
+            if (row.rotowire_guid && row.rotowire_guid.startsWith('google-')) {
+                const lastName = row.sleeper_player_id ? this.playersData[row.sleeper_player_id]?.last_name : null;
+                if (lastName && !row.headline.toLowerCase().includes(lastName.toLowerCase())) {
+                    disqualifiedIds.push(row.id);
+                }
+            }
+        }
+
+        if (disqualifiedIds.length > 0) {
+            await this.dataLayer.deletePlayerNewsByIds(disqualifiedIds);
+        }
+        console.log(`Pruned ${disqualifiedIds.length}/${rows.length} previously-saved news item(s) that no longer pass current filters`);
+    }
+
     async fetchAndSaveGoogleNews() {
         const sleeperPlayerIds = new Set();
         for (const awardType of ['main', 'nextup', 'boom']) {
@@ -2483,6 +2524,11 @@ class BrownBellAutomator {
         // close) at the cost of headline + source only, no factual
         // snippet. See fetchAndSaveGoogleNews for the full reasoning.
         await this.fetchAndSaveGoogleNews();
+
+        // Cleans up any already-saved item that no longer passes the
+        // current filter rules above - see pruneDisqualifiedNews for why
+        // this is necessary rather than optional.
+        await this.pruneDisqualifiedNews();
 
         const currentWeek = await this.getCurrentWeek();
         const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday
