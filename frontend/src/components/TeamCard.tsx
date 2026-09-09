@@ -81,11 +81,15 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, cur
                         }}
                         aria-hidden="true"
                     />
-                    <div className="absolute inset-0 bg-panel/70" aria-hidden="true" />
+                    {/* Strengthened from 70% to 85% after a real report that
+                        light/busy background images left team names and
+                        player text hard to read even with the scrim active -
+                        see the matching fix/comment in ShowdownTab. */}
+                    <div className="absolute inset-0 bg-panel/85" aria-hidden="true" />
                 </>
             )}
 
-            <div className="relative z-10">
+            <div className={`relative z-10 ${team.background_image_url ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}>
                 <div className="flex items-start justify-between gap-2">
                     <h2
                         className={`font-display text-2xl font-bold uppercase tracking-wide ${team.accent_color ? '' : 'text-chalk'}`}

@@ -356,11 +356,15 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                 {/* Same fixed readability scrim as TeamCard, covering
                                     the whole card regardless of either side's chosen
                                     opacity - independent scrims per half would leave
-                                    a visible seam right where the two meet. */}
+                                    a visible seam right where the two meet. Strengthened
+                                    from 70% to 85% after a real report that light/busy
+                                    background images (e.g. a light-colored graphic)
+                                    left team names and player text hard to read even
+                                    with the scrim active. */}
                                 {(teamsById.get(m.teamA.teamId)?.background_image_url || teamsById.get(m.teamB.teamId)?.background_image_url) && (
-                                    <div className="absolute inset-0 bg-panel/70" aria-hidden="true" />
+                                    <div className="absolute inset-0 bg-panel/85" aria-hidden="true" />
                                 )}
-                                <div className="relative z-10">
+                                <div className={`relative z-10 ${(teamsById.get(m.teamA.teamId)?.background_image_url || teamsById.get(m.teamB.teamId)?.background_image_url) ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}>
                                 {m.isMatchupOfTheWeek && (
                                     <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell">
                                         &#9733; Matchup of the Week
