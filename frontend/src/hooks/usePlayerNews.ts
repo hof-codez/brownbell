@@ -11,7 +11,7 @@ interface UsePlayerNewsResult {
 // Reads from player_news, which the Node automation keeps populated from
 // RotoWire's free public RSS feed (see fetchAndSavePlayerNews in
 // update-standings.js) - the frontend never fetches RotoWire directly.
-export function usePlayerNews(sleeperPlayerId: string | null, limit = 5): UsePlayerNewsResult {
+export function usePlayerNews(sleeperPlayerId: string | null, limit = 15): UsePlayerNewsResult {
     const [items, setItems] = useState<PlayerNewsItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

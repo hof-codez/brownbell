@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { usePlayerNews } from '../hooks/usePlayerNews';
 
 interface PlayerNewsModalProps {
@@ -6,6 +7,8 @@ interface PlayerNewsModalProps {
     onClose: () => void;
 }
 
+const PAGE_SIZE = 5;
+
 function formatPublished(iso: string): string {
     const date = new Date(iso);
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' at ' +
@@ -13,7 +16,15 @@ function formatPublished(iso: string): string {
 }
 
 export function PlayerNewsModal({ playerName, sleeperPlayerId, onClose }: PlayerNewsModalProps) {
-    const { items, loading } = usePlayerNews(sleeperPlayerId);
+    const { items, loading } = usePlayerNews(sleeperPlayerId); // up to 15, most recent first
+    // Starts showing just the most recent 5 - "Show more" reveals the
+    // next 5 at a time, up to all 15 fetched. Resets naturally to 5 each
+    // time this modal reopens, since only one instance ever exists and it
+    // fully unmounts between different players (see App.tsx) rather than
+    // being reused in place.
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+    const visibleItems = items.slice(0, visibleCount);
+    const hasMore = visibleCount < items.length;
 
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" role="dialog" aria-modal="true">
@@ -33,7 +44,7 @@ export function PlayerNewsModal({ playerName, sleeperPlayerId, onClose }: Player
 
                 {!loading && items.length > 0 && (
                     <div className="space-y-4">
-                        {items.map(item => (
+                        {visibleItems.map(item => (
                             <div key={item.id} className="border-b border-panel-line pb-3 last:border-0 last:pb-0">
                                 <p className="font-body text-sm font-semibold text-chalk">{item.headline}</p>
                                 {item.snippet && <p className="mt-1 font-body text-sm text-chalk-dim">{item.snippet}</p>}
@@ -52,6 +63,15 @@ export function PlayerNewsModal({ playerName, sleeperPlayerId, onClose }: Player
                                 </div>
                             </div>
                         ))}
+
+                        {hasMore && (
+                            <button
+                                onClick={() => setVisibleCount(c => Math.min(c + PAGE_SIZE, items.length))}
+                                className="w-full rounded border border-panel-line py-2 text-center font-mono text-xs uppercase tracking-widest text-bell"
+                            >
+                                Show {Math.min(PAGE_SIZE, items.length - visibleCount)} more
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
