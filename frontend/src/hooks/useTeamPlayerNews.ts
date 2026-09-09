@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { dedupeNewsByHeadline } from '../lib/dedupeNewsByHeadline';
 import type { PlayerNewsItem } from '../types';
 
 interface UseTeamPlayerNewsResult {
@@ -33,12 +34,15 @@ export function useTeamPlayerNews(sleeperPlayerIds: string[], limit = 30): UseTe
 
         async function load() {
             setLoading(true);
+            // Fetches a buffer beyond the display limit - see the matching
+            // comment in usePlayerNews for why (syndicated content saved
+            // under an identical headline from multiple outlets).
             const { data, error: fetchError } = await supabase
                 .from('player_news')
                 .select('id, sleeper_player_id, player_name, headline, snippet, source_url, source_name, published_at')
                 .in('sleeper_player_id', ids)
                 .order('published_at', { ascending: false })
-                .limit(limit);
+                .limit(limit * 2);
 
             if (cancelled) return;
 
@@ -48,7 +52,7 @@ export function useTeamPlayerNews(sleeperPlayerIds: string[], limit = 30): UseTe
                 return;
             }
 
-            setItems((data ?? []).map(row => ({
+            const mapped = (data ?? []).map(row => ({
                 id: row.id,
                 sleeperPlayerId: row.sleeper_player_id,
                 playerName: row.player_name,
@@ -57,7 +61,8 @@ export function useTeamPlayerNews(sleeperPlayerIds: string[], limit = 30): UseTe
                 sourceUrl: row.source_url,
                 sourceName: row.source_name,
                 publishedAt: row.published_at
-            })));
+            }));
+            setItems(dedupeNewsByHeadline(mapped).slice(0, limit));
             setError(null);
             setLoading(false);
         }

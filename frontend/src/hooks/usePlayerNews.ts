@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { dedupeNewsByHeadline } from '../lib/dedupeNewsByHeadline';
 import type { PlayerNewsItem } from '../types';
 
 interface UsePlayerNewsResult {
@@ -27,12 +28,18 @@ export function usePlayerNews(sleeperPlayerId: string | null, limit = 15): UsePl
 
         async function load() {
             setLoading(true);
+            // Fetches a buffer beyond the display limit - syndicated
+            // wire-service content is often saved multiple times under
+            // the identical headline from different outlets (see
+            // dedupeNewsByHeadline), so fetching exactly `limit` rows and
+            // THEN deduping could silently show fewer than `limit` items
+            // even when more genuinely unique ones exist.
             const { data, error: fetchError } = await supabase
                 .from('player_news')
                 .select('id, sleeper_player_id, player_name, headline, snippet, source_url, source_name, published_at')
                 .eq('sleeper_player_id', sleeperPlayerId)
                 .order('published_at', { ascending: false })
-                .limit(limit);
+                .limit(limit * 2);
 
             if (cancelled) return;
 
@@ -42,7 +49,7 @@ export function usePlayerNews(sleeperPlayerId: string | null, limit = 15): UsePl
                 return;
             }
 
-            setItems((data ?? []).map(row => ({
+            const mapped = (data ?? []).map(row => ({
                 id: row.id,
                 sleeperPlayerId: row.sleeper_player_id,
                 playerName: row.player_name,
@@ -51,7 +58,8 @@ export function usePlayerNews(sleeperPlayerId: string | null, limit = 15): UsePl
                 sourceUrl: row.source_url,
                 sourceName: row.source_name,
                 publishedAt: row.published_at
-            })));
+            }));
+            setItems(dedupeNewsByHeadline(mapped).slice(0, limit));
             setError(null);
             setLoading(false);
         }
