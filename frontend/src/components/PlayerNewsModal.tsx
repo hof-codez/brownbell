@@ -46,7 +46,14 @@ export function PlayerNewsModal({ playerName, sleeperPlayerId, onClose }: Player
                     <div className="space-y-4">
                         {visibleItems.map(item => (
                             <div key={item.id} className="border-b border-panel-line pb-3 last:border-0 last:pb-0">
-                                <p className="font-body text-sm font-semibold text-chalk">{item.headline}</p>
+                                <a
+                                    href={item.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-body text-sm font-semibold text-chalk underline decoration-dotted decoration-chalk-dim underline-offset-2"
+                                >
+                                    {item.headline} <span aria-hidden="true">&#8599;</span>
+                                </a>
                                 {item.snippet && <p className="mt-1 font-body text-sm text-chalk-dim">{item.snippet}</p>}
                                 <div className="mt-1.5 flex items-center justify-between">
                                     <span className="font-mono text-[10px] uppercase tracking-wide text-chalk-dim">

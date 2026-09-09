@@ -170,7 +170,14 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
                                     </span>
                                     <span className="font-body text-sm text-chalk">{entry.playerName}</span>
                                 </div>
-                                <p className="mt-1 font-body text-sm font-semibold text-chalk">{entry.headline}</p>
+                                <a
+                                    href={entry.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-1 inline-block font-body text-sm font-semibold text-chalk underline decoration-dotted decoration-chalk-dim underline-offset-2"
+                                >
+                                    {entry.headline} <span aria-hidden="true">&#8599;</span>
+                                </a>
                                 {entry.snippet && <p className="mt-0.5 font-body text-sm text-chalk-dim">{entry.snippet}</p>}
                                 <div className="mt-1.5 flex items-center justify-between">
                                     <span className="font-mono text-[10px] uppercase tracking-wide text-chalk-dim">{formatTimestamp(entry.timestamp)}</span>
