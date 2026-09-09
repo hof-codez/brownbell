@@ -35,7 +35,7 @@ export function useTeamPlayerNews(sleeperPlayerIds: string[], limit = 30): UseTe
             setLoading(true);
             const { data, error: fetchError } = await supabase
                 .from('player_news')
-                .select('id, sleeper_player_id, player_name, headline, snippet, source_url, published_at')
+                .select('id, sleeper_player_id, player_name, headline, snippet, source_url, source_name, published_at')
                 .in('sleeper_player_id', ids)
                 .order('published_at', { ascending: false })
                 .limit(limit);
@@ -55,6 +55,7 @@ export function useTeamPlayerNews(sleeperPlayerIds: string[], limit = 30): UseTe
                 headline: row.headline,
                 snippet: row.snippet,
                 sourceUrl: row.source_url,
+                sourceName: row.source_name,
                 publishedAt: row.published_at
             })));
             setError(null);

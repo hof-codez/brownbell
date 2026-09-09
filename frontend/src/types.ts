@@ -65,6 +65,11 @@ export interface PlayerNewsItem {
   playerName: string;
   headline: string;
   snippet: string;
+  /** The originating outlet's name (e.g. "Fox Sports"), when known - used
+   * for correct attribution on items with no snippet (see snippet: '').
+   * Always null for RotoWire-sourced items, which use a fixed
+   * "Via RotoWire.com" attribution instead. */
+  sourceName: string | null;
   sourceUrl: string;
   publishedAt: string;
 }

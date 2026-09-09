@@ -428,6 +428,7 @@ class SupabaseDataLayer {
             headline: item.headline,
             snippet: item.snippet,
             source_url: item.sourceUrl,
+            source_name: item.sourceName || null,
             published_at: item.publishedAt.toISOString(),
             fetched_at: new Date().toISOString()
         }));

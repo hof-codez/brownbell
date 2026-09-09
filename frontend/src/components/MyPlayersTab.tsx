@@ -24,7 +24,7 @@ const BADGE_STYLES: Record<ActivityBadge, string> = {
 // render can distinguish them.
 type FeedEntry =
     | { kind: 'activity'; timestamp: string; id: string; awardType: AwardType; badge: ActivityBadge; originalName: string; originalPosition: string; substituteName: string | null; substitutePosition: string | null }
-    | { kind: 'news'; timestamp: string; id: string; sleeperPlayerId: string | null; playerName: string; headline: string; snippet: string; sourceUrl: string };
+    | { kind: 'news'; timestamp: string; id: string; sleeperPlayerId: string | null; playerName: string; headline: string; snippet: string; sourceName: string | null; sourceUrl: string };
 
 function formatTimestamp(iso: string): string {
     const date = new Date(iso);
@@ -86,6 +86,7 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
             playerName: n.playerName,
             headline: n.headline,
             snippet: n.snippet,
+            sourceName: n.sourceName,
             sourceUrl: n.sourceUrl
         }))
     ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -170,11 +171,11 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
                                     <span className="font-body text-sm text-chalk">{entry.playerName}</span>
                                 </div>
                                 <p className="mt-1 font-body text-sm font-semibold text-chalk">{entry.headline}</p>
-                                <p className="mt-0.5 font-body text-sm text-chalk-dim">{entry.snippet}</p>
+                                {entry.snippet && <p className="mt-0.5 font-body text-sm text-chalk-dim">{entry.snippet}</p>}
                                 <div className="mt-1.5 flex items-center justify-between">
                                     <span className="font-mono text-[10px] uppercase tracking-wide text-chalk-dim">{formatTimestamp(entry.timestamp)}</span>
                                     <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] uppercase tracking-widest text-bell">
-                                        Via RotoWire.com
+                                        Via {entry.sourceName || 'RotoWire.com'}
                                     </a>
                                 </div>
                             </div>

@@ -29,7 +29,7 @@ export function usePlayerNews(sleeperPlayerId: string | null, limit = 5): UsePla
             setLoading(true);
             const { data, error: fetchError } = await supabase
                 .from('player_news')
-                .select('id, sleeper_player_id, player_name, headline, snippet, source_url, published_at')
+                .select('id, sleeper_player_id, player_name, headline, snippet, source_url, source_name, published_at')
                 .eq('sleeper_player_id', sleeperPlayerId)
                 .order('published_at', { ascending: false })
                 .limit(limit);
@@ -49,6 +49,7 @@ export function usePlayerNews(sleeperPlayerId: string | null, limit = 5): UsePla
                 headline: row.headline,
                 snippet: row.snippet,
                 sourceUrl: row.source_url,
+                sourceName: row.source_name,
                 publishedAt: row.published_at
             })));
             setError(null);

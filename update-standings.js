@@ -342,6 +342,105 @@ class BrownBellAutomator {
     // change their page layout without notice. Logs exactly what it
     // finds per player so a layout change or a parsing miss is visible in
     // the run log immediately, not silent.
+    // Per-player Google News search, covering ALL positions (including
+    // defense/IDP - the one gap neither RotoWire path can close, since
+    // their depth charts paywall every defensive position and the shared
+    // feed only ever surfaces ~5 players league-wide). Every result is
+    // guaranteed relevant by construction (it's a search FOR this exact
+    // player), so unlike a shared feed this needs no name-matching at
+    // all - the tradeoff is headline + source only, no factual snippet,
+    // since these results span many independent outlets this app has no
+    // individual permission to quote from (unlike RotoWire's own
+    // page, licensed for exactly this kind of display).
+    //
+    // This is an unofficial, undocumented Google endpoint - unlike
+    // RotoWire's real documented feed, Google could change or restrict it
+    // without notice. Logs a per-player count either way so a change in
+    // behavior is immediately visible in the run log, not silent.
+    async fetchAndSaveGoogleNews() {
+        const sleeperPlayerIds = new Set();
+        for (const awardType of ['main', 'nextup', 'boom']) {
+            for (const duo of Object.values(this.knownDuos[awardType] || {})) {
+                for (const player of duo) {
+                    if (player?.sleeperId) sleeperPlayerIds.add(player.sleeperId);
+                }
+            }
+        }
+
+        if (sleeperPlayerIds.size === 0) return;
+        console.log(`Fetching Google News for ${sleeperPlayerIds.size} current duo player(s)...`);
+
+        let totalSaved = 0;
+        for (const sleeperPlayerId of sleeperPlayerIds) {
+            const player = this.playersData[sleeperPlayerId];
+            if (!player?.first_name || !player?.last_name) continue;
+
+            const fullName = `${player.first_name} ${player.last_name}`;
+            const query = encodeURIComponent(`"${fullName}" NFL`);
+            const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
+
+            try {
+                const xml = await this.fetchText(url);
+                const items = this.parseGoogleNewsFeed(xml, sleeperPlayerId, fullName);
+                if (items.length > 0) {
+                    await this.dataLayer.savePlayerNews(items);
+                    totalSaved += items.length;
+                }
+            } catch (error) {
+                console.warn(`Failed to fetch/parse Google News for ${fullName}: ${error.message}`);
+            }
+
+            // A short, polite delay between requests - this is ~24-40
+            // separate requests per run (one per player) rather than one
+            // shared feed fetch, so this isn't optional the way it might
+            // be for a single request.
+            await new Promise(resolve => setTimeout(resolve, 400));
+        }
+        console.log(`Saved ${totalSaved} Google News item(s) across all queried players`);
+    }
+
+    // Parses Google News' standard RSS 2.0 search results. Each item's
+    // <title> has " - Source Name" appended by Google - stripped using
+    // the <source> tag's own text (rather than a guessed separator
+    // position) so the stored headline never accidentally includes a
+    // trailing source name that happened to itself contain a dash.
+    parseGoogleNewsFeed(xml, sleeperPlayerId, playerName) {
+        const items = [];
+        const itemBlocks = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+
+        for (const block of itemBlocks) {
+            const rawTitle = this.decodeXmlEntities(this.extractXmlTag(block, 'title') || '');
+            const link = this.extractXmlTag(block, 'link');
+            const pubDateStr = this.extractXmlTag(block, 'pubDate');
+            const guidMatch = block.match(/<guid[^>]*>([\s\S]*?)<\/guid>/);
+            const guid = guidMatch ? guidMatch[1].trim() : null;
+            const sourceMatch = block.match(/<source[^>]*>([\s\S]*?)<\/source>/);
+            const sourceName = sourceMatch ? this.decodeXmlEntities(sourceMatch[1].trim()) : null;
+
+            if (!rawTitle || !link || !guid) continue;
+
+            const headline = sourceName && rawTitle.endsWith(` - ${sourceName}`)
+                ? rawTitle.slice(0, -(sourceName.length + 3))
+                : rawTitle;
+
+            const publishedAt = pubDateStr ? new Date(pubDateStr) : new Date();
+            if (isNaN(publishedAt.getTime())) continue;
+
+            items.push({
+                rotowireGuid: `google-${sleeperPlayerId}-${guid}`,
+                sleeperPlayerId,
+                playerName,
+                headline,
+                snippet: '', // Deliberately no factual blurb - see fetchAndSaveGoogleNews
+                sourceName,
+                sourceUrl: link,
+                publishedAt
+            });
+        }
+
+        return items;
+    }
+
     async fetchAndSaveProfileNews() {
         const sleeperPlayerIds = new Set();
         for (const awardType of ['main', 'nextup', 'boom']) {
@@ -2340,6 +2439,12 @@ class BrownBellAutomator {
         // player - one player's page failing to parse never blocks the
         // others or the actual scoring run below.
         await this.fetchAndSaveProfileNews();
+
+        // Per-player Google News search - covers ALL positions (including
+        // defense/IDP, the one gap the two RotoWire paths above can't
+        // close) at the cost of headline + source only, no factual
+        // snippet. See fetchAndSaveGoogleNews for the full reasoning.
+        await this.fetchAndSaveGoogleNews();
 
         const currentWeek = await this.getCurrentWeek();
         const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday
