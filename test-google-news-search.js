@@ -43,7 +43,7 @@ async function run() {
     const supabase = createClient();
     const automator = new BrownBellAutomator('test-league');
 
-    const items = automator.parseGoogleNewsFeed(SIMULATED_GOOGLE_NEWS_XML, '4034', 'Christian McCaffrey');
+    const items = automator.parseGoogleNewsFeed(SIMULATED_GOOGLE_NEWS_XML, '4034', 'Christian McCaffrey', 'McCaffrey');
 
     allPassed &= check('Extracts both items', items.length === 2);
     allPassed &= check('Strips the trailing " - Fox Sports" suffix cleanly', items[0].headline === 'McCaffrey Fully Dressed for Latest Practice');
@@ -54,9 +54,24 @@ async function run() {
     allPassed &= check('Dates parsed correctly', items[0].publishedAt.toDateString().includes('Sep 08 2026'));
 
     // A title with no matching <source> suffix at all (defensive fallback)
-    const noSourceXml = `<item><title>Standalone headline with no source suffix</title><link>https://x.com/a</link><guid>g1</guid><pubDate>Tue, 08 Sep 2026 14:00:00 GMT</pubDate></item>`;
-    const fallbackItems = automator.parseGoogleNewsFeed(noSourceXml, '4034', 'Christian McCaffrey');
-    allPassed &= check('Falls back to the raw title when there is no source tag to strip', fallbackItems[0]?.headline === 'Standalone headline with no source suffix');
+    const noSourceXml = `<item><title>McCaffrey headline with no source suffix</title><link>https://x.com/a</link><guid>g1</guid><pubDate>Tue, 08 Sep 2026 14:00:00 GMT</pubDate></item>`;
+    const fallbackItems = automator.parseGoogleNewsFeed(noSourceXml, '4034', 'Christian McCaffrey', 'McCaffrey');
+    allPassed &= check('Falls back to the raw title when there is no source tag to strip', fallbackItems[0]?.headline === 'McCaffrey headline with no source suffix');
+
+    // --- Title-match requirement: only articles genuinely ABOUT this
+    //     player, not just mentioning him in a broader roundup piece ---
+    const roundupXml = `<item><title>49ers Injury Report: Kittle, Purdy Update Statuses - ESPN</title><link>https://x.com/b</link><guid>g2</guid><pubDate>Tue, 08 Sep 2026 14:00:00 GMT</pubDate><source url='https://espn.com'>ESPN</source></item>`;
+    const roundupItems = automator.parseGoogleNewsFeed(roundupXml, '4034', 'Christian McCaffrey', 'McCaffrey');
+    allPassed &= check('Excludes a roundup article that never names this player in the title', roundupItems.length === 0);
+
+    const aboutHimXml = `<item><title>McCaffrey Returns to Practice - ESPN</title><link>https://x.com/c</link><guid>g3</guid><pubDate>Tue, 08 Sep 2026 14:00:00 GMT</pubDate><source url='https://espn.com'>ESPN</source></item>`;
+    const aboutHimItems = automator.parseGoogleNewsFeed(aboutHimXml, '4034', 'Christian McCaffrey', 'McCaffrey');
+    allPassed &= check('Keeps an article that genuinely names this player (last name only) in the title', aboutHimItems.length === 1);
+
+    // --- Backward compatible: omitting lastName (old call shape) skips
+    //     this filter entirely rather than throwing or dropping everything ---
+    const noLastNameItems = automator.parseGoogleNewsFeed(roundupXml, '4034', 'Christian McCaffrey');
+    allPassed &= check('Omitting lastName does not apply the title-match filter (backward compatible)', noLastNameItems.length === 1);
 
     // Saves correctly into the existing player_news pipeline
     await supabase.from('seasons').insert({ id: 's1', year: 2026 });

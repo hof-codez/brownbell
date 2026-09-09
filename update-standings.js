@@ -403,7 +403,7 @@ class BrownBellAutomator {
 
             try {
                 const xml = await this.fetchText(url);
-                const items = this.parseGoogleNewsFeed(xml, sleeperPlayerId, fullName);
+                const items = this.parseGoogleNewsFeed(xml, sleeperPlayerId, fullName, player.last_name);
                 if (items.length > 0) {
                     await this.dataLayer.savePlayerNews(items);
                     totalSaved += items.length;
@@ -426,7 +426,7 @@ class BrownBellAutomator {
     // the <source> tag's own text (rather than a guessed separator
     // position) so the stored headline never accidentally includes a
     // trailing source name that happened to itself contain a dash.
-    parseGoogleNewsFeed(xml, sleeperPlayerId, playerName) {
+    parseGoogleNewsFeed(xml, sleeperPlayerId, playerName, lastName) {
         const items = [];
         const itemBlocks = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
 
@@ -449,6 +449,16 @@ class BrownBellAutomator {
             if (isNaN(publishedAt.getTime())) continue;
 
             if (this.isSportsBettingContent(headline, sourceName)) continue;
+
+            // Requires the player's own last name in the actual headline,
+            // not just somewhere the search query matched - a search for
+            // "Christian McCaffrey NFL" can surface roundup articles like
+            // "49ers Injury Report: McCaffrey, Kittle, Purdy Update
+            // Statuses" that mention him but aren't specifically about
+            // him. Last name only (not full name) since headlines
+            // overwhelmingly use just the surname ("McCaffrey Traded",
+            // not "Christian McCaffrey Traded").
+            if (lastName && !headline.toLowerCase().includes(lastName.toLowerCase())) continue;
 
             items.push({
                 rotowireGuid: `google-${sleeperPlayerId}-${guid}`,
