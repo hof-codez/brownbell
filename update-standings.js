@@ -1668,6 +1668,10 @@ class BrownBellAutomator {
         // is purely a display field for the Teams tab's injury dots, separate
         // from the lock/substitution decisions below.
         const injuryStatusUpdates = [];
+        // Pre-lock only - a locked row's departure is actively resolved
+        // (cleared/auto-filled) by the logic below instead, never just
+        // flagged. See 027-duo-player-departed.sql.
+        const departedFlagUpdates = [];
 
         const byTeamAward = {};
         for (const row of duoRows) {
@@ -1694,7 +1698,27 @@ class BrownBellAutomator {
             // Locks are for the SEASON - always checked against week 1, matching
             // the Edge Functions (get-eligible-roster/set-duo) exactly.
             const locked = await this.hasPlayerGameStarted(row.sleeperPlayerId, 1);
-            if (!locked) continue;
+            if (!locked) {
+                // Pre-lock slots are otherwise left alone below (fully
+                // owner-editable) - but the display shouldn't keep showing
+                // a player who has already left this roster (e.g. a
+                // fantasy trade before their game locks) with nothing
+                // indicating so. This is read-only awareness, not a
+                // substitution - the owner still has to actually change
+                // their own pick; this just makes it obvious they need to.
+                const stillOnRoster = this.isPlayerOnTeamRoster(row.teamName, row.sleeperPlayerId);
+                if (!!row.playerDeparted !== !stillOnRoster) {
+                    departedFlagUpdates.push({ rowId: row.rowId, departed: !stillOnRoster });
+                }
+                continue;
+            }
+
+            // Once locked, departure is actively resolved (cleared/auto-filled)
+            // by the logic below rather than just flagged - clear any stale
+            // flag left over from when this row was still pre-lock.
+            if (row.playerDeparted) {
+                departedFlagUpdates.push({ rowId: row.rowId, departed: false });
+            }
 
             if (!row.originalSleeperPlayerId) {
                 await this.dataLayer.freezeOriginalPlayer(row.rowId, row.sleeperPlayerId);
@@ -1862,6 +1886,7 @@ class BrownBellAutomator {
         }
 
         await this.dataLayer.updateDuoInjuryStatuses(injuryStatusUpdates);
+        await this.dataLayer.updateDuoDepartedFlags(departedFlagUpdates);
 
         return events;
     }

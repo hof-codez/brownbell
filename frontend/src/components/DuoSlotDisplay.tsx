@@ -43,10 +43,12 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
         );
     }
 
-    const dotColor = slot.injury_status ? INJURY_DOT_COLOR[slot.injury_status] : undefined;
+    // A departed player's injury status is stale/irrelevant - never shown
+    // alongside the "no longer on roster" indicator below.
+    const dotColor = !slot.player_departed && slot.injury_status ? INJURY_DOT_COLOR[slot.injury_status] : undefined;
 
     return (
-        <div className="rounded border border-panel-line bg-field/40 px-3 py-2">
+        <div className={`rounded border px-3 py-2 ${slot.player_departed ? 'border-brick/50 bg-brick/10' : 'border-panel-line bg-field/40'}`}>
             <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 font-body text-sm text-chalk">
                     {dotColor && (
@@ -58,11 +60,11 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                     )}
                     <button
                         onClick={() => onViewPlayerNews?.(slot.player_name, slot.sleeper_player_id)}
-                        className="underline decoration-dotted decoration-chalk-dim underline-offset-2"
+                        className={`underline decoration-dotted underline-offset-2 ${slot.player_departed ? 'text-chalk-dim decoration-chalk-dim line-through' : 'decoration-chalk-dim'}`}
                     >
                         {slot.player_name}
                     </button>
-                    {isBye && (
+                    {isBye && !slot.player_departed && (
                         <span className="rounded bg-brick/20 px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-brick">
                             Bye
                         </span>
@@ -77,7 +79,11 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                     )}
                 </div>
             </div>
-            {gameInfo && (
+            {slot.player_departed ? (
+                <p className="mt-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-brick">
+                    No longer on this roster &mdash; pick a replacement
+                </p>
+            ) : gameInfo && (
                 <div className="mt-0.5">
                     <PlayerGameInfo gameInfo={gameInfo} />
                 </div>

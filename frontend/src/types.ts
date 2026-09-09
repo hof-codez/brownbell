@@ -34,6 +34,14 @@ export interface DuoRow {
   experience: string | null;
   /** Sleeper's raw status - 'Questionable' | 'Doubtful' | 'Out' | 'IR' | 'PUP' | null if healthy. */
   injury_status: string | null;
+  /** True if this player has already left this team's actual Sleeper
+   * roster (fantasy trade/drop) while the slot is still pre-lock -
+   * intentionally NOT auto-cleared, since pre-lock stays fully
+   * owner-editable, but the display should never look like this pick is
+   * still current when it isn't. Always false once the slot locks - a
+   * locked departure is actively resolved (cleared/auto-filled) instead
+   * of just flagged. */
+  player_departed: boolean;
 }
 
 /** A team's two duo slots for one award. A slot is null if it hasn't been set yet. */

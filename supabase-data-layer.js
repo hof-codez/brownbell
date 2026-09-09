@@ -133,7 +133,7 @@ class SupabaseDataLayer {
     async loadDuoRows() {
         const { data, error } = await this.supabase
             .from('duos')
-            .select('id, team_id, award_type, player_index, player_name, player_position, sleeper_player_id, source, original_sleeper_player_id')
+            .select('id, team_id, award_type, player_index, player_name, player_position, sleeper_player_id, source, original_sleeper_player_id, player_departed')
             .in('team_id', Object.values(this.teamIdByName));
 
         if (error) throw new Error(`Failed to load duo rows: ${error.message}`);
@@ -147,7 +147,8 @@ class SupabaseDataLayer {
             playerPosition: row.player_position,
             sleeperPlayerId: row.sleeper_player_id,
             source: row.source,
-            originalSleeperPlayerId: row.original_sleeper_player_id
+            originalSleeperPlayerId: row.original_sleeper_player_id,
+            playerDeparted: row.player_departed || false
         })).filter(row => row.teamName); // drop rows for a team not in this season's roster
     }
 
@@ -163,6 +164,21 @@ class SupabaseDataLayer {
 
         const failed = results.find(r => r.error);
         if (failed) console.error(`Failed to update some duo injury statuses (non-fatal): ${failed.error.message}`);
+    }
+
+    // Batch-updates player_departed for pre-lock duo slots specifically -
+    // see 027-duo-player-departed.sql. A locked slot's departure is
+    // already actively resolved (cleared/auto-filled) elsewhere and never
+    // needs this flag set true.
+    async updateDuoDepartedFlags(updates) {
+        if (!updates || updates.length === 0) return;
+
+        const results = await Promise.all(updates.map(({ rowId, departed }) =>
+            this.supabase.from('duos').update({ player_departed: departed }).eq('id', rowId)
+        ));
+
+        const failed = results.find(r => r.error);
+        if (failed) console.error(`Failed to update some duo departed flags (non-fatal): ${failed.error.message}`);
     }
 
     // Direct write to duos - the automation's own auto-fill/lock-freeze/revert
