@@ -425,16 +425,36 @@ class SupabaseDataLayer {
     // change after items were already saved under looser rules - this is
     // what lets a filter change clean up its own past output rather than
     // only affecting saves from that point forward.
+    // Supabase's REST API silently caps any .select() with no explicit
+    // range at 1000 rows - confirmed directly as the cause of a real bug:
+    // pruneDisqualifiedNews only ever checked the first 1000 rows
+    // returned, never the full table, so most of a many-thousand-row
+    // table was simply invisible to it. Pages through in batches of 1000
+    // until a page comes back short (the real end of the table), rather
+    // than relying on any single request to return everything.
     async loadAllPlayerNewsForPruning() {
-        const { data, error } = await this.supabase
-            .from('player_news')
-            .select('id, rotowire_guid, headline, source_name, sleeper_player_id, player_name');
+        const PAGE_SIZE = 1000;
+        const allRows = [];
+        let from = 0;
 
-        if (error) {
-            console.error('Failed to load player_news for pruning:', error.message);
-            return [];
+        while (true) {
+            const { data, error } = await this.supabase
+                .from('player_news')
+                .select('id, rotowire_guid, headline, source_name, sleeper_player_id, player_name')
+                .range(from, from + PAGE_SIZE - 1);
+
+            if (error) {
+                console.error('Failed to load player_news for pruning:', error.message);
+                break;
+            }
+            if (!data || data.length === 0) break;
+
+            allRows.push(...data);
+            if (data.length < PAGE_SIZE) break; // short page = end of table
+            from += PAGE_SIZE;
         }
-        return data || [];
+
+        return allRows;
     }
 
     async deletePlayerNewsByIds(ids) {

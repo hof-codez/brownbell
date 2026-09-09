@@ -445,9 +445,21 @@ class BrownBellAutomator {
             try {
                 const xml = await this.fetchText(url);
                 const items = this.parseGoogleNewsFeed(xml, sleeperPlayerId, fullName, player.last_name);
-                if (items.length > 0) {
-                    await this.dataLayer.savePlayerNews(items);
-                    totalSaved += items.length;
+                // Cap at the most recent 20 - the UI only ever displays
+                // the 15 most recent per player (see PlayerNewsModal), so
+                // saving Google's full result set (which can run into the
+                // hundreds per popular player) was pure waste. This is
+                // also what made a single run blow past 6000 saved items
+                // and, combined with pruneDisqualifiedNews' now-fixed
+                // 1000-row pagination bug, left most of the table
+                // permanently unreachable by the retroactive filter check.
+                const cappedItems = items
+                    .slice()
+                    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+                    .slice(0, 20);
+                if (cappedItems.length > 0) {
+                    await this.dataLayer.savePlayerNews(cappedItems);
+                    totalSaved += cappedItems.length;
                 }
             } catch (error) {
                 console.warn(`Failed to fetch/parse Google News for ${fullName}: ${error.message}`);
