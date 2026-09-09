@@ -197,6 +197,15 @@ class BrownBellAutomator {
             console.log(`Matched ${matched}/${items.length} news item(s) to a roster-able Sleeper player`);
 
             await this.dataLayer.savePlayerNews(items);
+
+            // Every matched item's sourceUrl IS that player's RotoWire
+            // profile page - opportunistically learn it here so
+            // fetchAndSaveProfileNews can later fetch that page directly
+            // for a much deeper history than this shared feed's small
+            // rolling window ever shows. Never un-learned once discovered.
+            await this.dataLayer.saveRotowirePlayerLinks(
+                items.filter(i => i.sleeperPlayerId).map(i => ({ sleeperPlayerId: i.sleeperPlayerId, rotowireUrl: i.sourceUrl }))
+            );
         } catch (error) {
             console.warn(`Failed to fetch/save player news: ${error.message}`);
         }
@@ -230,7 +239,116 @@ class BrownBellAutomator {
         return index;
     }
 
-    // Decodes the small set of XML entities RSS feeds actually use - not a
+    // Fetches a specific player's own RotoWire profile page for a much
+    // deeper news history than the shared feed's small rolling window
+    // ever shows (confirmed directly: a profile page had 6+ dated entries
+    // spanning months, while the shared feed only ever holds ~5 items for
+    // the entire NFL at once). Only covers players we've already learned
+    // a RotoWire URL for via fetchAndSavePlayerNews - a player who's never
+    // appeared in the shared feed yet has no known URL to fetch.
+    //
+    // This scrapes an HTML page rather than a clean feed, anchored on the
+    // most distinctive, stable-looking text pattern available (a
+    // "Month D, YYYY" date immediately preceding each news paragraph) -
+    // inherently more fragile than RSS parsing, since RotoWire could
+    // change their page layout without notice. Logs exactly what it
+    // finds per player so a layout change or a parsing miss is visible in
+    // the run log immediately, not silent.
+    async fetchAndSaveProfileNews() {
+        const sleeperPlayerIds = new Set();
+        for (const awardType of ['main', 'nextup', 'boom']) {
+            for (const duo of Object.values(this.knownDuos[awardType] || {})) {
+                for (const player of duo) {
+                    if (player?.sleeperId) sleeperPlayerIds.add(player.sleeperId);
+                }
+            }
+        }
+
+        if (sleeperPlayerIds.size === 0) return;
+
+        const links = await this.dataLayer.getRotowirePlayerLinks([...sleeperPlayerIds]);
+        console.log(`Profile news: ${links.length}/${sleeperPlayerIds.size} current duo player(s) have a known RotoWire URL`);
+
+        for (const { sleeperPlayerId, rotowireUrl } of links) {
+            const player = this.playersData[sleeperPlayerId];
+            const lastName = player?.last_name;
+            if (!lastName) continue;
+
+            try {
+                const html = await this.fetchText(rotowireUrl);
+                const items = this.parseRotowireProfilePage(html, sleeperPlayerId, lastName, rotowireUrl);
+                console.log(`Profile news for ${player.first_name} ${lastName}: found ${items.length} entr${items.length === 1 ? 'y' : 'ies'}`);
+                await this.dataLayer.savePlayerNews(items);
+            } catch (error) {
+                console.warn(`Failed to fetch/parse profile page for ${player.first_name} ${lastName}: ${error.message}`);
+            }
+        }
+    }
+
+    // Best-effort parser for one player's RotoWire profile page HTML.
+    // Anchors on a "Month D, YYYY" date immediately preceding each news
+    // entry's paragraph - the most distinctive, least layout-dependent
+    // pattern available without visibility into RotoWire's actual page
+    // markup. Filters out anything that doesn't actually mention the
+    // player's own last name, since the page also contains unrelated
+    // dated content (other articles, rankings) that could otherwise
+    // produce false matches.
+    parseRotowireProfilePage(html, sleeperPlayerId, lastName, rotowireUrl) {
+        // Collapse tags to spaces (preserving word boundaries) rather than
+        // deleting them outright, then decode entities - a lightweight
+        // stand-in for real HTML parsing, adequate for locating text
+        // patterns even though it discards all structural information.
+        const text = this.decodeXmlEntities(html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+
+        const datePattern = /([A-Z][a-z]+ \d{1,2}, \d{4})/g;
+        const matches = [...text.matchAll(datePattern)];
+        const items = [];
+        const seen = new Set();
+
+        for (let i = 0; i < matches.length; i++) {
+            const dateStr = matches[i][1];
+            const startIdx = matches[i].index + dateStr.length;
+            const endIdx = i + 1 < matches.length ? matches[i + 1].index : Math.min(text.length, startIdx + 600);
+            const segment = text.slice(startIdx, endIdx).trim();
+
+            // Only the portion up to the first "ANALYSIS" marker (or a
+            // reasonable cap) is the actual factual snippet - everything
+            // after is RotoWire's separate (often paywalled) commentary.
+            const analysisIdx = segment.search(/ANALYSIS/);
+            const snippet = (analysisIdx === -1 ? segment.slice(0, 400) : segment.slice(0, analysisIdx)).trim();
+
+            if (snippet.length < 15 || snippet.length > 500) continue;
+            if (!snippet.toLowerCase().includes(lastName.toLowerCase())) continue; // not actually about this player - reject
+
+            const publishedAt = new Date(dateStr);
+            if (isNaN(publishedAt.getTime())) continue;
+
+            // Synthesized dedup key - the profile page doesn't expose
+            // RotoWire's own numeric item guid the way the shared feed
+            // does, so identity here is (player + date + a slice of the
+            // snippet) instead. Stable across repeated fetches of the
+            // same unchanged entry; a genuinely new entry on the same day
+            // would need different snippet text to be a real second event.
+            const dedupKey = `${sleeperPlayerId}|${dateStr}|${snippet.slice(0, 40)}`;
+            if (seen.has(dedupKey)) continue;
+            seen.add(dedupKey);
+
+            items.push({
+                rotowireGuid: `profile-${sleeperPlayerId}-${Buffer.from(dedupKey).toString('base64').slice(0, 24)}`,
+                sleeperPlayerId,
+                playerName: `${this.playersData[sleeperPlayerId]?.first_name || ''} ${lastName}`.trim(),
+                headline: snippet.slice(0, 80),
+                snippet,
+                sourceUrl: rotowireUrl,
+                publishedAt
+            });
+        }
+
+        return items;
+    }
+
+
+    // Decodes the small set of XML/HTML entities actually needed here - not a
     // general HTML entity decoder, just enough for names/text that can
     // appear in this specific feed (e.g. an apostrophe in a player's name,
     // an ampersand in a team name).
@@ -1988,6 +2106,15 @@ class BrownBellAutomator {
         const seasonYear = Number(process.env.NFL_SEASON_YEAR || '2026');
         const { currentWeek: storedWeek } = await this.dataLayer.loadSeason(seasonYear, this.leagueId);
         await this.loadKnownDuos();
+
+        // Deeper, per-player news history for whichever of this league's
+        // current duo players we've already learned a RotoWire URL for
+        // (see fetchAndSavePlayerNews) - the shared feed above only ever
+        // shows a tiny rolling window across the whole NFL, but a
+        // player's own profile page keeps a much fuller history. Best
+        // effort per player - one player's page failing to parse never
+        // blocks the others or the actual scoring run below.
+        await this.fetchAndSaveProfileNews();
 
         const currentWeek = await this.getCurrentWeek();
         const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday

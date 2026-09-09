@@ -423,6 +423,57 @@ class SupabaseDataLayer {
         if (error) console.error('Failed to save player news:', error.message);
     }
 
+    // Learns a Sleeper player's RotoWire profile URL, discovered
+    // opportunistically whenever they appear in RotoWire's shared feed -
+    // see 026-rotowire-player-links.sql. Never overwrites an existing
+    // mapping (a player's RotoWire URL doesn't change), so this is a
+    // pure insert-if-missing rather than an upsert.
+    async saveRotowirePlayerLinks(items) {
+        if (!items || items.length === 0) return;
+
+        const { data: existing, error: fetchError } = await this.supabase
+            .from('rotowire_player_links')
+            .select('sleeper_player_id')
+            .in('sleeper_player_id', items.map(i => i.sleeperPlayerId));
+
+        if (fetchError) {
+            console.error('Failed to check existing RotoWire player links:', fetchError.message);
+            return;
+        }
+
+        const alreadyKnown = new Set((existing || []).map(r => r.sleeper_player_id));
+        const newRows = items
+            .filter(i => !alreadyKnown.has(i.sleeperPlayerId))
+            // If the same player appears twice in one fetch, only keep one row
+            .filter((i, idx, arr) => arr.findIndex(x => x.sleeperPlayerId === i.sleeperPlayerId) === idx)
+            .map(i => ({ sleeper_player_id: i.sleeperPlayerId, rotowire_url: i.rotowireUrl }));
+
+        if (newRows.length === 0) return;
+
+        const { error: insertError } = await this.supabase
+            .from('rotowire_player_links')
+            .insert(newRows);
+
+        if (insertError) console.error('Failed to save new RotoWire player links:', insertError.message);
+        else console.log(`Learned ${newRows.length} new RotoWire player URL(s)`);
+    }
+
+    async getRotowirePlayerLinks(sleeperPlayerIds) {
+        if (!sleeperPlayerIds || sleeperPlayerIds.length === 0) return [];
+
+        const { data, error } = await this.supabase
+            .from('rotowire_player_links')
+            .select('sleeper_player_id, rotowire_url')
+            .in('sleeper_player_id', sleeperPlayerIds);
+
+        if (error) {
+            console.error('Failed to load RotoWire player links:', error.message);
+            return [];
+        }
+
+        return (data || []).map(r => ({ sleeperPlayerId: r.sleeper_player_id, rotowireUrl: r.rotowire_url }));
+    }
+
     // scores/playerIds shape: { [awardType]: { [teamName]: { [week]: { [index]: value } } } }
     // (this matches updateAllScores()'s existing internal structure - see update-standings.js)
     async saveWeeklyScores(scores, playerIds, playersData, wasBye) {
