@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useActivityLog } from '../hooks/useActivityLog';
 import type { ActivityBadge } from '../hooks/useActivityLog';
 import { useTeamPlayerNews } from '../hooks/useTeamPlayerNews';
@@ -32,7 +33,12 @@ function formatTimestamp(iso: string): string {
 }
 
 export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
-    const { entries: activityEntries, loading: activityLoading } = useActivityLog([myTeam.team]);
+    // Stable reference - useActivityLog's internal effect depends on this
+    // array by identity, so a fresh [myTeam.team] literal on every render
+    // would re-trigger it endlessly, cancelling each in-flight fetch
+    // before it can ever resolve and leaving the tab stuck on "Loading...".
+    const activityTeams = useMemo(() => [myTeam.team], [myTeam.team.id]);
+    const { entries: activityEntries, loading: activityLoading } = useActivityLog(activityTeams);
 
     const sleeperPlayerIds = [...myTeam.main, ...myTeam.nextup, ...myTeam.boom]
         .map(slot => slot?.sleeper_player_id)
