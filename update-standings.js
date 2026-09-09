@@ -2181,47 +2181,22 @@ class BrownBellAutomator {
         this.knownDuos = await this.dataLayer.loadKnownDuos();
     }
 
-    async generateCompleteData() {
-        await this.initializeLeagueData();
-
-        // Independent of season/week - RotoWire's feed is just timestamped
-        // real-world NFL news, not scoped to this league's fantasy season.
-        // Best-effort: fetchAndSavePlayerNews already logs its own errors
-        // rather than throwing, so a hiccup here never blocks the actual
-        // scoring run below.
-        await this.fetchAndSavePlayerNews();
-
-        const seasonYear = Number(process.env.NFL_SEASON_YEAR || '2026');
-        const { currentWeek: storedWeek } = await this.dataLayer.loadSeason(seasonYear, this.leagueId);
-        await this.loadKnownDuos();
-
-        // Discovers RotoWire URLs directly from team depth chart pages
-        // (offense only - see fetchAndSaveDepthChartLinks) rather than
-        // waiting on the shared feed's tiny rolling window to randomly
-        // surface each player. Best effort per team.
-        await this.fetchAndSaveDepthChartLinks();
-
-        // Deeper, per-player news history for whichever of this league's
-        // current duo players we've already learned a RotoWire URL for
-        // (via the depth chart discovery above, or the shared feed in
-        // fetchAndSavePlayerNews) - the shared feed alone only ever shows
-        // a tiny rolling window across the whole NFL, but a player's own
-        // profile page keeps a much fuller history. Best effort per
-        // player - one player's page failing to parse never blocks the
-        // others or the actual scoring run below.
-        await this.fetchAndSaveProfileNews();
-
-        const currentWeek = await this.getCurrentWeek();
-        const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday
-        const currentHour = new Date().getHours();
-
-        // Determine checkpoint type. Each cron line in the workflow maps to an explicit
-        // checkpoint below via CRON_SCHEDULE (github.event.schedule, passed through by the
-        // workflow) - this avoids re-deriving "which checkpoint is this" from the runner's
-        // server-local day/hour, which is UTC on GitHub Actions and does not line up with the
-        // Arizona-time comments the cron schedule was written against. Several scheduled runs
-        // (Saturday prep, early Sunday, both Monday slots) previously fell through this check
-        // entirely and skipped substitution processing for that run without any error.
+    // Determine checkpoint type and whether this run should process
+    // substitution/roster-change detection. Each cron line in the workflow
+    // maps to an explicit checkpoint below via CRON_SCHEDULE
+    // (github.event.schedule, passed through by the workflow) - this avoids
+    // re-deriving "which checkpoint is this" from the runner's server-local
+    // day/hour, which is UTC on GitHub Actions and does not line up with the
+    // Arizona-time comments the cron schedule was written against. Several
+    // scheduled runs (Saturday prep, early Sunday, both Monday slots)
+    // previously fell through this check entirely and skipped substitution
+    // processing for that run without any error.
+    //
+    // Extracted into its own method specifically so this logic is directly
+    // unit-testable (see test-manual-trigger-checkpoint.js) rather than only
+    // exercisable by running the entire multi-minute generateCompleteData
+    // flow end to end.
+    determineCheckpoint(currentDay, currentHour) {
         const CRON_CHECKPOINTS = {
             // Standalone checkpoints, outside any game-day window
             '0 14 * * 2': 'TUESDAY_CHECK',                 // Tue 10am ET / 7am AZ - weekly cleanup
@@ -2264,9 +2239,28 @@ class BrownBellAutomator {
             console.warn(`\u26a0\ufe0f Unrecognized CRON_SCHEDULE "${process.env.CRON_SCHEDULE}" - falling back to day/hour heuristic`);
         }
 
-        // Fallback for manual/local runs with no CRON_SCHEDULE set (e.g. `node update-standings.js`
-        // on your machine). Arizona does not observe DST, so AZ = UTC-7 year-round; this mirrors
-        // the same slots as CRON_CHECKPOINTS above, corrected to actually cover every day.
+        // A deliberate manual trigger of the real GitHub Actions workflow
+        // (the "Run workflow" button, no checkbox inputs set) always runs
+        // substitution/roster-change processing, regardless of what day it
+        // happens to be. Detected via GITHUB_ACTIONS, which the runner sets
+        // for every workflow run - scheduled or manual - while CRON_SCHEDULE
+        // is only ever populated for an actual `schedule` trigger. Without
+        // this, a manual run fell through to the day/hour fallback below,
+        // which has NO coverage at all for Wednesday or Friday - a manual
+        // "run it now to check" click on either of those days would
+        // silently skip roster-change detection entirely while still
+        // updating scores/schedule normally, giving no indication anything
+        // was skipped.
+        if (!checkpointType && process.env.GITHUB_ACTIONS === 'true') {
+            checkpointType = 'MANUAL_TRIGGER';
+            shouldRunSubstitutions = true;
+        }
+
+        // Fallback for genuine local/dev runs with no CRON_SCHEDULE set (e.g.
+        // `node update-standings.js` on your own machine, GITHUB_ACTIONS
+        // unset). Arizona does not observe DST, so AZ = UTC-7 year-round;
+        // this mirrors the same slots as CRON_CHECKPOINTS above, corrected
+        // to actually cover every day.
         if (!checkpointType) {
             if (currentDay === 2) {
                 checkpointType = 'TUESDAY_CHECK';
@@ -2288,6 +2282,45 @@ class BrownBellAutomator {
                 shouldRunSubstitutions = true;
             }
         }
+
+        return { checkpointType, shouldRunSubstitutions };
+    }
+
+    async generateCompleteData() {
+        await this.initializeLeagueData();
+
+        // Independent of season/week - RotoWire's feed is just timestamped
+        // real-world NFL news, not scoped to this league's fantasy season.
+        // Best-effort: fetchAndSavePlayerNews already logs its own errors
+        // rather than throwing, so a hiccup here never blocks the actual
+        // scoring run below.
+        await this.fetchAndSavePlayerNews();
+
+        const seasonYear = Number(process.env.NFL_SEASON_YEAR || '2026');
+        const { currentWeek: storedWeek } = await this.dataLayer.loadSeason(seasonYear, this.leagueId);
+        await this.loadKnownDuos();
+
+        // Discovers RotoWire URLs directly from team depth chart pages
+        // (offense only - see fetchAndSaveDepthChartLinks) rather than
+        // waiting on the shared feed's tiny rolling window to randomly
+        // surface each player. Best effort per team.
+        await this.fetchAndSaveDepthChartLinks();
+
+        // Deeper, per-player news history for whichever of this league's
+        // current duo players we've already learned a RotoWire URL for
+        // (via the depth chart discovery above, or the shared feed in
+        // fetchAndSavePlayerNews) - the shared feed alone only ever shows
+        // a tiny rolling window across the whole NFL, but a player's own
+        // profile page keeps a much fuller history. Best effort per
+        // player - one player's page failing to parse never blocks the
+        // others or the actual scoring run below.
+        await this.fetchAndSaveProfileNews();
+
+        const currentWeek = await this.getCurrentWeek();
+        const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday
+        const currentHour = new Date().getHours();
+
+        const { checkpointType, shouldRunSubstitutions } = this.determineCheckpoint(currentDay, currentHour);
 
         console.log(`Current week: ${currentWeek}, Checkpoint: ${checkpointType || 'ROUTINE_UPDATE'}`);
 
