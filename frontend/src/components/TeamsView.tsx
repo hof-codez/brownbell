@@ -13,12 +13,14 @@ interface TeamsViewProps {
     /** Looks up an NFL team's next game info (opponent, kickoff time) for
      * the currently-displayed week - shown next to each player's name. */
     getGameInfo?: (nflTeam: string | null) => NFLGameInfo | undefined;
+    /** Owned by a single shared parent (App.tsx), not local state here. */
+    onViewPlayerNews?: (playerName: string, sleeperPlayerId: string | null) => void;
     onNameDuo?: (awardType: AwardType) => void;
     onCustomize?: () => void;
     onViewHistory?: (teamId: string) => void;
 }
 
-export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, currentWeekScores, getGameInfo, onNameDuo, onCustomize, onViewHistory }: TeamsViewProps) {
+export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byePlayerIds, duoNames, currentWeekScores, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory }: TeamsViewProps) {
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading teams&hellip;</p>;
     }
@@ -67,6 +69,7 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
                             duoNames={duoNames}
                             currentWeekScore={currentWeekScores?.get(myTeam.team.id)}
                             getGameInfo={getGameInfo}
+                            onViewPlayerNews={onViewPlayerNews}
                             onNameDuo={onNameDuo}
                             onCustomize={onCustomize}
                             onViewHistory={onViewHistory ? () => onViewHistory(myTeam.team.id) : undefined}
@@ -89,6 +92,7 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, byeP
                                 duoNames={duoNames}
                                 currentWeekScore={currentWeekScores?.get(teamWithDuos.team.id)}
                                 getGameInfo={getGameInfo}
+                                onViewPlayerNews={onViewPlayerNews}
                                 onViewHistory={onViewHistory ? () => onViewHistory(teamWithDuos.team.id) : undefined}
                                 collapsible
                             />

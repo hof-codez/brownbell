@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import type { DuoRow, NFLGameInfo } from '../types';
 import { PlayerGameInfo } from './PlayerGameInfo';
-import { PlayerNewsModal } from './PlayerNewsModal';
 
 interface DuoSlotDisplayProps {
     slot: DuoRow | null;
@@ -12,6 +10,12 @@ interface DuoSlotDisplayProps {
     /** This player's next game info (opponent, kickoff time) - undefined
      * if not yet known. */
     gameInfo?: NFLGameInfo;
+    /** Called when the player's name is clicked. Owned by a single shared
+     * parent (see App.tsx) rather than local state here, so that opening
+     * a second player's news always replaces whichever one was already
+     * showing instead of stacking multiple modals on top of each other -
+     * many DuoSlotDisplay instances render at once on the Teams tab. */
+    onViewPlayerNews?: (playerName: string, sleeperPlayerId: string | null) => void;
 }
 
 // Yellow -> orange -> red as severity increases. Out/IR/PUP share the same
@@ -25,9 +29,7 @@ const INJURY_DOT_COLOR: Record<string, string> = {
     PUP: 'bg-brick'
 };
 
-export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo }: DuoSlotDisplayProps) {
-    const [showNews, setShowNews] = useState(false);
-
+export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews }: DuoSlotDisplayProps) {
     if (!slot) {
         return (
             <div className="flex items-center justify-between rounded border border-dashed border-panel-line px-3 py-2">
@@ -54,7 +56,10 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo }: DuoSlotDisplay
                             aria-label={slot.injury_status ? `Injury status: ${slot.injury_status}` : undefined}
                         />
                     )}
-                    <button onClick={() => setShowNews(true)} className="underline decoration-dotted decoration-chalk-dim underline-offset-2">
+                    <button
+                        onClick={() => onViewPlayerNews?.(slot.player_name, slot.sleeper_player_id)}
+                        className="underline decoration-dotted decoration-chalk-dim underline-offset-2"
+                    >
                         {slot.player_name}
                     </button>
                     {isBye && (
@@ -76,13 +81,6 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo }: DuoSlotDisplay
                 <div className="mt-0.5">
                     <PlayerGameInfo gameInfo={gameInfo} />
                 </div>
-            )}
-            {showNews && (
-                <PlayerNewsModal
-                    playerName={slot.player_name}
-                    sleeperPlayerId={slot.sleeper_player_id}
-                    onClose={() => setShowNews(false)}
-                />
             )}
         </div>
     );

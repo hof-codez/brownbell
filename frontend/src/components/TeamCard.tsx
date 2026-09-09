@@ -13,6 +13,9 @@ interface TeamCardProps {
     /** Looks up an NFL team's next game info (opponent, kickoff time) for
      * the currently-displayed week - shown next to each player's name. */
     getGameInfo?: (nflTeam: string | null) => NFLGameInfo | undefined;
+    /** Owned by a single shared parent (see App.tsx), not local state
+     * here - many TeamCard instances render at once on the Teams tab. */
+    onViewPlayerNews?: (playerName: string, sleeperPlayerId: string | null) => void;
     onNameDuo?: (awardType: AwardType) => void;
     onCustomize?: () => void;
     /** Jumps to this team's filtered History view. Not scoped to the
@@ -25,7 +28,7 @@ interface TeamCardProps {
     collapsible?: boolean;
 }
 
-export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, currentWeekScore, getGameInfo, onNameDuo, onCustomize, onViewHistory, collapsible }: TeamCardProps) {
+export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, currentWeekScore, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory, collapsible }: TeamCardProps) {
     const { team, main, nextup, boom } = teamWithDuos;
     const [expanded, setExpanded] = useState(true);
 
@@ -127,24 +130,24 @@ export function TeamCard({ teamWithDuos, onEditSlot, byePlayerIds, duoNames, cur
                         <section aria-labelledby={`main-${team.id}`}>
                             {renderAwardHeader('main', BellIcon, 'Brown Bell', main, team.main_permanent_swap_used)}
                             <div className="space-y-1.5">
-                                <DuoSlotDisplay slot={main[0]} onEdit={onEditSlot ? () => onEditSlot('main', 0) : undefined} isBye={isBye(main[0])} gameInfo={getGameInfo?.(main[0]?.player_team ?? null)} />
-                                <DuoSlotDisplay slot={main[1]} onEdit={onEditSlot ? () => onEditSlot('main', 1) : undefined} isBye={isBye(main[1])} gameInfo={getGameInfo?.(main[1]?.player_team ?? null)} />
+                                <DuoSlotDisplay slot={main[0]} onEdit={onEditSlot ? () => onEditSlot('main', 0) : undefined} isBye={isBye(main[0])} gameInfo={getGameInfo?.(main[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={main[1]} onEdit={onEditSlot ? () => onEditSlot('main', 1) : undefined} isBye={isBye(main[1])} gameInfo={getGameInfo?.(main[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
                             </div>
                         </section>
 
                         <section aria-labelledby={`nextup-${team.id}`}>
                             {renderAwardHeader('nextup', SproutIcon, 'Next Up Award', nextup, team.nextup_permanent_swap_used)}
                             <div className="space-y-1.5">
-                                <DuoSlotDisplay slot={nextup[0]} onEdit={onEditSlot ? () => onEditSlot('nextup', 0) : undefined} isBye={isBye(nextup[0])} gameInfo={getGameInfo?.(nextup[0]?.player_team ?? null)} />
-                                <DuoSlotDisplay slot={nextup[1]} onEdit={onEditSlot ? () => onEditSlot('nextup', 1) : undefined} isBye={isBye(nextup[1])} gameInfo={getGameInfo?.(nextup[1]?.player_team ?? null)} />
+                                <DuoSlotDisplay slot={nextup[0]} onEdit={onEditSlot ? () => onEditSlot('nextup', 0) : undefined} isBye={isBye(nextup[0])} gameInfo={getGameInfo?.(nextup[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={nextup[1]} onEdit={onEditSlot ? () => onEditSlot('nextup', 1) : undefined} isBye={isBye(nextup[1])} gameInfo={getGameInfo?.(nextup[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
                             </div>
                         </section>
 
                         <section aria-labelledby={`boom-${team.id}`}>
                             {renderAwardHeader('boom', BoltIcon, 'Season of Boom', boom, team.boom_permanent_swap_used)}
                             <div className="space-y-1.5">
-                                <DuoSlotDisplay slot={boom[0]} onEdit={onEditSlot ? () => onEditSlot('boom', 0) : undefined} isBye={isBye(boom[0])} gameInfo={getGameInfo?.(boom[0]?.player_team ?? null)} />
-                                <DuoSlotDisplay slot={boom[1]} onEdit={onEditSlot ? () => onEditSlot('boom', 1) : undefined} isBye={isBye(boom[1])} gameInfo={getGameInfo?.(boom[1]?.player_team ?? null)} />
+                                <DuoSlotDisplay slot={boom[0]} onEdit={onEditSlot ? () => onEditSlot('boom', 0) : undefined} isBye={isBye(boom[0])} gameInfo={getGameInfo?.(boom[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={boom[1]} onEdit={onEditSlot ? () => onEditSlot('boom', 1) : undefined} isBye={isBye(boom[1])} gameInfo={getGameInfo?.(boom[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
                             </div>
                         </section>
                     </div>

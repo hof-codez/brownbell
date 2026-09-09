@@ -16,6 +16,7 @@ import { ClaimTeamModal } from './components/ClaimTeamModal';
 import { DuoPickerModal } from './components/DuoPickerModal';
 import { DuoNameModal } from './components/DuoNameModal';
 import { TeamBackgroundModal } from './components/TeamBackgroundModal';
+import { PlayerNewsModal } from './components/PlayerNewsModal';
 import { CountdownBanner } from './components/CountdownBanner';
 import { Tabs } from './components/Tabs';
 import { TeamsView } from './components/TeamsView';
@@ -60,6 +61,12 @@ export default function App() {
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
   const [namingAward, setNamingAward] = useState<AwardType | null>(null);
   const [showBackgroundModal, setShowBackgroundModal] = useState(false);
+  // Single shared source of truth for the player-news modal - many
+  // DuoSlotDisplay instances render at once on the Teams tab, so this
+  // can't be local state inside each one, or opening a second player's
+  // news would stack a second modal on top of the first rather than
+  // replacing it.
+  const [viewingPlayerNews, setViewingPlayerNews] = useState<{ playerName: string; sleeperPlayerId: string | null } | null>(null);
   const [activeTab, setActiveTab] = useState('teams');
   // Set alongside switching to the Misc tab so MiscTab knows to force the
   // Bonus sub-tab open (currently the only deep-linked section) and which
@@ -132,6 +139,7 @@ export default function App() {
             duoNames={duoNames}
             currentWeekScores={currentWeekScores}
             getGameInfo={getGameInfo}
+            onViewPlayerNews={(playerName, sleeperPlayerId) => setViewingPlayerNews({ playerName, sleeperPlayerId })}
             onViewHistory={goToHistoryFor}
             onNameDuo={claimedTeam ? (awardType) => setNamingAward(awardType) : undefined}
             onCustomize={claimedTeam ? () => setShowBackgroundModal(true) : undefined}
@@ -221,6 +229,14 @@ export default function App() {
             refetch();
           }}
           onClose={() => setShowBackgroundModal(false)}
+        />
+      )}
+
+      {viewingPlayerNews && (
+        <PlayerNewsModal
+          playerName={viewingPlayerNews.playerName}
+          sleeperPlayerId={viewingPlayerNews.sleeperPlayerId}
+          onClose={() => setViewingPlayerNews(null)}
         />
       )}
     </div>
