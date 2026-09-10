@@ -96,6 +96,12 @@ export interface EligibleCandidate {
   yearsExp: number;
   /** Current NFL team abbreviation, for looking up their next game. */
   team: string | null;
+  /** True if this candidate's own NFL game has already started this week
+   * (Main Award/Next Up only - Boom candidates in this state are excluded
+   * from the list entirely server-side, so this is always false for
+   * them). Still shown rather than hidden, so the picker can communicate
+   * why they're not a real option instead of the name just disappearing. */
+  gameStarted: boolean;
 }
 
 export type SwapSituation = 'healthy-locked' | 'temporary' | 'permanent' | null;

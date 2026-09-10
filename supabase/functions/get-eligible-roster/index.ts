@@ -24,7 +24,7 @@
 import { corsHeaders, handleCorsPreflightRequest } from '../_shared/cors.ts';
 import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
-import { hasTeamGameStarted, fetchWeekSchedule, isEligibleForSubFromSchedule } from '../_shared/nflSchedule.ts';
+import { hasTeamGameStarted, fetchWeekSchedule, isEligibleForSubFromSchedule, getMinutesUntilKickoffFromSchedule } from '../_shared/nflSchedule.ts';
 import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS, BOOM_POSITIONS } from '../_shared/eligibility.ts';
 import { classifySwapSituation, checkSwapPermission } from '../_shared/swapStatus.ts';
 
@@ -103,15 +103,13 @@ Deno.serve(async (req: Request) => {
             ? { position: allPlayers[otherSlotPlayer.sleeper_player_id]?.position || otherSlotPlayer.player_position, yearsExp: allPlayers[otherSlotPlayer.sleeper_player_id]?.years_exp || 0 }
             : null;
 
-        // Boom's kickoff-timing eligibility only matters once the slot is
-        // actually locked (a real in-season substitution scenario) - before
-        // that, this is the initial pre-season pick, nobody's game is
-        // anywhere close to starting, and this check has nothing to
-        // protect against. Gating on `locked` specifically (not just
-        // `allowSwap`, which defaults to true even when not locked at all)
-        // is what keeps the initial pick flow completely unaffected by
-        // this rule.
-        const weekSchedule = awardType === 'boom' && locked && allowSwap
+        // Confirmed as a real gap via a live report: this was previously
+        // boom-only, but a candidate whose own game has already started is
+        // exactly as inappropriate to offer for Main Award/Next Up as it is
+        // for Boom - picking them mid-week-1 defeats the entire point of
+        // locking a pick at kickoff. Fetched for every award type now, not
+        // just boom, whenever the slot is actually locked.
+        const weekSchedule = locked && allowSwap
             ? await fetchWeekSchedule(season.current_week, String(season.year))
             : null;
 
@@ -134,9 +132,13 @@ Deno.serve(async (req: Request) => {
                     : isValidNextUpCombo(otherPlayerInfo, candidateInfo);
             })
             .filter(({ player }) => {
-                // Boom-only, and only once actually locked - see the
-                // weekSchedule comment above for why this doesn't apply to
-                // the initial pre-season pick.
+                // Boom only - a candidate whose own game has already
+                // started (or kicks off within 1 minute) is excluded
+                // entirely, since Boom's own deadline rule in set-duo would
+                // reject them anyway. Main/Next Up handle this differently
+                // below - shown but flagged, not excluded - per a real
+                // reported case where hiding them outright was more
+                // confusing than showing why they're not a real option.
                 if (awardType !== 'boom' || !locked) return true;
                 return isEligibleForSubFromSchedule(weekSchedule, player!.team || '', 1);
             })
@@ -147,7 +149,25 @@ Deno.serve(async (req: Request) => {
                 yearsExp: player!.years_exp || 0,
                 // So the picker can show each candidate's next game info
                 // without a separate lookup - see 024-duo-player-team.sql.
-                team: player!.team || null
+                team: player!.team || null,
+                // Main/Next Up only (Boom candidates in this state were
+                // already excluded above, so this is always false for
+                // them) - confirmed as a real gap: this award type never
+                // checked whether a candidate's own game had already
+                // started, so a player mid-game could be picked here with
+                // nothing indicating why that's a bad idea. Still shown
+                // (not hidden) so the picker communicates why, rather than
+                // just making the name disappear. Uses the raw
+                // minutes-until-kickoff check directly, NOT Boom's
+                // isEligibleForSubFromSchedule - that bakes in Boom's own
+                // 1-minute safety buffer, which isn't the right semantic
+                // for a plain "has this actually started yet" flag.
+                gameStarted: awardType !== 'boom' && locked && weekSchedule
+                    ? (() => {
+                        const minutesUntilKickoff = getMinutesUntilKickoffFromSchedule(weekSchedule, player!.team || '');
+                        return minutesUntilKickoff !== null && minutesUntilKickoff !== 'bye' && minutesUntilKickoff <= 0;
+                    })()
+                    : false
             }));
 
         return jsonResponse({

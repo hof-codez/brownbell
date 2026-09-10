@@ -134,18 +134,26 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'That player is already in the other slot' }, 400);
         }
 
-        // Boom-only: the owner's actual deadline. A candidate whose own
-        // game kicks off within 1 minute (or has already started) is
-        // rejected outright - this is the rule that makes "manual control
-        // can override auto-sub until 1 minute before kickoff" a real,
-        // server-enforced guarantee rather than just a UI suggestion.
+        // The owner's actual deadline. A candidate whose own game kicks off
+        // within 1 minute (or has already started) is rejected outright -
+        // this is the rule that makes "manual control can override
+        // auto-sub until 1 minute before kickoff" a real, server-enforced
+        // guarantee rather than just a UI suggestion.
+        //
+        // This was previously Boom-only, but confirmed as a real gap via a
+        // live report: a Main Award candidate whose game had already
+        // started was still shown as eligible and would have been accepted
+        // here too, since nothing checked for it outside Boom. Picking a
+        // player mid-game (or after their game ends) defeats the entire
+        // point of locking a pick at kickoff, regardless of award type -
+        // there's nothing Boom-specific about that problem.
         //
         // Gated on `locked` for the same reason as get-eligible-roster's
         // matching check: this only means anything once a slot is already
         // locked (a real in-season substitution). The initial pre-season
         // pick has nobody's game anywhere close to starting, so this rule
         // has nothing to protect against yet and must not apply.
-        if (awardType === 'boom' && locked && newPlayer.team) {
+        if (locked && newPlayer.team) {
             const minutesUntilKickoff = await getMinutesUntilKickoff(newPlayer.team, season.current_week, String(season.year));
             if (minutesUntilKickoff !== 'bye' && (minutesUntilKickoff === null || minutesUntilKickoff <= 1)) {
                 return jsonResponse({
