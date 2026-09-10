@@ -179,6 +179,14 @@ Deno.serve(async (req: Request) => {
             // So the frontend can show "next game" info without a separate
             // player lookup - see 024-duo-player-team.sql.
             player_team: newPlayer.team || null,
+            // This new player is guaranteed to be on the roster (validated
+            // above), so any stale "departed" flag left over from whoever
+            // occupied this slot before must be cleared - without this,
+            // the UI kept showing "no longer on this roster" for a brand
+            // new, perfectly valid pick, since this column didn't exist
+            // when this function was first written and nothing else here
+            // ever touches it. See 027-duo-player-departed.sql.
+            player_departed: false,
             source: 'owner'
         }, { onConflict: 'team_id,award_type,player_index' });
 
