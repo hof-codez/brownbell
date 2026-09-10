@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AwardType, EligibleRosterResponse, EligibleCandidate, NFLGameInfo } from '../types';
 import { PlayerGameInfo } from './PlayerGameInfo';
+import { INJURY_DOT_COLOR } from '../lib/injuryDotColor';
 
 // Preferred ordering for offensive positions specifically - IDP positions
 // (DL/LB/DB) and anything else not in this list still get included, just
@@ -127,12 +128,25 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
                                             }`}
                                         >
                                             <span className="flex flex-col">
-                                                <span className={`font-body text-sm ${c.ineligibleReason ? 'text-chalk-dim line-through' : 'text-chalk'}`}>
-                                                    {c.name}
+                                                <span className="flex items-center gap-1.5">
+                                                    {!c.ineligibleReason && c.injuryStatus && (
+                                                        <span
+                                                            className={`h-2 w-2 shrink-0 rounded-full ${INJURY_DOT_COLOR[c.injuryStatus] || 'bg-chalk-dim'}`}
+                                                            title={c.injuryStatus}
+                                                            aria-label={`Injury status: ${c.injuryStatus}`}
+                                                        />
+                                                    )}
+                                                    <span className={`font-body text-sm ${c.ineligibleReason ? 'text-chalk-dim line-through' : 'text-chalk'}`}>
+                                                        {c.name}
+                                                    </span>
                                                 </span>
                                                 {c.ineligibleReason ? (
                                                     <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-brick">
                                                         {c.ineligibleReason}
+                                                    </span>
+                                                ) : c.injuryStatus ? (
+                                                    <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-yellow-500">
+                                                        {c.injuryStatus} - still eligible, but hasn&rsquo;t been cleared
                                                     </span>
                                                 ) : (
                                                     <PlayerGameInfo gameInfo={getGameInfo?.(c.team)} />

@@ -1,5 +1,6 @@
 import type { DuoRow, NFLGameInfo } from '../types';
 import { PlayerGameInfo } from './PlayerGameInfo';
+import { INJURY_DOT_COLOR } from '../lib/injuryDotColor';
 
 interface DuoSlotDisplayProps {
     slot: DuoRow | null;
@@ -17,17 +18,6 @@ interface DuoSlotDisplayProps {
      * many DuoSlotDisplay instances render at once on the Teams tab. */
     onViewPlayerNews?: (playerName: string, sleeperPlayerId: string | null) => void;
 }
-
-// Yellow -> orange -> red as severity increases. Out/IR/PUP share the same
-// dot color (all mean "not playing"); Questionable/Doubtful are distinct
-// shades since they're genuinely different levels of real uncertainty.
-const INJURY_DOT_COLOR: Record<string, string> = {
-    Questionable: 'bg-yellow-500',
-    Doubtful: 'bg-orange-500',
-    Out: 'bg-brick',
-    IR: 'bg-brick',
-    PUP: 'bg-brick'
-};
 
 export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews }: DuoSlotDisplayProps) {
     if (!slot) {

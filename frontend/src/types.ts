@@ -102,6 +102,10 @@ export interface EligibleCandidate {
    * the picker shows every roster player, crossing out and labeling the
    * ones with a reason rather than hiding them entirely. */
   ineligibleReason: string | null;
+  /** Shown as a warning on an otherwise-eligible candidate, never a
+   * disqualification - being injured doesn't make someone unpickable, but
+   * an owner should see it before picking them, not discover it after. */
+  injuryStatus: string | null;
 }
 
 export type SwapSituation = 'healthy-locked' | 'temporary' | 'permanent' | null;

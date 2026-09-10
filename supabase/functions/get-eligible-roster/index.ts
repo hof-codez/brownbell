@@ -196,7 +196,12 @@ Deno.serve(async (req: Request) => {
                     // So the picker can show each candidate's next game info
                     // without a separate lookup - see 024-duo-player-team.sql.
                     team: p.team || null,
-                    ineligibleReason
+                    ineligibleReason,
+                    // Shown as a warning (not a disqualification) on an
+                    // otherwise-eligible candidate - being injured doesn't
+                    // make someone unpickable, but an owner should see it
+                    // before picking them, not discover it afterward.
+                    injuryStatus: p.injury_status || null
                 };
             });
 
