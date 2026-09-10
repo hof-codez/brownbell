@@ -96,12 +96,12 @@ export interface EligibleCandidate {
   yearsExp: number;
   /** Current NFL team abbreviation, for looking up their next game. */
   team: string | null;
-  /** True if this candidate's own NFL game has already started this week
-   * (Main Award/Next Up only - Boom candidates in this state are excluded
-   * from the list entirely server-side, so this is always false for
-   * them). Still shown rather than hidden, so the picker can communicate
-   * why they're not a real option instead of the name just disappearing. */
-  gameStarted: boolean;
+  /** Null means fully eligible and pickable. Any other value is a specific,
+   * human-readable reason this player can't actually be picked right now
+   * (wrong position, already used elsewhere, game already started, etc) -
+   * the picker shows every roster player, crossing out and labeling the
+   * ones with a reason rather than hiding them entirely. */
+  ineligibleReason: string | null;
 }
 
 export type SwapSituation = 'healthy-locked' | 'temporary' | 'permanent' | null;

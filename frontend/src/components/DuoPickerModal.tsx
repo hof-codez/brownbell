@@ -121,18 +121,18 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
                                         <button
                                             key={c.sleeperPlayerId}
                                             onClick={() => handlePick(c.sleeperPlayerId)}
-                                            disabled={saving || c.gameStarted}
+                                            disabled={saving || !!c.ineligibleReason}
                                             className={`flex w-full items-center justify-between rounded border px-3 py-2 text-left disabled:opacity-50 ${
-                                                c.gameStarted ? 'border-brick/50 bg-brick/10' : 'border-panel-line bg-field/40'
+                                                c.ineligibleReason ? 'border-brick/50 bg-brick/10' : 'border-panel-line bg-field/40'
                                             }`}
                                         >
                                             <span className="flex flex-col">
-                                                <span className={`font-body text-sm ${c.gameStarted ? 'text-chalk-dim line-through' : 'text-chalk'}`}>
+                                                <span className={`font-body text-sm ${c.ineligibleReason ? 'text-chalk-dim line-through' : 'text-chalk'}`}>
                                                     {c.name}
                                                 </span>
-                                                {c.gameStarted ? (
+                                                {c.ineligibleReason ? (
                                                     <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-brick">
-                                                        Game started
+                                                        {c.ineligibleReason}
                                                     </span>
                                                 ) : (
                                                     <PlayerGameInfo gameInfo={getGameInfo?.(c.team)} />

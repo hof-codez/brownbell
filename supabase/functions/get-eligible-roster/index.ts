@@ -2,20 +2,22 @@
 // POST { teamId, awardType, playerIndex } ->
 //   { locked, situation, permissionReason, currentPlayer, otherSlotPlayer, candidates: [...] }
 //
-// Read-only. Shows an owner what they could pick for one slot, computed the
-// exact same way set-duo validates a real pick - so nothing shown here as
-// "eligible" could ever be rejected when they actually submit it. This
-// includes the full lock/injury/permanent-swap state, not just a plain
-// locked/unlocked flag - see _shared/swapStatus.ts for the actual rule - and
+// Read-only. Shows an owner their ENTIRE roster for this slot - not just the
+// eligible players. Every candidate carries an `ineligibleReason` (null if
+// fully eligible), computed the exact same way set-duo validates a real
+// pick, so nothing shown here as eligible could ever be rejected on submit,
+// and nothing flagged as ineligible could ever slip through. This includes
+// the full lock/injury/permanent-swap state, not just a plain locked/
+// unlocked flag - see _shared/swapStatus.ts for the actual rule - and
 // cross-award exclusivity: a player currently used in this team's OTHER
-// award can never appear as a candidate here.
+// award is shown but flagged, never a real option here.
 //
 // Season of Boom (awardType 'boom') is exempt from cross-award exclusivity
 // entirely - it uses IDP positions (DL/LB/DB), which never overlap with
-// Main Award or Next Up's offensive positions, so there's nothing to
-// exclude against. It also has no combo constraint (any 2 IDPs freely) and
-// adds one thing Main Award/Next Up don't have: a candidate whose own game
-// kicks off within 1 minute is excluded from the list entirely, since
+// Main Award or Next Up's offensive positions, so there's nothing to flag
+// there. It also has no combo constraint (any 2 IDPs freely), but does add
+// one thing Main Award/Next Up don't have: a candidate whose own game kicks
+// off within 1 minute is flagged the same as one already started, since
 // picking them would be immediately rejected by set-duo anyway (see
 // _shared/nflSchedule.ts's kickoff-timing rule).
 //
@@ -103,78 +105,100 @@ Deno.serve(async (req: Request) => {
             ? { position: allPlayers[otherSlotPlayer.sleeper_player_id]?.position || otherSlotPlayer.player_position, yearsExp: allPlayers[otherSlotPlayer.sleeper_player_id]?.years_exp || 0 }
             : null;
 
-        // Confirmed as a real gap via a live report: this was gated on
-        // `locked` (the CURRENT occupant's own lock status), but a
+        const awardLabel = awardType === 'nextup' ? 'Next Up' : awardType === 'boom' ? 'Season of Boom' : 'Brown Bell';
+        const otherAwardLabel = otherAwardType === 'main' ? 'Main Award' : 'Next Up';
+
+        // Confirmed as a real gap via a live report: this was previously
+        // gated on `locked` (the CURRENT occupant's own lock status), but a
         // candidate's own game status is a completely separate question -
-        // Puka Nacua's slot being pre-lock (his game hasn't started) says
-        // nothing about whether a DIFFERENT candidate, like Jaxon
-        // Smith-Njigba, has already had their own game this week. NFL
-        // games spread across Wed/Thu/Sun/Mon within the same week, so an
-        // ordinary pre-lock edit can easily involve candidates whose games
-        // already happened. Fetched whenever a swap is allowed at all, not
-        // only once the slot is locked.
+        // a pre-lock slot (the current occupant's game hasn't started) can
+        // still involve picking a DIFFERENT player whose own game already
+        // happened earlier in the week, since NFL games spread across
+        // Wed/Thu/Sun/Mon within the same week. Fetched whenever a swap is
+        // allowed at all, not only once the slot is locked.
         const weekSchedule = allowSwap
             ? await fetchWeekSchedule(season.current_week, String(season.year))
             : null;
 
+        // Every roster player is returned - not filtered down to only the
+        // eligible ones. Each gets exactly one ineligibleReason (or null if
+        // fully eligible), so the picker can show every name and cross out
+        // the ones that aren't real options with a specific explanation,
+        // rather than making them silently disappear. This generalizes the
+        // "game started" show-and-flag pattern (confirmed via a real
+        // report) to every ineligibility rule below, and makes Boom
+        // consistent with Main/Next Up - Boom candidates whose game has
+        // started are now flagged the same way rather than excluded
+        // outright, since there's no reason this one rule alone should
+        // behave differently from all the others.
+        //
+        // Checks run in order and the FIRST one that applies wins - a
+        // player could technically fail more than one rule at once, but
+        // showing one clear reason is more useful than stacking several.
         const candidates = !allowSwap ? [] : rosterPlayerIds
-            .filter(id => id !== otherSlotPlayer?.sleeper_player_id)
-            .filter(id => id !== currentPlayer?.sleeper_player_id)
-            .filter(id => !otherAwardPlayerIds.has(id))
+            .filter(id => id !== currentPlayer?.sleeper_player_id) // this slot's own current occupant - already shown separately as "Currently: X", not a candidate
             .map(id => ({ id, player: allPlayers[id] }))
-            .filter(({ player }) => player?.position && validPositions.has(player.position))
-            .filter(({ player }) => {
-                if (awardType === 'nextup' && !isNextUpEligibleExperience(player!.years_exp || 0)) return false;
-                return true;
-            })
-            .filter(({ player }) => {
-                if (awardType === 'boom') return true; // no combo constraint at all
-                if (!otherPlayerInfo) return true;
-                const candidateInfo = { position: player!.position!, yearsExp: player!.years_exp || 0 };
-                return awardType === 'main'
-                    ? isValidMainCombo(otherPlayerInfo, candidateInfo)
-                    : isValidNextUpCombo(otherPlayerInfo, candidateInfo);
-            })
-            .filter(({ player }) => {
-                // Boom only - a candidate whose own game has already
-                // started (or kicks off within 1 minute) is excluded
-                // entirely, since Boom's own deadline rule in set-duo would
-                // reject them anyway. Main/Next Up handle this differently
-                // below - shown but flagged, not excluded - per a real
-                // reported case where hiding them outright was more
-                // confusing than showing why they're not a real option.
-                // Checked regardless of whether the SLOT is locked -
-                // a candidate's own game status is independent of that.
-                if (awardType !== 'boom') return true;
-                return isEligibleForSubFromSchedule(weekSchedule, player!.team || '', 1);
-            })
-            .map(({ id, player }) => ({
-                sleeperPlayerId: id,
-                name: `${player!.first_name || ''} ${player!.last_name || ''}`.trim(),
-                position: player!.position,
-                yearsExp: player!.years_exp || 0,
-                // So the picker can show each candidate's next game info
-                // without a separate lookup - see 024-duo-player-team.sql.
-                team: player!.team || null,
-                // Main/Next Up only (Boom candidates in this state were
-                // already excluded above, so this is always false for
-                // them) - confirmed as a real gap: this was gated on the
-                // SLOT's own lock status, but a candidate's own game
-                // status needs checking on every edit, locked or not (see
-                // the weekSchedule comment above). Still shown (not
-                // hidden) so the picker communicates why, rather than
-                // just making the name disappear. Uses the raw
-                // minutes-until-kickoff check directly, NOT Boom's
-                // isEligibleForSubFromSchedule - that bakes in Boom's own
-                // 1-minute safety buffer, which isn't the right semantic
-                // for a plain "has this actually started yet" flag.
-                gameStarted: awardType !== 'boom' && weekSchedule
-                    ? (() => {
-                        const minutesUntilKickoff = getMinutesUntilKickoffFromSchedule(weekSchedule, player!.team || '');
-                        return minutesUntilKickoff !== null && minutesUntilKickoff !== 'bye' && minutesUntilKickoff <= 0;
-                    })()
-                    : false
-            }));
+            .filter(({ player }) => !!player?.position) // still skip entries with genuinely no resolvable player data
+            .map(({ id, player }) => {
+                const p = player!;
+                let ineligibleReason: string | null = null;
+
+                if (id === otherSlotPlayer?.sleeper_player_id) {
+                    ineligibleReason = 'Already in your other slot';
+                } else if (otherAwardPlayerIds.has(id)) {
+                    ineligibleReason = `Already used in your ${otherAwardLabel} duo`;
+                } else if (!validPositions.has(p.position!)) {
+                    ineligibleReason = `${p.position} isn't eligible for ${awardLabel}`;
+                } else if (awardType === 'nextup' && !isNextUpEligibleExperience(p.years_exp || 0)) {
+                    ineligibleReason = 'Too many years of experience for Next Up';
+                } else if (weekSchedule) {
+                    // Boom keeps its own 1-minute safety buffer (a
+                    // candidate whose game is about to start is treated
+                    // the same as one already in progress); Main/Next Up
+                    // use a plain "has it actually started" check.
+                    const hasStarted = awardType === 'boom'
+                        ? !isEligibleForSubFromSchedule(weekSchedule, p.team || '', 1)
+                        : (() => {
+                            const minutesUntilKickoff = getMinutesUntilKickoffFromSchedule(weekSchedule, p.team || '');
+                            return minutesUntilKickoff !== null && minutesUntilKickoff !== 'bye' && minutesUntilKickoff <= 0;
+                        })();
+                    if (hasStarted) {
+                        ineligibleReason = awardType === 'boom' ? 'Game started or about to start' : 'Game started';
+                    }
+                }
+
+                // Combo/pairing rules checked last, and only once nothing
+                // simpler already disqualified this candidate - Boom has
+                // no combo constraint at all, so this never applies to it.
+                if (!ineligibleReason && otherPlayerInfo && awardType !== 'boom') {
+                    const candidateInfo = { position: p.position!, yearsExp: p.years_exp || 0 };
+                    const valid = awardType === 'main'
+                        ? isValidMainCombo(otherPlayerInfo, candidateInfo)
+                        : isValidNextUpCombo(otherPlayerInfo, candidateInfo);
+                    if (!valid) {
+                        if (awardType === 'main') {
+                            ineligibleReason = `Same position as your other ${awardLabel} player`;
+                        } else if (otherPlayerInfo.position === candidateInfo.position) {
+                            ineligibleReason = `Same position as your other ${awardLabel} player`;
+                        } else if (otherPlayerInfo.yearsExp === candidateInfo.yearsExp) {
+                            ineligibleReason = `Same experience year as your other ${awardLabel} player`;
+                        } else {
+                            ineligibleReason = `Doesn't pair validly with your other ${awardLabel} player`;
+                        }
+                    }
+                }
+
+                return {
+                    sleeperPlayerId: id,
+                    name: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+                    position: p.position,
+                    yearsExp: p.years_exp || 0,
+                    // So the picker can show each candidate's next game info
+                    // without a separate lookup - see 024-duo-player-team.sql.
+                    team: p.team || null,
+                    ineligibleReason
+                };
+            });
 
         return jsonResponse({
             locked,
