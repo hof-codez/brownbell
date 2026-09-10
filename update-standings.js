@@ -2423,11 +2423,19 @@ class BrownBellAutomator {
             '30 14 * * 1': 'MONDAY_CHECK',                  // Mon 2:30pm AZ - post-game cleanup
 
             // 15-minute live-score windows - see the matching comment in
-            // update-standings.yml for why these windows are this wide.
+            // update-standings.yml for why these windows are this wide,
+            // and why Wed/Sat were added alongside the original Thu/Sun/Mon
+            // (confirmed directly: the actual 2026 season opener, a
+            // one-off special kickoff game, landed on a Wednesday with no
+            // live-check coverage at all under the original schedule).
             // All map to LIVE_CHECK, which gates on whether a game is
             // actually in progress before doing any real work (see below).
+            '*/15 23 * * 3': 'LIVE_CHECK',   // Wed night window, part 1 (early-season kickoff game slot)
+            '*/15 0-4 * * 4': 'LIVE_CHECK',  // Wed night window, part 2 (wraps past UTC midnight)
             '*/15 23 * * 4': 'LIVE_CHECK',   // Thu night window, part 1
             '*/15 0-4 * * 5': 'LIVE_CHECK',  // Thu night window, part 2 (wraps past UTC midnight)
+            '*/15 13-23 * * 6': 'LIVE_CHECK', // Sat window, part 1 (late-season Saturday games)
+            '*/15 0-4 * * 0': 'LIVE_CHECK',   // Sat window, part 2 (wraps past UTC midnight)
             '*/15 13-23 * * 0': 'LIVE_CHECK', // Sunday window, part 1
             '*/15 0-4 * * 1': 'LIVE_CHECK',   // Sunday window, part 2 (wraps past UTC midnight)
             '*/15 23 * * 1': 'LIVE_CHECK',    // Monday night window, part 1

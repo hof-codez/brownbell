@@ -61,6 +61,36 @@ async function run() {
     result = automator.determineCheckpoint(0, 14);
     allPassed &= check('A real scheduled Sunday live-window run still resolves to LIVE_CHECK', result.checkpointType === 'LIVE_CHECK');
 
+    // --- Wednesday and Saturday live-check windows, added after a real
+    //     confirmed gap: the actual 2026 season opener (a special one-off
+    //     kickoff game) landed on a Wednesday night, a day with NO
+    //     live-check coverage at all under the original Thu/Sun/Mon-only
+    //     schedule - every score update that week only happened because
+    //     the workflow was manually re-triggered by hand. ---
+    resetEnv();
+    process.env.GITHUB_ACTIONS = 'true';
+    process.env.CRON_SCHEDULE = '*/15 23 * * 3';
+    result = automator.determineCheckpoint(3, 16);
+    allPassed &= check('A scheduled Wednesday-night live-window run resolves to LIVE_CHECK (the actual 2026 opener slot)', result.checkpointType === 'LIVE_CHECK');
+
+    resetEnv();
+    process.env.GITHUB_ACTIONS = 'true';
+    process.env.CRON_SCHEDULE = '*/15 0-4 * * 4';
+    result = automator.determineCheckpoint(4, 1);
+    allPassed &= check('The Wednesday-night window\'s Thursday-early-morning wrap resolves to LIVE_CHECK', result.checkpointType === 'LIVE_CHECK');
+
+    resetEnv();
+    process.env.GITHUB_ACTIONS = 'true';
+    process.env.CRON_SCHEDULE = '*/15 13-23 * * 6';
+    result = automator.determineCheckpoint(6, 18);
+    allPassed &= check('A scheduled Saturday live-window run resolves to LIVE_CHECK (late-season Saturday games)', result.checkpointType === 'LIVE_CHECK');
+
+    resetEnv();
+    process.env.GITHUB_ACTIONS = 'true';
+    process.env.CRON_SCHEDULE = '*/15 0-4 * * 0';
+    result = automator.determineCheckpoint(0, 1);
+    allPassed &= check('The Saturday window\'s Sunday-early-morning wrap resolves to LIVE_CHECK', result.checkpointType === 'LIVE_CHECK');
+
     resetEnv();
     result = automator.determineCheckpoint(3, 12); // Wednesday, no GITHUB_ACTIONS
     allPassed &= check('A genuine local dev run on Wednesday still has no checkpoint (unchanged local-run behavior)', result.checkpointType === null && result.shouldRunSubstitutions === false);

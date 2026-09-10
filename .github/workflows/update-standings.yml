@@ -32,9 +32,25 @@ on:
     # several of the old single-fixed-time checkpoints that fell inside
     # these windows anyway.
     #
+    # Covers Wednesday through Monday - confirmed directly as necessary
+    # after the actual 2026 season opener (a special one-off kickoff game)
+    # landed on a Wednesday night, a day with NO live-check coverage at
+    # all under the original Thu/Sun/Mon-only schedule. The NFL's real
+    # schedule is more flexible than "always Thu/Sun/Mon" - special
+    # kickoff games, international games, and Saturday games in weeks
+    # 16-18 can all land on days outside that original assumption - so
+    # this errs toward over-covering rather than re-discovering each new
+    # gap one missed game at a time.
+    #
+    # Wednesday night (early-season kickoff game slot): ~23:00 UTC Wed -> ~05:00 UTC Thu
+    - cron: '*/15 23 * * 3'
+    - cron: '*/15 0-4 * * 4'
     # Thursday night: ~23:00 UTC Thu -> ~05:00 UTC Fri
     - cron: '*/15 23 * * 4'
     - cron: '*/15 0-4 * * 5'
+    # Saturday (late-season Saturday games): ~13:00 UTC Sat -> ~05:00 UTC Sun
+    - cron: '*/15 13-23 * * 6'
+    - cron: '*/15 0-4 * * 0'
     # Sunday, all games including early internationals: ~13:00 UTC Sun -> ~05:00 UTC Mon
     - cron: '*/15 13-23 * * 0'
     - cron: '*/15 0-4 * * 1'
