@@ -103,13 +103,17 @@ Deno.serve(async (req: Request) => {
             ? { position: allPlayers[otherSlotPlayer.sleeper_player_id]?.position || otherSlotPlayer.player_position, yearsExp: allPlayers[otherSlotPlayer.sleeper_player_id]?.years_exp || 0 }
             : null;
 
-        // Confirmed as a real gap via a live report: this was previously
-        // boom-only, but a candidate whose own game has already started is
-        // exactly as inappropriate to offer for Main Award/Next Up as it is
-        // for Boom - picking them mid-week-1 defeats the entire point of
-        // locking a pick at kickoff. Fetched for every award type now, not
-        // just boom, whenever the slot is actually locked.
-        const weekSchedule = locked && allowSwap
+        // Confirmed as a real gap via a live report: this was gated on
+        // `locked` (the CURRENT occupant's own lock status), but a
+        // candidate's own game status is a completely separate question -
+        // Puka Nacua's slot being pre-lock (his game hasn't started) says
+        // nothing about whether a DIFFERENT candidate, like Jaxon
+        // Smith-Njigba, has already had their own game this week. NFL
+        // games spread across Wed/Thu/Sun/Mon within the same week, so an
+        // ordinary pre-lock edit can easily involve candidates whose games
+        // already happened. Fetched whenever a swap is allowed at all, not
+        // only once the slot is locked.
+        const weekSchedule = allowSwap
             ? await fetchWeekSchedule(season.current_week, String(season.year))
             : null;
 
@@ -139,7 +143,9 @@ Deno.serve(async (req: Request) => {
                 // below - shown but flagged, not excluded - per a real
                 // reported case where hiding them outright was more
                 // confusing than showing why they're not a real option.
-                if (awardType !== 'boom' || !locked) return true;
+                // Checked regardless of whether the SLOT is locked -
+                // a candidate's own game status is independent of that.
+                if (awardType !== 'boom') return true;
                 return isEligibleForSubFromSchedule(weekSchedule, player!.team || '', 1);
             })
             .map(({ id, player }) => ({
@@ -152,17 +158,17 @@ Deno.serve(async (req: Request) => {
                 team: player!.team || null,
                 // Main/Next Up only (Boom candidates in this state were
                 // already excluded above, so this is always false for
-                // them) - confirmed as a real gap: this award type never
-                // checked whether a candidate's own game had already
-                // started, so a player mid-game could be picked here with
-                // nothing indicating why that's a bad idea. Still shown
-                // (not hidden) so the picker communicates why, rather than
+                // them) - confirmed as a real gap: this was gated on the
+                // SLOT's own lock status, but a candidate's own game
+                // status needs checking on every edit, locked or not (see
+                // the weekSchedule comment above). Still shown (not
+                // hidden) so the picker communicates why, rather than
                 // just making the name disappear. Uses the raw
                 // minutes-until-kickoff check directly, NOT Boom's
                 // isEligibleForSubFromSchedule - that bakes in Boom's own
                 // 1-minute safety buffer, which isn't the right semantic
                 // for a plain "has this actually started yet" flag.
-                gameStarted: awardType !== 'boom' && locked && weekSchedule
+                gameStarted: awardType !== 'boom' && weekSchedule
                     ? (() => {
                         const minutesUntilKickoff = getMinutesUntilKickoffFromSchedule(weekSchedule, player!.team || '');
                         return minutesUntilKickoff !== null && minutesUntilKickoff !== 'bye' && minutesUntilKickoff <= 0;

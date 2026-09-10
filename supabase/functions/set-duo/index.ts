@@ -140,20 +140,16 @@ Deno.serve(async (req: Request) => {
         // auto-sub until 1 minute before kickoff" a real, server-enforced
         // guarantee rather than just a UI suggestion.
         //
-        // This was previously Boom-only, but confirmed as a real gap via a
-        // live report: a Main Award candidate whose game had already
-        // started was still shown as eligible and would have been accepted
-        // here too, since nothing checked for it outside Boom. Picking a
-        // player mid-game (or after their game ends) defeats the entire
-        // point of locking a pick at kickoff, regardless of award type -
-        // there's nothing Boom-specific about that problem.
-        //
-        // Gated on `locked` for the same reason as get-eligible-roster's
-        // matching check: this only means anything once a slot is already
-        // locked (a real in-season substitution). The initial pre-season
-        // pick has nobody's game anywhere close to starting, so this rule
-        // has nothing to protect against yet and must not apply.
-        if (locked && newPlayer.team) {
+        // This was previously Boom-only AND gated on `locked` (the CURRENT
+        // slot's own lock status) - both confirmed as real gaps via a live
+        // report. A brand new player's own game status is independent of
+        // whether the slot being edited happens to be locked: an ordinary
+        // pre-lock edit (the current occupant's game hasn't started) can
+        // still involve picking a DIFFERENT player whose own game already
+        // happened earlier in the week (NFL games spread across
+        // Wed/Thu/Sun/Mon within the same week). Checked on every pick,
+        // for every award type, regardless of `locked`.
+        if (newPlayer.team) {
             const minutesUntilKickoff = await getMinutesUntilKickoff(newPlayer.team, season.current_week, String(season.year));
             if (minutesUntilKickoff !== 'bye' && (minutesUntilKickoff === null || minutesUntilKickoff <= 1)) {
                 return jsonResponse({
