@@ -68,7 +68,7 @@ async function run() {
         rosters: [{ owner_id: 'oa', roster_id: 1, players: ['p-bench', 'p-idp1'] }],
         userMap: { oa: 'TeamA' }
     };
-    automator.hasPlayerGameStarted = async () => true; // season-long pick lock already passed
+    automator.hasPlayerGameStarted = async (playerId, week) => week === 1; // season-long lock (week 1) already passed, but week 3 (the week actually being processed) has NOT started yet - this is the scenario these tests are exercising
     automator.getWeeklyScores = async () => ({});
     await automator.dataLayer.loadSeason(2026, 'test-league');
 
@@ -121,7 +121,7 @@ async function run() {
             rosters: [{ owner_id: 'oc', roster_id: 3, players: ['p-injured', 'p-c-bench', 'p-c-idp'] }],
             userMap: { oc: 'TeamC' }
         };
-        automator2.hasPlayerGameStarted = async () => true;
+        automator2.hasPlayerGameStarted = async (playerId, week) => week === 1;
         automator2.getWeeklyScores = async () => ({});
         // Boom's selectAutoReplacement always checks kickoff eligibility
         // (isEligibleForSub) regardless of whether it's a temporary or
@@ -167,7 +167,7 @@ async function run() {
             userMap: { ob: 'TeamB' }
         };
         automator3.cachedSchedule = { 3: { DAL: { date: minutesFromNow(60) }, KC: { date: minutesFromNow(60) } } };
-        automator3.hasPlayerGameStarted = async () => true;
+        automator3.hasPlayerGameStarted = async (playerId, week) => week === 1;
         automator3.getWeeklyScores = async () => ({});
         await automator3.dataLayer.loadSeason(2026, 'test-league-2');
 

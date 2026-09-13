@@ -1933,6 +1933,30 @@ class BrownBellAutomator {
 
             const excludeIds = [row.sleeperPlayerId, pairRow?.sleeperPlayerId, ...otherAwardPlayerIds].filter(Boolean);
 
+            // This week's own lock - distinct from the SEASON-long lock
+            // checked above (always against week 1). Even after that
+            // season-long lock has passed, nothing below should ever
+            // retroactively replace whatever the CURRENTLY-set player has
+            // already earned once THEIR OWN game for THIS SPECIFIC WEEK has
+            // started - the current week's score is computed live from
+            // whoever is currently in the slot (see updateAllScores'
+            // "week === currentWeek: duos is the live source of truth"),
+            // so touching the slot after that point would silently hand
+            // this week's already-in-progress-or-completed credit to a
+            // totally different player who never earned it.
+            //
+            // Confirmed as a real, reported bug: a player got hurt mid-game
+            // and was immediately auto-subbed out, replacing his already-
+            // accumulating score for that same week with the substitute's
+            // instead - exactly what this guards against, for all three
+            // actions below (auto-revert, injury-swap, and departure-swap
+            // alike, since all three share the identical failure mode).
+            // Deferred until the following week's own processing, when
+            // this same check for that new week will correctly be false
+            // again if there's still a vacancy or injury to resolve.
+            const thisWeeksGameAlreadyStarted = await this.hasPlayerGameStarted(row.sleeperPlayerId, week);
+            if (thisWeeksGameAlreadyStarted) continue;
+
             const onRoster = this.isPlayerOnTeamRoster(row.teamName, row.sleeperPlayerId);
 
             if (onRoster) {

@@ -9,6 +9,16 @@
 // Deliberately does NOT auto-clear or auto-sub the pre-lock slot itself -
 // that stays fully owner-editable, unchanged. This is read-only awareness
 // only.
+//
+// Also proves the distinct "this week's own lock" check added after a
+// separate real reported bug: a permanent departure only gets actively
+// resolved once we're processing a week whose OWN game for this player
+// hasn't started yet - never the same week in which their game already
+// started, since that would retroactively replace an already-locked-in
+// week's performance. The season-long lock (always checked against week
+// 1) and "this specific week's own game" are two different questions -
+// week 2's processing below is where the departure should actually
+// resolve, not a second call still processing week 1.
 
 process.env.SUPABASE_URL = 'http://fake';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake';
@@ -62,12 +72,18 @@ async function run() {
     const d2 = supabase._store.duos.find(d => d.id === 'd2');
     allPassed &= check('Harvey\'s slot (still genuinely on the roster) is NOT flagged', d2.player_departed === false);
 
-    automator.hasPlayerGameStarted = async (playerId) => playerId === 'p-odunze';
-    automator.cachedSchedule = { 1: { CHI: { date: new Date(Date.now() + 60 * 60000) } } };
-    await automator.processDuoSlots(1);
+    // Season-long lock (always week 1) has now passed, but week 2 - the
+    // week actually being processed next - hasn't started for anyone yet.
+    // This is the correct scenario for the departure to actually resolve:
+    // week 1's own game (and whatever Odunze already earned in it, had he
+    // played) is never touched; only the NEW, not-yet-started week ahead
+    // gets a real replacement decision.
+    automator.hasPlayerGameStarted = async (playerId, week) => week === 1;
+    automator.cachedSchedule = { 2: { CHI: { date: new Date(Date.now() + 60 * 60000) } } };
+    await automator.processDuoSlots(2);
 
     const d1AfterLock = supabase._store.duos.find(d => d.id === 'd1');
-    allPassed &= check('Once locked, the slot is actively cleared (not just left flagged)', d1AfterLock.sleeper_player_id === null);
+    allPassed &= check('Once locked AND processing a new week whose own game has not started, the slot is actively cleared', d1AfterLock.sleeper_player_id === null);
     allPassed &= check('The departed flag is cleared once the slot is actively resolved', d1AfterLock.player_departed === false);
 
     console.log(allPassed ? '\n✅ ALL CHECKS PASSED' : '\n❌ SOME CHECKS FAILED');
@@ -78,3 +94,4 @@ run().catch(err => {
     console.error('Test threw:', err);
     process.exit(1);
 });
+
