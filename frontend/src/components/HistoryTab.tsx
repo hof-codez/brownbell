@@ -20,7 +20,8 @@ const BADGE_STYLES: Record<ActivityBadge, string> = {
     'AUTO-TRADE': 'bg-brick/20 text-brick',
     REVERTED: 'bg-bell/20 text-bell',
     CLEARED: 'bg-panel-line text-chalk-dim',
-    'NO-SUB': 'bg-brick/20 text-brick'
+    'NO-SUB': 'bg-brick/20 text-brick',
+    'ADMIN-FIX': 'bg-brick/20 text-brick'
 };
 
 function StatCorrectionsSection({ teams }: { teams: Team[] }) {
@@ -124,6 +125,12 @@ export function HistoryTab({ teams, teamFilter, onClearFilter }: HistoryTabProps
                                         )
                                     ) : entry.badge === 'CLEARED' ? (
                                         <><span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> departed - slot cleared, awaiting owner pick</>
+                                    ) : entry.badge === 'ADMIN-FIX' ? (
+                                        <>
+                                            <span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> &rarr;{' '}
+                                            <span className="text-chalk">{entry.substituteName} ({entry.substitutePosition})</span>
+                                            {entry.reason && <><br />{entry.reason}</>}
+                                        </>
                                     ) : (
                                         <>
                                             <span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> &rarr;{' '}

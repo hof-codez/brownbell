@@ -16,14 +16,15 @@ const BADGE_STYLES: Record<ActivityBadge, string> = {
     'AUTO-TRADE': 'bg-brick/20 text-brick',
     REVERTED: 'bg-bell/20 text-bell',
     CLEARED: 'bg-panel-line text-chalk-dim',
-    'NO-SUB': 'bg-brick/20 text-brick'
+    'NO-SUB': 'bg-brick/20 text-brick',
+    'ADMIN-FIX': 'bg-brick/20 text-brick'
 };
 
 // One merged, chronological entry - either an app-tracked activity event
 // (injury, swap, revert) or an external RotoWire news item, tagged so the
 // render can distinguish them.
 type FeedEntry =
-    | { kind: 'activity'; timestamp: string; id: string; awardType: AwardType; badge: ActivityBadge; originalName: string; originalPosition: string; substituteName: string | null; substitutePosition: string | null }
+    | { kind: 'activity'; timestamp: string; id: string; awardType: AwardType; badge: ActivityBadge; originalName: string; originalPosition: string; substituteName: string | null; substitutePosition: string | null; reason: string | null }
     | { kind: 'news'; timestamp: string; id: string; sleeperPlayerId: string | null; playerName: string; headline: string; snippet: string; sourceName: string | null; sourceUrl: string };
 
 function formatTimestamp(iso: string): string {
@@ -76,7 +77,8 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
             originalName: e.originalName,
             originalPosition: e.originalPosition,
             substituteName: e.substituteName,
-            substitutePosition: e.substitutePosition
+            substitutePosition: e.substitutePosition,
+            reason: e.reason
         })),
         ...newsItems.map((n): FeedEntry => ({
             kind: 'news',
@@ -154,6 +156,7 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
                                             <>
                                                 <span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> &rarr;{' '}
                                                 <span className="text-chalk">{entry.substituteName} ({entry.substitutePosition})</span>
+                                                {entry.badge === 'ADMIN-FIX' && entry.reason && <><br />{entry.reason}</>}
                                             </>
                                         ) : (
                                             <><span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> - slot cleared, awaiting owner pick</>

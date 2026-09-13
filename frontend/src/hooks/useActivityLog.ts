@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Team, AwardType } from '../types';
 
-export type ActivityBadge = 'SET' | 'SUB' | 'TRADE-SUB' | 'AUTO-SUB' | 'AUTO-TRADE' | 'REVERTED' | 'CLEARED' | 'NO-SUB';
+export type ActivityBadge = 'SET' | 'SUB' | 'TRADE-SUB' | 'AUTO-SUB' | 'AUTO-TRADE' | 'REVERTED' | 'CLEARED' | 'NO-SUB' | 'ADMIN-FIX';
 
 export interface ActivityEntry {
     id: string;
@@ -15,7 +15,7 @@ export interface ActivityEntry {
     substituteName: string | null;
     substitutePosition: string | null;
     week: number;
-    source: 'owner' | 'auto';
+    source: 'owner' | 'auto' | 'admin';
     reason: string | null;
     badge: ActivityBadge;
     createdAt: string;
@@ -27,7 +27,15 @@ export interface ActivityEntry {
 // (e.g. "Temporary - {name} is {status}"). noReplacementAvailable is checked
 // FIRST and explicitly - the no-replacement reason text otherwise overlaps
 // with the CLEARED text pattern ("slot cleared") and would be misclassified.
-function deriveBadge(source: 'owner' | 'auto', reason: string | null, noReplacementAvailable: boolean): ActivityBadge {
+// source === 'admin' is a distinct, explicit third category - a manual
+// correction made directly in the database by the developer (e.g.
+// restoring a player after a since-fixed bug incorrectly swapped them
+// out). Deliberately never folded into 'owner' or 'auto', since neither
+// would be honest about what actually happened - this keeps it fully
+// transparent to every owner browsing the History tab, not just the one
+// team it affected.
+function deriveBadge(source: 'owner' | 'auto' | 'admin', reason: string | null, noReplacementAvailable: boolean): ActivityBadge {
+    if (source === 'admin') return 'ADMIN-FIX';
     if (noReplacementAvailable) return 'NO-SUB';
 
     const r = reason || '';
