@@ -19,44 +19,54 @@ on:
     # Monday at 2:30 PM AZ (9:30 PM UTC) - post-game cleanup
     - cron: '30 14 * * 1'
 
-    # --- 15-minute live-score windows, one per game day. These fire every
-    # 15 min inside a GENEROUS window covering the full range kickoff could
-    # land in across the season (Arizona doesn't observe DST, but Eastern
-    # Time does, so the ET->UTC offset shifts by an hour partway through the
-    # season - these windows are padded wide enough to not care which side
-    # of that shift we're on). The job itself (see update-standings.js's
-    # LIVE_CHECK handling) checks whether a game is ACTUALLY in progress
-    # before doing any real work, so a 15-min wake-up during a dead gap -
-    # e.g. after an early international game ends but before the noon
-    # games start - costs almost nothing and does nothing. This replaces
-    # several of the old single-fixed-time checkpoints that fell inside
-    # these windows anyway.
+    # --- Watchdog-start triggers, one per chunk of a game window. These
+    # fire ONCE per chunk (not every 15 min) and start watchdog.js, which
+    # loops internally every 15 min for the rest of that chunk's duration.
     #
-    # Covers Wednesday through Monday - confirmed directly as necessary
-    # after the actual 2026 season opener (a special one-off kickoff game)
-    # landed on a Wednesday night, a day with NO live-check coverage at
-    # all under the original Thu/Sun/Mon-only schedule. The NFL's real
-    # schedule is more flexible than "always Thu/Sun/Mon" - special
-    # kickoff games, international games, and Saturday games in weeks
-    # 16-18 can all land on days outside that original assumption - so
-    # this errs toward over-covering rather than re-discovering each new
-    # gap one missed game at a time.
+    # This replaces a previous */15-per-window design that turned out to
+    # be unreliable in practice: GitHub's own docs state the `schedule`
+    # trigger "can be delayed during periods of high loads... if the load
+    # is sufficiently high enough, some queued jobs may be dropped" -
+    # confirmed directly via a real production report where a 15-minute
+    # schedule was actually firing every ~90-120 minutes during a live
+    # Sunday NFL window, matching widely-reported community experience of
+    # the exact same symptom with other high-frequency schedules. A
+    # already-STARTED job is not subject to that same scheduling-queue
+    # delay - the delay is specifically in starting a new scheduled run,
+    # not in how long one that's already running takes - so this moves
+    # the 15-minute cadence into watchdog.js's own internal loop instead
+    # of trying to make GitHub start a new run every 15 minutes.
     #
-    # Wednesday night (early-season kickoff game slot): ~23:00 UTC Wed -> ~05:00 UTC Thu
-    - cron: '*/15 23 * * 3'
-    - cron: '*/15 0-4 * * 4'
-    # Thursday night: ~23:00 UTC Thu -> ~05:00 UTC Fri
-    - cron: '*/15 23 * * 4'
-    - cron: '*/15 0-4 * * 5'
-    # Saturday (late-season Saturday games): ~13:00 UTC Sat -> ~05:00 UTC Sun
-    - cron: '*/15 13-23 * * 6'
-    - cron: '*/15 0-4 * * 0'
-    # Sunday, all games including early internationals: ~13:00 UTC Sun -> ~05:00 UTC Mon
-    - cron: '*/15 13-23 * * 0'
-    - cron: '*/15 0-4 * * 1'
-    # Monday night: ~23:00 UTC Mon -> ~05:00 UTC Tue
-    - cron: '*/15 23 * * 1'
-    - cron: '*/15 0-4 * * 2'
+    # Minutes are deliberately off the top/half of the hour (e.g. :07,
+    # :37) rather than :00/:30, since GitHub's own community has reported
+    # exactly this as reducing contention - most scheduled workflows
+    # across all of GitHub fire on round minutes, so avoiding those marks
+    # means competing with fewer other jobs for the same scheduling
+    # window.
+    #
+    # Each chunk is sized to run for up to 330 minutes (5.5 hours) -
+    # safely under GitHub Actions' 6-hour job time limit, leaving margin
+    # for a slow iteration or a delayed start. A window longer than that
+    # (the full ~16-hour Saturday/Sunday slate) needs multiple chunks
+    # chained back to back, each one's start time picking up exactly
+    # where the previous chunk's coverage ends - see the corresponding
+    # WATCHDOG_DURATION_MINUTES value picked for each trigger below, in
+    # the job step.
+    #
+    # Wednesday night (early-season kickoff game slot): ~23:07 UTC Wed -> ~04:37 UTC Thu
+    - cron: '7 23 * * 3'
+    # Thursday night: ~23:07 UTC Thu -> ~04:37 UTC Fri
+    - cron: '7 23 * * 4'
+    # Saturday (late-season Saturday games), 3 chunks covering ~13:07 UTC Sat -> ~05:00 UTC Sun
+    - cron: '7 13 * * 6'    # chunk 1: 13:07 -> 18:37
+    - cron: '37 18 * * 6'   # chunk 2: 18:37 -> 00:07 (Sun)
+    - cron: '7 0 * * 0'     # chunk 3: 00:07 -> ~05:00 (Sun)
+    # Sunday, all games including early internationals, 3 chunks covering ~13:07 UTC Sun -> ~05:00 UTC Mon
+    - cron: '7 13 * * 0'    # chunk 1: 13:07 -> 18:37
+    - cron: '37 18 * * 0'   # chunk 2: 18:37 -> 00:07 (Mon)
+    - cron: '7 0 * * 1'     # chunk 3: 00:07 -> ~05:00 (Mon)
+    # Monday night: ~23:07 UTC Mon -> ~04:37 UTC Tue
+    - cron: '7 23 * * 1'
 
   # Allow manual triggering
   workflow_dispatch:
@@ -80,6 +90,12 @@ on:
 jobs:
   update-standings:
     runs-on: ubuntu-latest
+    # Explicit rather than relying on GitHub's default 360-min job timeout -
+    # the watchdog's own longest chunk runs for up to 330 min internally,
+    # so this needs real margin above that for checkout/setup/npm ci and
+    # any single iteration running a little long, without silently getting
+    # killed mid-window by an implicit limit nobody set on purpose.
+    timeout-minutes: 350
     # Needed for the failure-alerting step below to create/comment on issues.
     permissions:
       issues: write
@@ -107,7 +123,29 @@ jobs:
         PREGAME_CHECK: ${{ inputs.pregame_check }}
         INTERNATIONAL_CHECK: ${{ inputs.international_check }}
         CRON_SCHEDULE: ${{ github.event.schedule }}
-      run: node update-standings.js
+      # Routes to watchdog.js (an internal 15-min loop for the rest of
+      # this chunk's duration) for the 9 watchdog-start triggers above, or
+      # straight to update-standings.js for everything else (the 5
+      # standalone one-shot checkpoints, and manual/workflow_dispatch
+      # triggers - a manual click doesn't need a loop, it's already an
+      # immediate, one-time check). WATCHDOG_DURATION_MINUTES matches each
+      # trigger's own chunk length from the schedule comment above -
+      # 330 for a full 5.5-hour chunk, 295 for the shorter final chunk
+      # that only needs to reach the ~05:00 UTC window end.
+      run: |
+        case "$CRON_SCHEDULE" in
+          "7 23 * * 3"|"7 23 * * 4"|"7 13 * * 6"|"37 18 * * 6"|"7 13 * * 0"|"37 18 * * 0"|"7 23 * * 1")
+            export WATCHDOG_DURATION_MINUTES=330
+            node watchdog.js
+            ;;
+          "7 0 * * 0"|"7 0 * * 1")
+            export WATCHDOG_DURATION_MINUTES=295
+            node watchdog.js
+            ;;
+          *)
+            node update-standings.js
+            ;;
+        esac
 
     # Runs ONLY when the automation step above actually fails. Doesn't rely
     # on GitHub's own email notifications (which may or may not be reaching

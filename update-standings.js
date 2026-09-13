@@ -2414,6 +2414,17 @@ class BrownBellAutomator {
     // exercisable by running the entire multi-minute generateCompleteData
     // flow end to end.
     determineCheckpoint(currentDay, currentHour) {
+        // Highest priority, checked before anything else - watchdog.js sets
+        // this on every internal loop iteration. The watchdog only ever
+        // runs during a real, known game window (see update-standings.yml's
+        // low-frequency watchdog-start triggers), so every iteration should
+        // behave exactly like a real LIVE_CHECK checkpoint - skip cleanly
+        // if no game is actually in progress right now, otherwise do a real
+        // update - regardless of what day/hour it technically is.
+        if (process.env.WATCHDOG_MODE === 'true') {
+            return { checkpointType: 'LIVE_CHECK', shouldRunSubstitutions: true };
+        }
+
         const CRON_CHECKPOINTS = {
             // Standalone checkpoints, outside any game-day window
             '0 14 * * 2': 'TUESDAY_CHECK',                 // Tue 10am ET / 7am AZ - weekly cleanup
