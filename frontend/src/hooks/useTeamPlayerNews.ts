@@ -12,7 +12,21 @@ interface UseTeamPlayerNewsResult {
 // Same source as usePlayerNews, but for a set of players at once - used by
 // the My Players tab to build one combined feed across a claimed team's
 // current 6 players (Main Award, Next Up, and Season of Boom).
-export function useTeamPlayerNews(sleeperPlayerIds: string[], limit = 30): UseTeamPlayerNewsResult {
+//
+// Runs one query PER PLAYER (each capped at perPlayerLimit), rather than
+// one shared query across every player's ids sorted by date and trimmed
+// to one overall total. Confirmed as a real reported bug with that
+// earlier design: a single combined query lets a few high-volume
+// players' recent news crowd a quieter player's older-but-still-recent
+// articles out of the shared cutoff entirely, even though nothing was
+// ever deleted - clicking that player's own tab then shows almost
+// nothing, since the underlying fetch never gave him a fair share to
+// begin with. Every player is now guaranteed their own room in the feed
+// regardless of how much news anyone else has. The combined "All" tab
+// naturally ends up as (fetched players x perPlayerLimit) items at most,
+// which callers should size perPlayerLimit around for their own display
+// needs - this hook applies no further overall trim itself.
+export function useTeamPlayerNews(sleeperPlayerIds: string[], perPlayerLimit = 5): UseTeamPlayerNewsResult {
     const [items, setItems] = useState<PlayerNewsItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -34,42 +48,60 @@ export function useTeamPlayerNews(sleeperPlayerIds: string[], limit = 30): UseTe
 
         async function load() {
             setLoading(true);
-            // Fetches a buffer beyond the display limit - see the matching
-            // comment in usePlayerNews for why (syndicated content saved
-            // under an identical headline from multiple outlets).
-            const { data, error: fetchError } = await supabase
-                .from('player_news')
-                .select('id, sleeper_player_id, player_name, headline, snippet, source_url, source_name, published_at')
-                .in('sleeper_player_id', ids)
-                .order('published_at', { ascending: false })
-                .limit(limit * 2);
+
+            // Fetches a small buffer beyond perPlayerLimit per player -
+            // same reasoning as usePlayerNews - so a player with several
+            // syndicated duplicates doesn't end up with fewer than
+            // perPlayerLimit genuinely unique articles after dedup below.
+            const fetchLimit = perPlayerLimit * 2;
+
+            const results = await Promise.all(
+                ids.map(id =>
+                    supabase
+                        .from('player_news')
+                        .select('id, sleeper_player_id, player_name, headline, snippet, source_url, source_name, published_at')
+                        .eq('sleeper_player_id', id)
+                        .order('published_at', { ascending: false })
+                        .limit(fetchLimit)
+                )
+            );
 
             if (cancelled) return;
 
-            if (fetchError) {
-                setError(fetchError.message);
+            const firstError = results.find(r => r.error)?.error;
+            if (firstError) {
+                setError(firstError.message);
                 setLoading(false);
                 return;
             }
 
-            const mapped = (data ?? []).map(row => ({
-                id: row.id,
-                sleeperPlayerId: row.sleeper_player_id,
-                playerName: row.player_name,
-                headline: row.headline,
-                snippet: row.snippet,
-                sourceUrl: row.source_url,
-                sourceName: row.source_name,
-                publishedAt: row.published_at
-            }));
-            setItems(dedupeNewsByHeadline(mapped).slice(0, limit));
+            // Deduped PER PLAYER first, so each player's own perPlayerLimit
+            // worth of genuinely unique articles is preserved independently
+            // - deduping only after combining everyone could otherwise let
+            // one player's duplicate-heavy news eat into another's share.
+            const mapped = results.flatMap(r => {
+                const playerMapped = (r.data ?? []).map(row => ({
+                    id: row.id,
+                    sleeperPlayerId: row.sleeper_player_id,
+                    playerName: row.player_name,
+                    headline: row.headline,
+                    snippet: row.snippet,
+                    sourceUrl: row.source_url,
+                    sourceName: row.source_name,
+                    publishedAt: row.published_at
+                }));
+                return dedupeNewsByHeadline(playerMapped).slice(0, perPlayerLimit);
+            });
+
+            mapped.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+            setItems(mapped);
             setError(null);
             setLoading(false);
         }
 
         load();
         return () => { cancelled = true; };
-    }, [idsKey, limit]);
+    }, [idsKey, perPlayerLimit]);
 
     return { items, loading, error };
 }
