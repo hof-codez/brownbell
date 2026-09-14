@@ -600,7 +600,17 @@ class SupabaseDataLayer {
 
         const { error } = await this.supabase
             .from('weekly_scores')
-            .upsert(rows, { onConflict: 'team_id,award_type,week,sleeper_player_id' });
+            // Keyed on the SLOT itself (team_id, award_type, week,
+            // player_index), not on sleeper_player_id - there is always
+            // exactly one real answer to "who was credited for this slot
+            // in this week," and a changed player must REPLACE any
+            // existing row for that same slot/week, never accumulate
+            // alongside it. Confirmed as a real, live bug: the previous
+            // key (including sleeper_player_id) let an admin correction's
+            // new player sit alongside the old one's now-orphaned row,
+            // showing 3 players for a 2-player award. See
+            // 030-weekly-scores-key-on-slot.sql.
+            .upsert(rows, { onConflict: 'team_id,award_type,week,player_index' });
 
         if (error) throw new Error(`Failed to save weekly scores: ${error.message}`);
     }
