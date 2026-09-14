@@ -41,7 +41,16 @@ BEGIN
         EXECUTE format('ALTER TABLE weekly_scores DROP CONSTRAINT %I', v_constraint_name);
     END IF;
 
-    ALTER TABLE weekly_scores
-        ADD CONSTRAINT weekly_scores_slot_key
-        UNIQUE (team_id, award_type, week, player_index);
+    -- Idempotent - safe to re-run whether or not this already succeeded on
+    -- a previous attempt (e.g. if it previously failed partway due to a
+    -- remaining duplicate elsewhere in the table that hadn't been cleaned
+    -- up yet).
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'weekly_scores'::regclass AND conname = 'weekly_scores_slot_key'
+    ) THEN
+        ALTER TABLE weekly_scores
+            ADD CONSTRAINT weekly_scores_slot_key
+            UNIQUE (team_id, award_type, week, player_index);
+    END IF;
 END $$;

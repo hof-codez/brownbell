@@ -37,6 +37,15 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
     // alongside the "no longer on roster" indicator below.
     const dotColor = !slot.player_departed && slot.injury_status ? INJURY_DOT_COLOR[slot.injury_status] : undefined;
 
+    // True whenever the currently-set player isn't the original, frozen
+    // pick for this slot - i.e. a swap (auto or owner-made) has already
+    // happened. Mirrors the same underlying fact the History tab already
+    // shows via its own SUB/AUTO-SUB badges, just surfaced here too so an
+    // owner glancing at their Teams tab can see it without switching tabs.
+    // Never shown for a departed slot - that has its own, more urgent
+    // indicator below instead.
+    const isSubstituted = !slot.player_departed && !!slot.original_sleeper_player_id && slot.original_sleeper_player_id !== slot.sleeper_player_id;
+
     return (
         <div className={`rounded border px-3 py-2 ${slot.player_departed ? 'border-brick/50 bg-brick/10' : 'border-panel-line bg-field/40'}`}>
             <div className="flex items-center justify-between">
@@ -57,6 +66,14 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                     {isBye && !slot.player_departed && (
                         <span className="rounded bg-brick/20 px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-brick">
                             Bye
+                        </span>
+                    )}
+                    {isSubstituted && (
+                        <span
+                            className="rounded bg-panel-line px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-chalk-dim"
+                            title="This player was subbed in for the original pick"
+                        >
+                            Sub
                         </span>
                     )}
                 </span>

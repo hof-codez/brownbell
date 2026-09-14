@@ -42,6 +42,14 @@ export interface DuoRow {
    * locked departure is actively resolved (cleared/auto-filled) instead
    * of just flagged. */
   player_departed: boolean;
+  /** The original, frozen pick for this slot - set once, the first time
+   * the slot locks, and never changed afterward by any later swap. When
+   * this differs from sleeper_player_id (the CURRENT occupant), the
+   * current player is a stand-in, not the original pick - used to show
+   * a "Sub" indicator on the Teams tab, matching what the History tab
+   * already shows for the same event. Null before the slot has ever
+   * locked. */
+  original_sleeper_player_id: string | null;
 }
 
 /** A team's two duo slots for one award. A slot is null if it hasn't been set yet. */
