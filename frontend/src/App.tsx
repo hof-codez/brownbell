@@ -84,7 +84,7 @@ export default function App() {
   // to build a feed from otherwise. Inserted right after "Teams" since
   // it's the other owner-specific view.
   const TABS = myTeam
-    ? [BASE_TABS[0], { id: 'players', label: 'My Players' }, ...BASE_TABS.slice(1)]
+    ? [...BASE_TABS.slice(0, -1), { id: 'players', label: 'My Players' }, BASE_TABS[BASE_TABS.length - 1]]
     : BASE_TABS;
 
   // Guards against a rare edge case: if the owner forgets their claimed
