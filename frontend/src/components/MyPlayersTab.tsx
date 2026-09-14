@@ -102,7 +102,7 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
 
     return (
         <div>
-            <h2 className="mb-3 font-display text-xl font-bold uppercase tracking-wide text-chalk">My Players</h2>
+            <h2 className="mb-3 font-display text-xl font-bold uppercase tracking-wide text-chalk">Players</h2>
             <p className="mb-4 font-body text-sm text-chalk-dim">
                 A combined feed of activity and news for every player currently in one of your three awards.
             </p>

@@ -10,7 +10,7 @@ interface UseTeamPlayerNewsResult {
 }
 
 // Same source as usePlayerNews, but for a set of players at once - used by
-// the My Players tab to build one combined feed across a claimed team's
+// the Players tab to build one combined feed across a claimed team's
 // current 6 players (Main Award, Next Up, and Season of Boom).
 //
 // Runs one query PER PLAYER (each capped at perPlayerLimit), rather than

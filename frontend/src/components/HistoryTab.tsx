@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useActivityLog } from '../hooks/useActivityLog';
 import type { ActivityBadge } from '../hooks/useActivityLog';
 import { useStatCorrections } from '../hooks/useStatCorrections';
@@ -68,11 +69,55 @@ function StatCorrectionsSection({ teams }: { teams: Team[] }) {
 
 export function HistoryTab({ teams, teamFilter, onClearFilter }: HistoryTabProps) {
     const { entries: allEntries, loading, error } = useActivityLog(teams);
-    const entries = teamFilter ? allEntries.filter(e => e.teamId === teamFilter) : allEntries;
+    const teamFilteredEntries = teamFilter ? allEntries.filter(e => e.teamId === teamFilter) : allEntries;
     const filteredTeamName = teamFilter ? teams.find(t => t.id === teamFilter)?.display_name : null;
+
+    // Distinct weeks with any recorded activity, most recent first -
+    // derived from the actual data rather than a fixed season length, so
+    // this naturally grows as new weeks accumulate real history. Computed
+    // from the FULL entry list (not the team-filtered one), so the
+    // dropdown's own options stay stable regardless of which team filter
+    // happens to be active - a team with no activity in a given week
+    // still sees that week as a choice, just with the existing empty
+    // state below once selected.
+    const weeksAvailable = Array.from(new Set<number>(allEntries.map(e => e.week))).sort((a, b) => b - a);
+
+    const [selectedWeek, setSelectedWeek] = useState<number | 'all' | null>(null);
+
+    // Defaults to the most recent week with any activity, not "all" - the
+    // common case when opening History is checking what just happened,
+    // not scrolling a whole season's worth of entries every time. Only
+    // fires once real data has actually arrived (selectedWeek starts
+    // null before the fetch resolves), and only sets a default once -
+    // an owner's own explicit choice (including picking "All weeks")
+    // is never overridden afterward.
+    useEffect(() => {
+        if (selectedWeek !== null || weeksAvailable.length === 0) return;
+        setSelectedWeek(weeksAvailable[0]);
+    }, [weeksAvailable, selectedWeek]);
+
+    const entries = selectedWeek === 'all' || selectedWeek === null
+        ? teamFilteredEntries
+        : teamFilteredEntries.filter(e => e.week === selectedWeek);
 
     return (
         <div>
+            {weeksAvailable.length > 0 && (
+                <div className="mb-3 flex items-center justify-between">
+                    <h2 className="font-display text-lg font-bold uppercase tracking-wide text-chalk">History</h2>
+                    <select
+                        value={selectedWeek === 'all' ? 'all' : (selectedWeek ?? '')}
+                        onChange={(e) => setSelectedWeek(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                        className="rounded border border-panel-line bg-field px-3 py-1.5 font-mono text-sm text-chalk"
+                    >
+                        {weeksAvailable.map(w => (
+                            <option key={w} value={w}>Week {w}</option>
+                        ))}
+                        <option value="all">All weeks</option>
+                    </select>
+                </div>
+            )}
+
             {filteredTeamName && (
                 <div className="mb-3 flex items-center justify-between rounded border border-panel-line bg-panel/60 px-3 py-2">
                     <span className="font-body text-sm text-chalk-dim">
@@ -97,7 +142,12 @@ export function HistoryTab({ teams, teamFilter, onClearFilter }: HistoryTabProps
             ) : entries.length === 0 ? (
                 <div className="rounded border border-dashed border-panel-line px-4 py-6 text-center">
                     <p className="font-body text-sm text-chalk-dim">
-                        {filteredTeamName ? `No changes recorded yet for ${filteredTeamName} this season.` : 'No changes recorded yet this season.'}
+                        {(() => {
+                            const weekPart = selectedWeek === 'all' || selectedWeek === null ? 'this season' : `in Week ${selectedWeek}`;
+                            return filteredTeamName
+                                ? `No changes recorded for ${filteredTeamName} ${weekPart}.`
+                                : `No changes recorded ${weekPart}.`;
+                        })()}
                     </p>
                 </div>
             ) : (
