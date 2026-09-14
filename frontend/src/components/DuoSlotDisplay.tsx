@@ -45,6 +45,13 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
     // Never shown for a departed slot - that has its own, more urgent
     // indicator below instead.
     const isSubstituted = !slot.player_departed && !!slot.original_sleeper_player_id && slot.original_sleeper_player_id !== slot.sleeper_player_id;
+    // 'admin' reads as "Sub" here too - both it and 'owner' are "a human
+    // set this," as opposed to 'auto'. The full owner/admin distinction
+    // stays visible in the History tab; this is just the Teams tab's
+    // at-a-glance version. Falls back to "Sub" if the source is
+    // ever unknown (e.g. the substitutions fetch failed), rather than
+    // showing nothing for a slot that's clearly been substituted.
+    const subLabel = slot.current_sub_source === 'auto' ? 'Auto-sub' : 'Sub';
 
     return (
         <div className={`rounded border px-3 py-2 ${slot.player_departed ? 'border-brick/50 bg-brick/10' : 'border-panel-line bg-field/40'}`}>
@@ -71,9 +78,9 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                     {isSubstituted && (
                         <span
                             className="rounded bg-panel-line px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-chalk-dim"
-                            title="This player was subbed in for the original pick"
+                            title={subLabel === 'Auto-sub' ? 'The system automatically subbed this player in' : 'This player was subbed in for the original pick'}
                         >
-                            Sub
+                            {subLabel}
                         </span>
                     )}
                 </span>

@@ -61,16 +61,41 @@ export function useSeasonData(): UseSeasonDataResult {
       let duos: DuoRow[] = [];
 
       if (teamIds.length > 0) {
-        const { data: duoRows, error: duosError } = await supabase
-          .from('duos')
-          .select('team_id, award_type, player_index, player_name, player_position, sleeper_player_id, player_team, experience, injury_status, player_departed, original_sleeper_player_id')
-          .in('team_id', teamIds);
+        const [duosRes, activeSubsRes] = await Promise.all([
+          supabase
+            .from('duos')
+            .select('team_id, award_type, player_index, player_name, player_position, sleeper_player_id, player_team, experience, injury_status, player_departed, original_sleeper_player_id')
+            .in('team_id', teamIds),
+          // Only ever at most one active=true row per (team_id, award_type,
+          // player_index) - logSubstitution always closes out the prior
+          // one before inserting a new one. Used purely to label a
+          // substituted slot as "Sub" (owner/admin) vs "Auto-sub" on the
+          // Teams tab - the duos table itself has no notion of source.
+          supabase
+            .from('substitutions')
+            .select('team_id, award_type, player_index, source')
+            .in('team_id', teamIds)
+            .eq('active', true)
+        ]);
 
-        if (duosError) {
-          if (!cancelled) setState({ loading: false, error: duosError.message, season, teams: [] });
+        if (duosRes.error) {
+          if (!cancelled) setState({ loading: false, error: duosRes.error.message, season, teams: [] });
           return;
         }
-        duos = duoRows ?? [];
+
+        const subSourceByKey = new Map<string, 'owner' | 'auto' | 'admin'>();
+        if (activeSubsRes.error) {
+          console.error('Failed to load active substitutions (non-fatal - Sub/Auto-sub labels will be unavailable):', activeSubsRes.error.message);
+        } else {
+          for (const row of activeSubsRes.data ?? []) {
+            subSourceByKey.set(`${row.team_id}|${row.award_type}|${row.player_index}`, row.source);
+          }
+        }
+
+        duos = (duosRes.data ?? []).map(row => ({
+          ...row,
+          current_sub_source: subSourceByKey.get(`${row.team_id}|${row.award_type}|${row.player_index}`) ?? null
+        }));
       }
 
       const teamsWithDuos: TeamWithDuos[] = (teams ?? []).map((team: Team) => {

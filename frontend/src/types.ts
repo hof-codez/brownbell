@@ -50,6 +50,14 @@ export interface DuoRow {
    * already shows for the same event. Null before the slot has ever
    * locked. */
   original_sleeper_player_id: string | null;
+  /** The source of whatever active substitution currently applies to this
+   * slot (from the substitutions table's active=true record) - null if
+   * the slot has never been substituted at all (current player still
+   * matches original_sleeper_player_id). 'admin' is treated the same as
+   * 'owner' for display purposes on the Teams tab (both are "a human set
+   * this," as opposed to 'auto') - the full distinction is still visible
+   * in the History tab. */
+  current_sub_source: 'owner' | 'auto' | 'admin' | null;
 }
 
 /** A team's two duo slots for one award. A slot is null if it hasn't been set yet. */
