@@ -17,8 +17,8 @@ interface MatchupSummary {
     tier: number | null;
     bonus: number;
     margin: number;
-    playersA: PlayerLine[];
-    playersB: PlayerLine[];
+    playersA?: PlayerLine[];
+    playersB?: PlayerLine[];
 }
 
 interface TopScorer {
@@ -34,7 +34,7 @@ interface StandingsRow {
     combined: number;
     seasonTotal: number;
     bonusTotal: number;
-    players: PlayerLine[];
+    players?: PlayerLine[];
 }
 
 interface MainAwardRecap {
@@ -44,7 +44,7 @@ interface MainAwardRecap {
     topScorer: TopScorer | null;
     biggestUpset: {
         winner: string; loser: string; winnerProbability: number; scoreWinner: number; scoreLoser: number;
-        winnerPlayers: PlayerLine[]; loserPlayers: PlayerLine[];
+        winnerPlayers?: PlayerLine[]; loserPlayers?: PlayerLine[];
     } | null;
     leaguePredictions: {
         record: { correct: number; wrong: number };
@@ -170,12 +170,12 @@ function MainAwardSections({ recap }: { recap: MainAwardRecap }) {
     return (
         <>
             {recap.matchupOfTheWeek && (
-                <Section title="Matchup of the Week" icon="\u2b50">
+                <Section title="Matchup of the Week" icon="⭐">
                     <MatchupCard m={recap.matchupOfTheWeek} highlight />
                 </Section>
             )}
 
-            <Section title="This Week's Matchups" icon="\ud83c\udfc8">
+            <Section title="This Week's Matchups" icon="🏈">
                 <div className="flex flex-col gap-2">
                     {recap.matchups.map((m, i) => (
                         <MatchupCard key={i} m={m} />
@@ -184,19 +184,19 @@ function MainAwardSections({ recap }: { recap: MainAwardRecap }) {
             </Section>
 
             {recap.biggestBlowout && (
-                <Section title="Biggest Blowout" icon="\ud83d\udca5">
+                <Section title="Biggest Blowout" icon="💥">
                     <MatchupCard m={recap.biggestBlowout} note={`${recap.biggestBlowout.margin.toFixed(1)} point margin`} />
                 </Section>
             )}
 
             {recap.topScorer && (
-                <Section title="Top Scorer" icon="\ud83d\udd25">
+                <Section title="Top Scorer" icon="🔥">
                     <TopScorerCard scorer={recap.topScorer} />
                 </Section>
             )}
 
             {recap.biggestUpset && (
-                <Section title="Biggest Upset" icon="\u26a1">
+                <Section title="Biggest Upset" icon="⚡">
                     <div className="rounded-lg border border-panel-line bg-panel px-4 py-3">
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
@@ -219,7 +219,7 @@ function MainAwardSections({ recap }: { recap: MainAwardRecap }) {
             )}
 
             {recap.leaguePredictions && (
-                <Section title="League Predictions" icon="\ud83d\udd2e">
+                <Section title="League Predictions" icon="🔮">
                     <div className="mb-2 rounded-lg border border-panel-line bg-panel px-4 py-3 text-center">
                         <p className="font-mono text-3xl font-bold text-bell">
                             {recap.leaguePredictions.record.correct}-{recap.leaguePredictions.record.wrong}
@@ -252,7 +252,7 @@ function SimpleAwardSections({ recap, awardLabel }: { recap: SimpleAwardRecap; a
     return (
         <>
             {recap.topScorer ? (
-                <Section title="Top Scorer" icon="\ud83d\udd25">
+                <Section title="Top Scorer" icon="🔥">
                     <TopScorerCard scorer={recap.topScorer} />
                 </Section>
             ) : (
@@ -266,7 +266,7 @@ function SimpleAwardSections({ recap, awardLabel }: { recap: SimpleAwardRecap; a
 function StandingsSection({ standingsTop3 }: { standingsTop3: StandingsRow[] }) {
     if (standingsTop3.length === 0) return null;
     return (
-        <Section title="Standings Snapshot" icon="\ud83c\udfc6">
+        <Section title="Standings Snapshot" icon="🏆">
             <div className="flex flex-col gap-2">
                 {standingsTop3.map(row => (
                     <div key={row.teamName} className="rounded-lg border border-panel-line bg-panel px-4 py-3">
@@ -305,8 +305,8 @@ function TopScorerCard({ scorer }: { scorer: TopScorer }) {
     );
 }
 
-function PlayerLines({ players, dim }: { players: PlayerLine[]; dim?: boolean }) {
-    if (players.length === 0) return null;
+function PlayerLines({ players, dim }: { players: PlayerLine[] | undefined; dim?: boolean }) {
+    if (!players || players.length === 0) return null;
     return (
         <div className="mt-0.5 flex flex-col gap-0.5">
             {players.map((p, i) => (
