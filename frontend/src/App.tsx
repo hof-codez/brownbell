@@ -75,9 +75,11 @@ export default function App() {
   // recap hash check in main.tsx - not a general router.
   const leagueHashMatch = window.location.hash.match(/^#\/league(?:\/(main|nextup|boom))?$/);
   // The recap page's "Vote for next week" CTA (see RecapPage.tsx) links
-  // here as #/predictions/<week>, landing directly on that week's
-  // prediction voting rather than always opening Showdown on Matchups
-  // regardless of what the link promised.
+  // here as #/predictions/<week>, landing on that week's Matchups view
+  // specifically - that's where each matchup's own voting widget
+  // actually lives (currentPick/voteSplit), not the separate Predictions
+  // sub-view, which is only a record of past prediction accuracy, not
+  // somewhere a vote can be cast.
   const predictionsHashMatch = window.location.hash.match(/^#\/predictions\/(\d+)$/);
   const [activeTab, setActiveTab] = useState(() => (leagueHashMatch ? 'league' : (predictionsHashMatch ? 'bonus' : 'teams')));
   const [initialLeagueAward, setInitialLeagueAward] = useState(() => (leagueHashMatch?.[1] as 'main' | 'nextup' | 'boom' | undefined));
@@ -190,7 +192,7 @@ export default function App() {
             onLearnMore={() => goToMiscSection('bonus-matchups-rule')}
             duoNames={duoNames}
             getGameInfo={getGameInfo}
-            initialView={initialPredictionsWeek !== undefined ? 'predictions' : undefined}
+            initialView={initialPredictionsWeek !== undefined ? 'matchups' : undefined}
             initialWeek={initialPredictionsWeek}
           />
         )}
