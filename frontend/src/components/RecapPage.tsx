@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 
+interface PlayerLine {
+    playerName: string;
+    playerPosition: string;
+    points: number;
+}
+
 interface MatchupSummary {
     teamA: string;
     teamB: string;
@@ -11,6 +17,8 @@ interface MatchupSummary {
     tier: number | null;
     bonus: number;
     margin: number;
+    playersA: PlayerLine[];
+    playersB: PlayerLine[];
 }
 
 interface TopScorer {
@@ -26,6 +34,7 @@ interface StandingsRow {
     combined: number;
     seasonTotal: number;
     bonusTotal: number;
+    players: PlayerLine[];
 }
 
 interface MainAwardRecap {
@@ -33,7 +42,10 @@ interface MainAwardRecap {
     matchups: MatchupSummary[];
     biggestBlowout: MatchupSummary | null;
     topScorer: TopScorer | null;
-    biggestUpset: { winner: string; loser: string; winnerProbability: number; scoreWinner: number; scoreLoser: number } | null;
+    biggestUpset: {
+        winner: string; loser: string; winnerProbability: number; scoreWinner: number; scoreLoser: number;
+        winnerPlayers: PlayerLine[]; loserPlayers: PlayerLine[];
+    } | null;
     leaguePredictions: {
         record: { correct: number; wrong: number };
         matchups: { teamA: string; teamB: string; percentA: number; percentB: number; winner: string | null; leagueCorrect: boolean | null }[];
@@ -158,12 +170,12 @@ function MainAwardSections({ recap }: { recap: MainAwardRecap }) {
     return (
         <>
             {recap.matchupOfTheWeek && (
-                <Section title="Matchup of the Week">
+                <Section title="Matchup of the Week" icon="\u2b50">
                     <MatchupCard m={recap.matchupOfTheWeek} highlight />
                 </Section>
             )}
 
-            <Section title="This Week's Matchups">
+            <Section title="This Week's Matchups" icon="\ud83c\udfc8">
                 <div className="flex flex-col gap-2">
                     {recap.matchups.map((m, i) => (
                         <MatchupCard key={i} m={m} />
@@ -172,26 +184,34 @@ function MainAwardSections({ recap }: { recap: MainAwardRecap }) {
             </Section>
 
             {recap.biggestBlowout && (
-                <Section title="Biggest Blowout">
+                <Section title="Biggest Blowout" icon="\ud83d\udca5">
                     <MatchupCard m={recap.biggestBlowout} note={`${recap.biggestBlowout.margin.toFixed(1)} point margin`} />
                 </Section>
             )}
 
             {recap.topScorer && (
-                <Section title="Top Scorer">
+                <Section title="Top Scorer" icon="\ud83d\udd25">
                     <TopScorerCard scorer={recap.topScorer} />
                 </Section>
             )}
 
             {recap.biggestUpset && (
-                <Section title="Biggest Upset">
+                <Section title="Biggest Upset" icon="\u26a1">
                     <div className="rounded-lg border border-panel-line bg-panel px-4 py-3">
-                        <p className="font-body text-sm text-chalk">
-                            <span className="font-semibold text-chalk">{recap.biggestUpset.winner}</span> beat{' '}
-                            <span className="text-chalk-dim">{recap.biggestUpset.loser}</span>
-                            {' '}{recap.biggestUpset.scoreWinner.toFixed(1)}-{recap.biggestUpset.scoreLoser.toFixed(1)}
-                        </p>
-                        <p className="mt-1 font-mono text-xs text-chalk-dim">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="font-body text-base font-bold text-chalk">{recap.biggestUpset.winner}</p>
+                                <PlayerLines players={recap.biggestUpset.winnerPlayers} />
+                            </div>
+                            <p className="shrink-0 font-mono text-lg font-bold text-bell">
+                                {recap.biggestUpset.scoreWinner.toFixed(1)}-{recap.biggestUpset.scoreLoser.toFixed(1)}
+                            </p>
+                        </div>
+                        <div className="mt-2 border-t border-panel-line pt-2">
+                            <p className="font-body text-sm text-chalk-dim">beat {recap.biggestUpset.loser}</p>
+                            <PlayerLines players={recap.biggestUpset.loserPlayers} dim />
+                        </div>
+                        <p className="mt-2 font-mono text-xs text-chalk-dim">
                             Given only a {(recap.biggestUpset.winnerProbability * 100).toFixed(0)}% chance beforehand
                         </p>
                     </div>
@@ -199,9 +219,9 @@ function MainAwardSections({ recap }: { recap: MainAwardRecap }) {
             )}
 
             {recap.leaguePredictions && (
-                <Section title="League Predictions">
+                <Section title="League Predictions" icon="\ud83d\udd2e">
                     <div className="mb-2 rounded-lg border border-panel-line bg-panel px-4 py-3 text-center">
-                        <p className="font-mono text-2xl font-bold text-bell">
+                        <p className="font-mono text-3xl font-bold text-bell">
                             {recap.leaguePredictions.record.correct}-{recap.leaguePredictions.record.wrong}
                         </p>
                         <p className="font-body text-xs text-chalk-dim">the league&rsquo;s record calling this week&rsquo;s matchups</p>
@@ -213,7 +233,7 @@ function MainAwardSections({ recap }: { recap: MainAwardRecap }) {
                                     {pm.percentA >= pm.percentB ? pm.teamA : pm.teamB} favored {Math.max(pm.percentA, pm.percentB).toFixed(0)}%
                                 </span>
                                 {pm.leagueCorrect !== null && (
-                                    <span className={pm.leagueCorrect ? 'text-bell' : 'text-brick'}>
+                                    <span className={`font-semibold ${pm.leagueCorrect ? 'text-bell' : 'text-brick'}`}>
                                         {pm.leagueCorrect ? 'Correct' : 'Wrong'}
                                     </span>
                                 )}
@@ -232,7 +252,7 @@ function SimpleAwardSections({ recap, awardLabel }: { recap: SimpleAwardRecap; a
     return (
         <>
             {recap.topScorer ? (
-                <Section title="Top Scorer">
+                <Section title="Top Scorer" icon="\ud83d\udd25">
                     <TopScorerCard scorer={recap.topScorer} />
                 </Section>
             ) : (
@@ -246,23 +266,25 @@ function SimpleAwardSections({ recap, awardLabel }: { recap: SimpleAwardRecap; a
 function StandingsSection({ standingsTop3 }: { standingsTop3: StandingsRow[] }) {
     if (standingsTop3.length === 0) return null;
     return (
-        <Section title="Standings Snapshot">
-            <div className="rounded-lg border border-panel-line bg-panel">
-                {standingsTop3.map((row, i) => (
-                    <div
-                        key={row.teamName}
-                        className={`flex items-center justify-between px-4 py-2.5 ${i > 0 ? 'border-t border-panel-line' : ''}`}
-                    >
-                        <span className="font-body text-sm text-chalk">
-                            <span className="mr-2 text-bell">#{row.rank}</span>
-                            {row.teamName}
-                        </span>
-                        <span className="font-mono text-sm font-semibold text-chalk">{row.combined.toFixed(1)}</span>
+        <Section title="Standings Snapshot" icon="\ud83c\udfc6">
+            <div className="flex flex-col gap-2">
+                {standingsTop3.map(row => (
+                    <div key={row.teamName} className="rounded-lg border border-panel-line bg-panel px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="font-body text-sm font-semibold text-chalk">
+                                    <span className="mr-1.5 font-mono text-bell">#{row.rank}</span>
+                                    {row.teamName}
+                                </p>
+                                <PlayerLines players={row.players} />
+                            </div>
+                            <p className="shrink-0 font-mono text-lg font-bold text-chalk">{row.combined.toFixed(1)}</p>
+                        </div>
                     </div>
                 ))}
             </div>
             <a
-                href="https://hof-codez.github.io/brownbell/"
+                href="https://hof-codez.github.io/brownbell/#/league"
                 className="mt-2 block text-center font-mono text-xs uppercase tracking-widest text-bell underline"
             >
                 View full standings &rarr;
@@ -273,20 +295,35 @@ function StandingsSection({ standingsTop3 }: { standingsTop3: StandingsRow[] }) 
 
 function TopScorerCard({ scorer }: { scorer: TopScorer }) {
     return (
-        <div className="rounded-lg border border-panel-line bg-panel px-4 py-3">
-            <p className="font-body text-lg font-semibold text-chalk">
-                {scorer.playerName} <span className="text-sm text-chalk-dim">({scorer.playerPosition})</span>
+        <div className="rounded-lg border border-bell bg-bell/10 px-4 py-3">
+            <p className="font-body text-lg font-bold text-chalk">
+                {scorer.playerName} <span className="text-sm font-normal text-chalk-dim">({scorer.playerPosition})</span>
             </p>
-            <p className="font-mono text-2xl font-bold text-bell">{scorer.points.toFixed(1)} pts</p>
+            <p className="font-mono text-3xl font-bold text-bell">{scorer.points.toFixed(1)} <span className="text-base font-normal text-chalk-dim">pts</span></p>
             <p className="font-body text-xs text-chalk-dim">{scorer.teamName}</p>
         </div>
     );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function PlayerLines({ players, dim }: { players: PlayerLine[]; dim?: boolean }) {
+    if (players.length === 0) return null;
+    return (
+        <div className="mt-0.5 flex flex-col gap-0.5">
+            {players.map((p, i) => (
+                <p key={i} className={`font-mono text-xs ${dim ? 'text-chalk-dim' : 'text-chalk'}`}>
+                    {p.playerName} <span className="text-chalk-dim">({p.playerPosition})</span> {p.points.toFixed(1)}
+                </p>
+            ))}
+        </div>
+    );
+}
+
+function Section({ title, icon, children }: { title: string; icon: string; children: ReactNode }) {
     return (
         <section className="mb-6">
-            <h2 className="mb-2 font-mono text-xs uppercase tracking-widest text-chalk-dim">{title}</h2>
+            <h2 className="mb-2 flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-chalk-dim">
+                <span>{icon}</span> {title}
+            </h2>
             {children}
         </section>
     );
@@ -298,19 +335,23 @@ function MatchupCard({ m, highlight, note }: { m: MatchupSummary; highlight?: bo
 
     return (
         <div className={`rounded-lg border px-4 py-3 ${highlight ? 'border-bell bg-bell/10' : 'border-panel-line bg-panel'}`}>
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                    <p className={`truncate font-body text-sm font-semibold ${aWon ? 'text-chalk' : 'text-chalk-dim'}`}>{m.teamA}</p>
-                    <p className={`font-mono text-xl font-bold ${aWon ? 'text-chalk' : 'text-chalk-dim'}`}>{m.scoreA.toFixed(1)}</p>
+                    <p className={`truncate font-body text-sm font-bold ${aWon ? 'text-chalk' : 'text-chalk-dim'}`}>{m.teamA}</p>
+                    <PlayerLines players={m.playersA} dim={!aWon} />
+                    <p className={`mt-1 font-mono text-2xl font-bold ${aWon ? 'text-chalk' : 'text-chalk-dim'}`}>{m.scoreA.toFixed(1)}</p>
                 </div>
-                <span className="mx-3 font-mono text-xs text-chalk-dim">vs</span>
+                <span className="mt-1 shrink-0 font-mono text-xs text-chalk-dim">vs</span>
                 <div className="min-w-0 flex-1 text-right">
-                    <p className={`truncate font-body text-sm font-semibold ${bWon ? 'text-chalk' : 'text-chalk-dim'}`}>{m.teamB}</p>
-                    <p className={`font-mono text-xl font-bold ${bWon ? 'text-chalk' : 'text-chalk-dim'}`}>{m.scoreB.toFixed(1)}</p>
+                    <p className={`truncate font-body text-sm font-bold ${bWon ? 'text-chalk' : 'text-chalk-dim'}`}>{m.teamB}</p>
+                    <div className="flex flex-col items-end">
+                        <PlayerLines players={m.playersB} dim={!bWon} />
+                    </div>
+                    <p className={`mt-1 font-mono text-2xl font-bold ${bWon ? 'text-chalk' : 'text-chalk-dim'}`}>{m.scoreB.toFixed(1)}</p>
                 </div>
             </div>
             {(m.tier || note) && (
-                <p className="mt-2 font-mono text-xs text-chalk-dim">
+                <p className="mt-2 border-t border-panel-line pt-2 font-mono text-xs text-chalk-dim">
                     {m.tier && `Tier ${m.tier} \u00b7 +${m.bonus.toFixed(2)} bonus`}
                     {m.tier && note && ' \u00b7 '}
                     {note}

@@ -1738,7 +1738,15 @@ class BrownBellAutomator {
             const winner = resultA.outcome === 'win' ? teamA : (resultB.outcome === 'win' ? teamB : null); // null = tie
             const tier = resultA.tier !== null && resultA.tier !== undefined ? resultA.tier : resultB.tier;
             const bonus = resultA.tier !== null && resultA.tier !== undefined ? resultA.bonusPoints : resultB.bonusPoints;
-            return { teamA, teamB, scoreA, scoreB, winner, tier: tier ?? null, bonus: bonus ?? 0, margin: Math.abs(scoreA - scoreB) };
+            return {
+                teamA, teamB, scoreA, scoreB, winner, tier: tier ?? null, bonus: bonus ?? 0, margin: Math.abs(scoreA - scoreB),
+                // Which two players each team's duo actually was this week -
+                // added after a real reported case where the recap showed
+                // nothing but owner names, with none of the actual duo
+                // players that made the week interesting in the first place.
+                playersA: this.getTeamPlayersForWeek(teamA, 'main', week, allScores, allPlayerIds),
+                playersB: this.getTeamPlayersForWeek(teamB, 'main', week, allScores, allPlayerIds)
+            };
         });
 
         const matchupOfTheWeek = matchupSummaries.length > 0
@@ -1750,8 +1758,12 @@ class BrownBellAutomator {
 
         const mainTopScorer = this.findTopScorerForWeek(week, 'main', allScores, allPlayerIds);
         const biggestUpset = await this.findBiggestUpsetForWeek(week, matchupSummaries, allScores);
+        if (biggestUpset) {
+            biggestUpset.winnerPlayers = this.getTeamPlayersForWeek(biggestUpset.winner, 'main', week, allScores, allPlayerIds);
+            biggestUpset.loserPlayers = this.getTeamPlayersForWeek(biggestUpset.loser, 'main', week, allScores, allPlayerIds);
+        }
         const leaguePredictions = await this.buildLeaguePredictionsForWeek(week, matchupSummaries);
-        const mainStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'main', allScores);
+        const mainStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'main', allScores, allPlayerIds);
 
         // Next Up and Season of Boom have no opponent, tier, bonus, or
         // prediction mechanic at all - each is simply a standalone
@@ -1759,9 +1771,9 @@ class BrownBellAutomator {
         // deliberately much smaller than Main Award's rather than forcing
         // a uniform shape that doesn't fit what these awards actually are.
         const nextupTopScorer = this.findTopScorerForWeek(week, 'nextup', allScores, allPlayerIds);
-        const nextupStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'nextup', allScores);
+        const nextupStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'nextup', allScores, allPlayerIds);
         const boomTopScorer = this.findTopScorerForWeek(week, 'boom', allScores, allPlayerIds);
-        const boomStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'boom', allScores);
+        const boomStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'boom', allScores, allPlayerIds);
 
         return {
             week,
@@ -1777,6 +1789,28 @@ class BrownBellAutomator {
             nextup: { topScorer: nextupTopScorer, standingsTop3: nextupStandingsTop3 },
             boom: { topScorer: boomTopScorer, standingsTop3: boomStandingsTop3 }
         };
+    }
+
+    // Both of a team's current duo players for a given award/week, with
+    // name/position/points - the shared building block behind every
+    // player-level enrichment in the recap (matchup cards, the upset,
+    // and every award's standings snapshot), so all of them stay
+    // consistent with each other rather than each formatting players
+    // slightly differently.
+    getTeamPlayersForWeek(teamName, awardType, week, allScores, allPlayerIds) {
+        const players = [];
+        for (let index = 0; index < 2; index++) {
+            const points = allScores[awardType]?.[teamName]?.[week]?.[index];
+            const sleeperId = allPlayerIds[awardType]?.[teamName]?.[week]?.[index];
+            if (!sleeperId) continue;
+            const playerInfo = this.playersData[sleeperId];
+            players.push({
+                playerName: playerInfo ? `${playerInfo.first_name || ''} ${playerInfo.last_name || ''}`.trim() : 'Unknown',
+                playerPosition: playerInfo?.position || '',
+                points: points ?? 0
+            });
+        }
+        return players;
     }
 
     // Best individual performance among a given award's current duo
@@ -1908,7 +1942,7 @@ class BrownBellAutomator {
     // that could start to matter). Next Up and Season of Boom have no
     // bonus mechanic at all, so bonusTotal is always 0 for those and
     // "combined" is just the season total.
-    async buildStandingsTop3ThroughWeek(week, awardType, allScores) {
+    async buildStandingsTop3ThroughWeek(week, awardType, allScores, allPlayerIds) {
         const seasonTotals = {};
         for (const teamName of Object.keys(this.knownDuos[awardType] || {})) {
             let total = 0;
@@ -1930,7 +1964,15 @@ class BrownBellAutomator {
             })
             .sort((a, b) => b.combined - a.combined)
             .slice(0, 3)
-            .map((row, i) => ({ rank: i + 1, ...row }));
+            .map((row, i) => ({
+                rank: i + 1,
+                ...row,
+                // This week's players specifically, not necessarily every
+                // player who contributed to the season total - duos can
+                // change over a season, so the current pairing is what's
+                // actually meaningful to show alongside a live standing.
+                players: this.getTeamPlayersForWeek(row.teamName, awardType, week, allScores, allPlayerIds)
+            }));
 
         return ranked;
     }

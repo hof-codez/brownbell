@@ -104,6 +104,15 @@ async function run() {
     allPassed &= check('boom.topScorer correctly finds the Season of Boom top scorer (TeamA, 18 points)', recap.boom.topScorer.playerName === 'Boom Player' && recap.boom.topScorer.points === 18 && recap.boom.topScorer.teamName === 'TeamA');
     allPassed &= check('boom.standingsTop3 has no bonus mechanic either', recap.boom.standingsTop3.every(row => row.bonusTotal === 0 && row.combined === row.seasonTotal));
 
+    // Player-level enrichment: a real reported gap where the recap showed
+    // only owner names, none of the actual duo players involved.
+    const mainMatchupAB = recap.main.matchups.find(m => m.teamA === 'TeamA');
+    allPassed &= check('main matchup includes playersA with real names, not just the owner name', mainMatchupAB.playersA.some(p => p.playerName === 'Josh Allen'));
+    allPassed &= check('main matchup includes playersB too', mainMatchupAB.playersB.length === 1 && mainMatchupAB.playersB[0].playerName === 'Nobody Special');
+    allPassed &= check('main standingsTop3 rows include each team\'s current duo players', recap.main.standingsTop3.every(row => Array.isArray(row.players)));
+    const teamAStandingRow = recap.main.standingsTop3.find(r => r.teamName === 'TeamA');
+    allPassed &= check('TeamA\'s standings row correctly includes Josh Allen among its players', teamAStandingRow.players.some(p => p.playerName === 'Josh Allen'));
+
     // Now test league prediction accuracy with actual votes recorded.
     // 3 votes for TeamA, 1 vote for TeamB in the TeamA/TeamB matchup -
     // majority correctly picked the actual winner (TeamA).

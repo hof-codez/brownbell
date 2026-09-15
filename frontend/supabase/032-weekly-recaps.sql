@@ -14,21 +14,23 @@
 -- read it from). Main Award gets a full matchup-based recap (it's the
 -- only award with an opponent, tier, bonus, or prediction mechanic at
 -- all); Next Up and Season of Boom are each a standalone season-long
--- point race per team, so their sections are deliberately smaller:
+-- point race per team, so their sections are deliberately smaller.
+-- A "players" array is { playerName, playerPosition, points }[] - that
+-- team's current duo for the award in question, for that specific week:
 -- {
 --   week: number,
 --   main: {
---     matchupOfTheWeek: { teamA, teamB, scoreA, scoreB, winner } | null,
---     matchups: [{ teamA, teamB, scoreA, scoreB, winner, tier, bonus }, ...],
---     biggestBlowout: { teamA, teamB, scoreA, scoreB, margin } | null,
+--     matchupOfTheWeek: { teamA, teamB, scoreA, scoreB, winner, playersA, playersB } | null,
+--     matchups: [{ teamA, teamB, scoreA, scoreB, winner, tier, bonus, playersA, playersB }, ...],
+--     biggestBlowout: { teamA, teamB, scoreA, scoreB, margin, playersA, playersB } | null,
 --     topScorer: { teamName, playerName, playerPosition, points } | null,
---     biggestUpset: { winner, loser, winnerProbability, scoreWinner, scoreLoser } | null,
+--     biggestUpset: { winner, loser, winnerProbability, scoreWinner, scoreLoser, winnerPlayers, loserPlayers } | null,
 --     leaguePredictions: { record: { correct, wrong }, matchups: [{ teamA, teamB, percentA, percentB, winner, leagueCorrect }, ...] } | null,
---     standingsTop3: [{ rank, teamName, combined, seasonTotal, bonusTotal }, ...]
+--     standingsTop3: [{ rank, teamName, combined, seasonTotal, bonusTotal, players }, ...]
 --   },
 --   nextup: {
 --     topScorer: { teamName, playerName, playerPosition, points } | null,
---     standingsTop3: [{ rank, teamName, combined, seasonTotal, bonusTotal }, ...]  -- bonusTotal always 0
+--     standingsTop3: [{ rank, teamName, combined, seasonTotal, bonusTotal, players }, ...]  -- bonusTotal always 0
 --   },
 --   boom: { same shape as nextup }
 -- }
@@ -43,6 +45,7 @@ alter table weekly_recaps enable row level security;
 
 -- Public, read-only - this is the whole point of the feature (a link
 -- anyone can open without claiming a team or being logged in at all).
+drop policy if exists "Public can view weekly recaps" on weekly_recaps;
 create policy "Public can view weekly recaps"
     on weekly_recaps for select
     using (true);

@@ -67,7 +67,12 @@ export default function App() {
   // news would stack a second modal on top of the first rather than
   // replacing it.
   const [viewingPlayerNews, setViewingPlayerNews] = useState<{ playerName: string; sleeperPlayerId: string | null } | null>(null);
-  const [activeTab, setActiveTab] = useState('teams');
+  // Supports a single external deep-link case for now: the recap page's
+  // "View full standings" link uses #/league so it lands where it says
+  // it will, rather than always opening on the Teams tab regardless of
+  // what an external link actually promised. Read once at mount, same
+  // as the recap hash check in main.tsx - not a general router.
+  const [activeTab, setActiveTab] = useState(() => (window.location.hash === '#/league' ? 'league' : 'teams'));
   // Set alongside switching to the Misc tab so MiscTab knows to force the
   // Bonus sub-tab open (currently the only deep-linked section) and which
   // element to scroll to - cleared once the target component has consumed
