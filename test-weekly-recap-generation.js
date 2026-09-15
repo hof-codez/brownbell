@@ -25,11 +25,17 @@ async function run() {
     const automator = new BrownBellAutomator('fake-league-id');
     automator.dataLayer = new SupabaseDataLayer();
     automator.dataLayer.teamIdByName = { TeamA: 't-a', TeamB: 't-b', TeamC: 't-c', TeamD: 't-d' };
-    automator.knownDuos = { main: { TeamA: [], TeamB: [], TeamC: [], TeamD: [] } };
+    automator.knownDuos = {
+        main: { TeamA: [], TeamB: [], TeamC: [], TeamD: [] },
+        nextup: { TeamA: [], TeamB: [], TeamC: [], TeamD: [] },
+        boom: { TeamA: [], TeamB: [], TeamC: [], TeamD: [] }
+    };
     automator.playersData = {
         'p1': { first_name: 'Josh', last_name: 'Allen', position: 'QB' },
         'p2': { first_name: 'Chris', last_name: 'Olave', position: 'WR' },
-        'p3': { first_name: 'Nobody', last_name: 'Special', position: 'RB' }
+        'p3': { first_name: 'Nobody', last_name: 'Special', position: 'RB' },
+        'p4': { first_name: 'Next', last_name: 'Upstar', position: 'WR' },
+        'p5': { first_name: 'Boom', last_name: 'Player', position: 'DB' }
     };
 
     // TeamA beats TeamB 80-30 (blowout); TeamC beats TeamD 51-50 (closest).
@@ -46,6 +52,18 @@ async function run() {
             TeamB: { 1: { 0: 30, 1: 0 } },
             TeamC: { 1: { 0: 51, 1: 0 } },
             TeamD: { 1: { 0: 50, 1: 0 } }
+        },
+        nextup: {
+            TeamA: { 1: { 0: 12, 1: 8 } },
+            TeamB: { 1: { 0: 25, 1: 5 } },  // top nextup scorer this week
+            TeamC: { 1: { 0: 10, 1: 10 } },
+            TeamD: { 1: { 0: 9, 1: 9 } }
+        },
+        boom: {
+            TeamA: { 1: { 0: 18, 1: 2 } },  // top boom scorer this week
+            TeamB: { 1: { 0: 5, 1: 5 } },
+            TeamC: { 1: { 0: 7, 1: 7 } },
+            TeamD: { 1: { 0: 6, 1: 6 } }
         }
     };
     const allPlayerIds = {
@@ -54,18 +72,37 @@ async function run() {
             TeamB: { 1: { 0: 'p3', 1: null } },
             TeamC: { 1: { 0: 'p2', 1: null } },
             TeamD: { 1: { 0: 'p3', 1: null } }
+        },
+        nextup: {
+            TeamA: { 1: { 0: 'p4', 1: 'p3' } },
+            TeamB: { 1: { 0: 'p4', 1: 'p3' } },
+            TeamC: { 1: { 0: 'p4', 1: 'p3' } },
+            TeamD: { 1: { 0: 'p4', 1: 'p3' } }
+        },
+        boom: {
+            TeamA: { 1: { 0: 'p5', 1: 'p3' } },
+            TeamB: { 1: { 0: 'p5', 1: 'p3' } },
+            TeamC: { 1: { 0: 'p5', 1: 'p3' } },
+            TeamD: { 1: { 0: 'p5', 1: 'p3' } }
         }
     };
 
     const recap = await automator.buildWeeklyRecap(1, brownBellMatchups, brownBellBonuses, allScores, allPlayerIds);
 
-    allPassed &= check('matchups array has both matchups', recap.matchups.length === 2);
-    allPassed &= check('biggestBlowout correctly identifies TeamA vs TeamB (50pt margin)', recap.biggestBlowout.margin === 50 && recap.biggestBlowout.winner === 'TeamA');
-    allPassed &= check('matchupOfTheWeek correctly identifies the closest gap (TeamC vs TeamD, 1pt)', recap.matchupOfTheWeek.margin === 1 && recap.matchupOfTheWeek.winner === 'TeamC');
-    allPassed &= check('topScorer correctly finds Josh Allen at 60 points (highest single-slot score)', recap.topScorer.playerName === 'Josh Allen' && recap.topScorer.points === 60 && recap.topScorer.teamName === 'TeamA');
-    allPassed &= check('week 1 has no prior-week data, so biggestUpset is null (not a false positive)', recap.biggestUpset === null);
-    allPassed &= check('no prediction votes recorded, so leaguePredictions is null, not an empty/misleading object', recap.leaguePredictions === null);
-    allPassed &= check('standingsTop3 has all teams ranked (only 4 exist, so top 3 of 4)', recap.standingsTop3.length === 3 && recap.standingsTop3[0].teamName === 'TeamA');
+    allPassed &= check('recap has all three award sections', !!recap.main && !!recap.nextup && !!recap.boom);
+    allPassed &= check('main.matchups array has both matchups', recap.main.matchups.length === 2);
+    allPassed &= check('main.biggestBlowout correctly identifies TeamA vs TeamB (50pt margin)', recap.main.biggestBlowout.margin === 50 && recap.main.biggestBlowout.winner === 'TeamA');
+    allPassed &= check('main.matchupOfTheWeek correctly identifies the closest gap (TeamC vs TeamD, 1pt)', recap.main.matchupOfTheWeek.margin === 1 && recap.main.matchupOfTheWeek.winner === 'TeamC');
+    allPassed &= check('main.topScorer correctly finds Josh Allen at 60 points (highest single-slot score)', recap.main.topScorer.playerName === 'Josh Allen' && recap.main.topScorer.points === 60 && recap.main.topScorer.teamName === 'TeamA');
+    allPassed &= check('week 1 has no prior-week data, so main.biggestUpset is null (not a false positive)', recap.main.biggestUpset === null);
+    allPassed &= check('no prediction votes recorded, so main.leaguePredictions is null, not an empty/misleading object', recap.main.leaguePredictions === null);
+    allPassed &= check('main.standingsTop3 has all teams ranked (only 4 exist, so top 3 of 4)', recap.main.standingsTop3.length === 3 && recap.main.standingsTop3[0].teamName === 'TeamA');
+
+    allPassed &= check('nextup.topScorer correctly finds the Next Up top scorer (TeamB, 25 points)', recap.nextup.topScorer.playerName === 'Next Upstar' && recap.nextup.topScorer.points === 25 && recap.nextup.topScorer.teamName === 'TeamB');
+    allPassed &= check('nextup.standingsTop3 has no bonus mechanic - bonusTotal is always 0 and combined equals season total', recap.nextup.standingsTop3.every(row => row.bonusTotal === 0 && row.combined === row.seasonTotal));
+
+    allPassed &= check('boom.topScorer correctly finds the Season of Boom top scorer (TeamA, 18 points)', recap.boom.topScorer.playerName === 'Boom Player' && recap.boom.topScorer.points === 18 && recap.boom.topScorer.teamName === 'TeamA');
+    allPassed &= check('boom.standingsTop3 has no bonus mechanic either', recap.boom.standingsTop3.every(row => row.bonusTotal === 0 && row.combined === row.seasonTotal));
 
     // Now test league prediction accuracy with actual votes recorded.
     // 3 votes for TeamA, 1 vote for TeamB in the TeamA/TeamB matchup -
@@ -83,10 +120,10 @@ async function run() {
     ];
 
     const recapWithVotes = await automator.buildWeeklyRecap(1, brownBellMatchups, brownBellBonuses, allScores, allPlayerIds);
-    allPassed &= check('league prediction record is 1 correct, 1 wrong', recapWithVotes.leaguePredictions.record.correct === 1 && recapWithVotes.leaguePredictions.record.wrong === 1);
-    const abMatchup = recapWithVotes.leaguePredictions.matchups.find(m => m.teamA === 'TeamA');
+    allPassed &= check('league prediction record is 1 correct, 1 wrong', recapWithVotes.main.leaguePredictions.record.correct === 1 && recapWithVotes.main.leaguePredictions.record.wrong === 1);
+    const abMatchup = recapWithVotes.main.leaguePredictions.matchups.find(m => m.teamA === 'TeamA');
     allPassed &= check('TeamA/TeamB matchup shows league correctly favored TeamA at 75%', Math.abs(abMatchup.percentA - 75) < 0.01 && abMatchup.leagueCorrect === true);
-    const cdMatchup = recapWithVotes.leaguePredictions.matchups.find(m => m.teamA === 'TeamC');
+    const cdMatchup = recapWithVotes.main.leaguePredictions.matchups.find(m => m.teamA === 'TeamC');
     allPassed &= check('TeamC/TeamD matchup shows league incorrectly favored TeamD, marked leagueCorrect: false', cdMatchup.leagueCorrect === false);
 
     // Generate-once behavior: saving twice should not overwrite.
@@ -117,8 +154,8 @@ async function run() {
     };
 
     const recapWeek2 = await automator.buildWeeklyRecap(2, brownBellMatchups, brownBellBonusesWeek2, allScoresWeek2, allPlayerIds);
-    allPassed &= check('week 2 upset is correctly detected (TeamB, the historically weaker team, is the winner)', recapWeek2.biggestUpset !== null && recapWeek2.biggestUpset.winner === 'TeamB');
-    allPassed &= check('the detected upset has a genuinely low win probability (consistently weaker team pulling the win)', recapWeek2.biggestUpset && recapWeek2.biggestUpset.winnerProbability < 0.5);
+    allPassed &= check('week 2 upset is correctly detected (TeamB, the historically weaker team, is the winner)', recapWeek2.main.biggestUpset !== null && recapWeek2.main.biggestUpset.winner === 'TeamB');
+    allPassed &= check('the detected upset has a genuinely low win probability (consistently weaker team pulling the win)', recapWeek2.main.biggestUpset && recapWeek2.main.biggestUpset.winnerProbability < 0.5);
 
     console.log(allPassed ? '\n✅ ALL CHECKS PASSED' : '\n❌ SOME CHECKS FAILED');
     process.exit(allPassed ? 0 : 1);

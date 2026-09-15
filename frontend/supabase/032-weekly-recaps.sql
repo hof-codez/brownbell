@@ -11,17 +11,26 @@
 -- deliberate, separate action, not a side effect of a routine run.
 --
 -- content shape (documented here since there's no separate column to
--- read it from):
+-- read it from). Main Award gets a full matchup-based recap (it's the
+-- only award with an opponent, tier, bonus, or prediction mechanic at
+-- all); Next Up and Season of Boom are each a standalone season-long
+-- point race per team, so their sections are deliberately smaller:
 -- {
 --   week: number,
---   matchupOfTheWeek: { teamA, teamB, scoreA, scoreB, winner } | null,
---   matchups: [{ teamA, teamB, scoreA, scoreB, winner, tier, bonus }, ...],
---   biggestBlowout: { teamA, teamB, scoreA, scoreB, margin } | null,
---   closestMatchup: { teamA, teamB, scoreA, scoreB, margin } | null,
---   topScorer: { teamName, playerName, playerPosition, points } | null,
---   biggestUpset: { winner, loser, winnerProbability, scoreWinner, scoreLoser } | null,
---   leaguePredictions: { record: { correct, wrong }, matchups: [{ teamA, teamB, percentA, percentB, winner, leagueCorrect }, ...] } | null,
---   standingsTop3: [{ rank, teamName, combined, seasonTotal, bonusTotal }, ...]
+--   main: {
+--     matchupOfTheWeek: { teamA, teamB, scoreA, scoreB, winner } | null,
+--     matchups: [{ teamA, teamB, scoreA, scoreB, winner, tier, bonus }, ...],
+--     biggestBlowout: { teamA, teamB, scoreA, scoreB, margin } | null,
+--     topScorer: { teamName, playerName, playerPosition, points } | null,
+--     biggestUpset: { winner, loser, winnerProbability, scoreWinner, scoreLoser } | null,
+--     leaguePredictions: { record: { correct, wrong }, matchups: [{ teamA, teamB, percentA, percentB, winner, leagueCorrect }, ...] } | null,
+--     standingsTop3: [{ rank, teamName, combined, seasonTotal, bonusTotal }, ...]
+--   },
+--   nextup: {
+--     topScorer: { teamName, playerName, playerPosition, points } | null,
+--     standingsTop3: [{ rank, teamName, combined, seasonTotal, bonusTotal }, ...]  -- bonusTotal always 0
+--   },
+--   boom: { same shape as nextup }
 -- }
 
 create table if not exists weekly_recaps (

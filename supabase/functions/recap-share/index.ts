@@ -79,11 +79,11 @@ Deno.serve(async (req: Request) => {
         }
 
         const content = recap.content as {
-            matchupOfTheWeek: { teamA: string; teamB: string; scoreA: number; scoreB: number; winner: string | null } | null;
+            main: { matchupOfTheWeek: { teamA: string; teamB: string; scoreA: number; scoreB: number; winner: string | null } | null };
         };
 
         if (wantsImage) {
-            return new Response(buildThumbnailSvg(week, content.matchupOfTheWeek), {
+            return new Response(buildThumbnailSvg(week, content.main.matchupOfTheWeek), {
                 headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=604800' }
             });
         }
@@ -101,8 +101,8 @@ Deno.serve(async (req: Request) => {
         // image URL below must be this same function's own image route,
         // not the SPA.
         const imageUrl = `${url.origin}${url.pathname.replace(/\/?$/, '')}/image.svg`;
-        const title = `Week ${week} Brown Bell Recap`;
-        const description = describeMatchupOfTheWeek(content.matchupOfTheWeek);
+        const title = `Week ${week} Recap - Brown Bell, Next Up & Season of Boom`;
+        const description = describeMatchupOfTheWeek(content.main.matchupOfTheWeek);
 
         const html = `<!DOCTYPE html>
 <html>

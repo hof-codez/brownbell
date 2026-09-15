@@ -1748,33 +1748,47 @@ class BrownBellAutomator {
             ? matchupSummaries.reduce((biggest, m) => (m.margin > biggest.margin ? m : biggest))
             : null;
 
-        const topScorer = this.findTopScorerForWeek(week, allScores, allPlayerIds);
-        const biggestUpset = await this.findBiggestUpsetForWeek(week, brownBellMatchups, matchupSummaries, allScores);
+        const mainTopScorer = this.findTopScorerForWeek(week, 'main', allScores, allPlayerIds);
+        const biggestUpset = await this.findBiggestUpsetForWeek(week, matchupSummaries, allScores);
         const leaguePredictions = await this.buildLeaguePredictionsForWeek(week, matchupSummaries);
-        const standingsTop3 = await this.buildStandingsTop3ThroughWeek(week, allScores);
+        const mainStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'main', allScores);
+
+        // Next Up and Season of Boom have no opponent, tier, bonus, or
+        // prediction mechanic at all - each is simply a standalone
+        // season-long point race per team, so their recap section is
+        // deliberately much smaller than Main Award's rather than forcing
+        // a uniform shape that doesn't fit what these awards actually are.
+        const nextupTopScorer = this.findTopScorerForWeek(week, 'nextup', allScores, allPlayerIds);
+        const nextupStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'nextup', allScores);
+        const boomTopScorer = this.findTopScorerForWeek(week, 'boom', allScores, allPlayerIds);
+        const boomStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'boom', allScores);
 
         return {
             week,
-            matchupOfTheWeek,
-            matchups: matchupSummaries,
-            biggestBlowout,
-            topScorer,
-            biggestUpset,
-            leaguePredictions,
-            standingsTop3
+            main: {
+                matchupOfTheWeek,
+                matchups: matchupSummaries,
+                biggestBlowout,
+                topScorer: mainTopScorer,
+                biggestUpset,
+                leaguePredictions,
+                standingsTop3: mainStandingsTop3
+            },
+            nextup: { topScorer: nextupTopScorer, standingsTop3: nextupStandingsTop3 },
+            boom: { topScorer: boomTopScorer, standingsTop3: boomStandingsTop3 }
         };
     }
 
-    // Best individual performance among every current Main Award duo
-    // player this week - not a league-wide "best of any rostered player"
-    // stat like Sleeper's own report, since Brown Bell specifically only
-    // ever tracks these 24 players (12 teams x 2) to begin with.
-    findTopScorerForWeek(week, allScores, allPlayerIds) {
+    // Best individual performance among a given award's current duo
+    // players this week - not a league-wide "best of any rostered player"
+    // stat like Sleeper's own report, since each award here specifically
+    // only ever tracks its own 24 players (12 teams x 2) to begin with.
+    findTopScorerForWeek(week, awardType, allScores, allPlayerIds) {
         let topScorer = null;
-        for (const teamName of Object.keys(this.knownDuos.main || {})) {
+        for (const teamName of Object.keys(this.knownDuos[awardType] || {})) {
             for (let index = 0; index < 2; index++) {
-                const points = allScores.main[teamName]?.[week]?.[index];
-                const sleeperId = allPlayerIds.main[teamName]?.[week]?.[index];
+                const points = allScores[awardType]?.[teamName]?.[week]?.[index];
+                const sleeperId = allPlayerIds[awardType]?.[teamName]?.[week]?.[index];
                 if (points === undefined || points === null || !sleeperId) continue;
                 if (!topScorer || points > topScorer.points) {
                     const playerInfo = this.playersData[sleeperId];
@@ -1797,7 +1811,10 @@ class BrownBellAutomator {
     // matchup has a computable probability at all (most notably week 1,
     // where nothing but a league-wide fallback exists yet, and that
     // fallback alone can't distinguish any team from another).
-    async findBiggestUpsetForWeek(week, brownBellMatchups, matchupSummaries, allScores) {
+    //
+    // Main Award only - Next Up and Season of Boom have no matchup or
+    // winner concept to evaluate an "upset" against at all.
+    async findBiggestUpsetForWeek(week, matchupSummaries, allScores) {
         const getWeeklyTotalsBeforeWeek = (teamName) => {
             const totals = [];
             for (let w = 1; w < week; w++) {
@@ -1849,6 +1866,9 @@ class BrownBellAutomator {
     // actually won, wrong otherwise. Distinct from (and unrelated to) any
     // individual owner's own prediction bonus - this is purely about
     // whether the room as a whole called it right.
+    //
+    // Main Award only - the prediction poll only ever exists for Main
+    // Award matchups to begin with.
     async buildLeaguePredictionsForWeek(week, matchupSummaries) {
         const votes = await this.dataLayer.getMatchupPredictionsForWeek(week);
         if (votes.length === 0) return null;
@@ -1881,23 +1901,26 @@ class BrownBellAutomator {
         return { record: { correct, wrong }, matchups };
     }
 
-    // Top 3 teams by season points + accumulated Main Award bonus through
-    // this week - deliberately NOT including prediction-poll bonus points
-    // (see the comment on dataLayer.getBonusTotalsThroughWeek for why, and
-    // when that could start to matter).
-    async buildStandingsTop3ThroughWeek(week, allScores) {
+    // Top 3 teams for a given award, by season points through this week -
+    // Main Award additionally adds its accumulated bonus points on top
+    // (deliberately NOT including prediction-poll bonus points; see the
+    // comment on dataLayer.getBonusTotalsThroughWeek for why, and when
+    // that could start to matter). Next Up and Season of Boom have no
+    // bonus mechanic at all, so bonusTotal is always 0 for those and
+    // "combined" is just the season total.
+    async buildStandingsTop3ThroughWeek(week, awardType, allScores) {
         const seasonTotals = {};
-        for (const teamName of Object.keys(this.knownDuos.main || {})) {
+        for (const teamName of Object.keys(this.knownDuos[awardType] || {})) {
             let total = 0;
             for (let w = 1; w <= week; w++) {
-                const byIndex = allScores.main[teamName]?.[w];
+                const byIndex = allScores[awardType]?.[teamName]?.[w];
                 if (!byIndex) continue;
                 total += Object.values(byIndex).reduce((sum, p) => sum + (p || 0), 0);
             }
             seasonTotals[teamName] = total;
         }
 
-        const bonusTotals = await this.dataLayer.getBonusTotalsThroughWeek(week);
+        const bonusTotals = awardType === 'main' ? await this.dataLayer.getBonusTotalsThroughWeek(week) : {};
 
         const ranked = Object.keys(seasonTotals)
             .map(teamName => {
