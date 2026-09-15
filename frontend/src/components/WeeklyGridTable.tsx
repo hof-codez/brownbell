@@ -41,6 +41,30 @@ export function WeeklyGridTable({ scores, myTeamId, awardType, duoNames }: Weekl
     const targetWeekRef = useRef<HTMLTableCellElement | null>(null);
     const targetWeek = pickDefaultWeek(scores.weeksAvailable);
     const [expandedTeamIds, setExpandedTeamIds] = useState<Set<string>>(new Set());
+    // Tracks which award the top-3-plus-your-team default was last applied
+    // for, so switching TO an award applies a fresh default once (using
+    // whatever rankings/team are correct for THAT award), without
+    // re-triggering on every subsequent re-render or data refresh and
+    // silently overwriting whatever the owner has since expanded or
+    // collapsed by hand within that same award.
+    const defaultsAppliedForAward = useRef<AwardType | null>(null);
+
+    useEffect(() => {
+        if (scores.seasonRankings.length === 0) return; // wait for real ranking data to actually arrive
+        if (defaultsAppliedForAward.current === awardType) return;
+        defaultsAppliedForAward.current = awardType;
+
+        // Top 3 teams start expanded - partly to surface the current
+        // season leaders' detail by default, and partly as a discovery
+        // hint that rows can be expanded at all, per a real request.
+        // The current viewing owner's own team is also expanded
+        // regardless of their rank, since they're the one person most
+        // likely to want their own detail visible right away.
+        const defaults = new Set<string>();
+        for (const row of scores.seasonRankings.slice(0, 3)) defaults.add(row.teamId);
+        if (myTeamId) defaults.add(myTeamId);
+        setExpandedTeamIds(defaults);
+    }, [awardType, scores.seasonRankings.length, myTeamId]);
 
     useEffect(() => {
         targetWeekRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' });
