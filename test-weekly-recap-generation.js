@@ -116,6 +116,19 @@ async function run() {
     const recapWithSub = await automator.buildWeeklyRecap(1, brownBellMatchups, brownBellBonuses, allScores, allPlayerIds);
     allPassed &= check('criticalSub correctly identifies the substitute player and their actual points that week', recapWithSub.nextup.criticalSub && recapWithSub.nextup.criticalSub.playerName === 'Next Upstar' && recapWithSub.nextup.criticalSub.points === 25 && recapWithSub.nextup.criticalSub.originalName === 'Injured Guy');
 
+    // Sub badges in the recap itself: mock an ACTIVE substitution (started
+    // this week, still ongoing) and confirm the matchup's player line
+    // correctly flags it, distinct from a non-substituted teammate.
+    supabase._store.substitutions = [
+        { team_id: 't-a', award_type: 'main', player_index: 1, start_week: 1, end_week: null, original_name: 'Old Guy', substitute_name: 'Nobody Special', source: 'auto' }
+    ];
+    const recapWithMainSub = await automator.buildWeeklyRecap(1, brownBellMatchups, brownBellBonuses, allScores, allPlayerIds);
+    const abMatchupWithSub = recapWithMainSub.main.matchups.find(m => m.teamA === 'TeamA');
+    const subbedPlayer = abMatchupWithSub.playersA.find(p => p.playerName === 'Nobody Special');
+    const nonSubbedPlayer = abMatchupWithSub.playersA.find(p => p.playerName === 'Josh Allen');
+    allPassed &= check('the actively-subbed player is correctly flagged isSub with who they replaced', subbedPlayer && subbedPlayer.isSub === true && subbedPlayer.originalPlayerName === 'Old Guy' && subbedPlayer.subSource === 'auto');
+    allPassed &= check('the non-subbed teammate on the same matchup is correctly NOT flagged as a sub', nonSubbedPlayer && nonSubbedPlayer.isSub === false);
+
     // Player-level enrichment: a real reported gap where the recap showed
     // only owner names, none of the actual duo players involved.
     const mainMatchupAB = recap.main.matchups.find(m => m.teamA === 'TeamA');

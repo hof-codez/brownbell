@@ -840,6 +840,38 @@ class SupabaseDataLayer {
             .filter(row => row.teamName && row.substitute_player_id);
     }
 
+    // Every substitution that was ACTIVE during a specific week - not just
+    // ones that started that week (see getSubstitutionsStartingWeek above,
+    // used only for Critical Sub of the Week). This is broader: a sub that
+    // started week 1 and is still in place during week 3 should still
+    // label that player as a sub in week 3's recap, not just week 1's.
+    // Used so every player shown anywhere in the recap (matchups,
+    // standings) can be correctly labeled, matching a real owner request
+    // to see who subbed in and for whom directly in the recap, not just
+    // via the single best-performing sub that Critical Sub already shows.
+    async getActiveSubstitutionsForWeek(week, awardType) {
+        const teamNameById = Object.fromEntries(Object.entries(this.teamIdByName).map(([name, id]) => [id, name]));
+
+        const { data, error } = await this.supabase
+            .from('substitutions')
+            .select('team_id, player_index, original_name, substitute_name, source, end_week')
+            .eq('award_type', awardType)
+            .lte('start_week', week);
+
+        if (error) {
+            console.error(`Failed to fetch active substitutions for week ${week} (non-fatal, recap will omit sub labels): ${error.message}`);
+            return [];
+        }
+
+        // end_week null means still active/ongoing - filtered client-side
+        // rather than in the query, since "null OR >= week" isn't a single
+        // clean .lte()/.gte() chain against a nullable column.
+        return (data || [])
+            .filter(row => row.end_week === null || row.end_week === undefined || row.end_week >= week)
+            .map(row => ({ ...row, teamName: teamNameById[row.team_id] }))
+            .filter(row => row.teamName);
+    }
+
     async loadRosterChanges() {
         const { data, error } = await this.supabase
             .from('roster_changes')

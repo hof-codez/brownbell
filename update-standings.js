@@ -1730,6 +1730,8 @@ class BrownBellAutomator {
     // narrative substitute for a one-off recap and avoids needing to port
     // the frontend's whole cumulative-ranking machinery just for this.
     async buildWeeklyRecap(week, brownBellMatchups, brownBellBonuses, allScores, allPlayerIds) {
+        const mainSubInfo = await this.buildSubInfoMapForWeek(week, 'main');
+
         const matchupSummaries = brownBellMatchups.map(([teamA, teamB]) => {
             const resultA = brownBellBonuses[teamA] || {};
             const resultB = brownBellBonuses[teamB] || {};
@@ -1744,8 +1746,12 @@ class BrownBellAutomator {
                 // added after a real reported case where the recap showed
                 // nothing but owner names, with none of the actual duo
                 // players that made the week interesting in the first place.
-                playersA: this.getTeamPlayersForWeek(teamA, 'main', week, allScores, allPlayerIds),
-                playersB: this.getTeamPlayersForWeek(teamB, 'main', week, allScores, allPlayerIds)
+                // Each player line also carries isSub/subSource/
+                // originalPlayerName (via mainSubInfo) - a separate real
+                // request to see who subbed in and for whom directly in
+                // the recap.
+                playersA: this.getTeamPlayersForWeek(teamA, 'main', week, allScores, allPlayerIds, mainSubInfo),
+                playersB: this.getTeamPlayersForWeek(teamB, 'main', week, allScores, allPlayerIds, mainSubInfo)
             };
         });
 
@@ -1759,11 +1765,11 @@ class BrownBellAutomator {
         const mainTopScorer = this.findTopScorerForWeek(week, 'main', allScores, allPlayerIds);
         const biggestUpset = await this.findBiggestUpsetForWeek(week, matchupSummaries, allScores);
         if (biggestUpset) {
-            biggestUpset.winnerPlayers = this.getTeamPlayersForWeek(biggestUpset.winner, 'main', week, allScores, allPlayerIds);
-            biggestUpset.loserPlayers = this.getTeamPlayersForWeek(biggestUpset.loser, 'main', week, allScores, allPlayerIds);
+            biggestUpset.winnerPlayers = this.getTeamPlayersForWeek(biggestUpset.winner, 'main', week, allScores, allPlayerIds, mainSubInfo);
+            biggestUpset.loserPlayers = this.getTeamPlayersForWeek(biggestUpset.loser, 'main', week, allScores, allPlayerIds, mainSubInfo);
         }
         const leaguePredictions = await this.buildLeaguePredictionsForWeek(week, matchupSummaries);
-        const mainStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'main', allScores, allPlayerIds);
+        const mainStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'main', allScores, allPlayerIds, mainSubInfo);
 
         // Next Up and Season of Boom have no opponent, tier, bonus, or
         // prediction mechanic at all - each is simply a standalone
@@ -1798,11 +1804,12 @@ class BrownBellAutomator {
     // at the buildWeeklyRecap call site) since Next Up and Boom are
     // computed identically, just with a different awardType.
     async buildSimpleAwardRecap(week, awardType, allScores, allPlayerIds) {
+        const subInfo = await this.buildSubInfoMapForWeek(week, awardType);
         const topScorer = this.findTopScorerForWeek(week, awardType, allScores, allPlayerIds);
         const criticalSub = await this.findCriticalSubForWeek(week, awardType, allScores);
         const { bounceBack, coldStreak } = this.findBounceBackAndColdStreak(week, awardType, allScores, allPlayerIds);
         const positionalPowerhouse = this.findPositionalPowerhouseForWeek(week, awardType, allScores, allPlayerIds);
-        const standingsTop3 = await this.buildStandingsTop3ThroughWeek(week, awardType, allScores, allPlayerIds);
+        const standingsTop3 = await this.buildStandingsTop3ThroughWeek(week, awardType, allScores, allPlayerIds, subInfo);
 
         return { topScorer, criticalSub, bounceBack, coldStreak, positionalPowerhouse, standingsTop3 };
     }
@@ -1926,20 +1933,45 @@ class BrownBellAutomator {
     // and every award's standings snapshot), so all of them stay
     // consistent with each other rather than each formatting players
     // slightly differently.
-    getTeamPlayersForWeek(teamName, awardType, week, allScores, allPlayerIds) {
+    //
+    // subInfoByTeamSlot (optional) marks a player line as a sub - keyed by
+    // `${teamName}|${playerIndex}`, from getActiveSubstitutionsForWeek -
+    // a real requested feature: owners wanted to see who subbed in and
+    // for whom directly in the recap, not just via Critical Sub's single
+    // best-performing sub.
+    getTeamPlayersForWeek(teamName, awardType, week, allScores, allPlayerIds, subInfoByTeamSlot = null) {
         const players = [];
         for (let index = 0; index < 2; index++) {
             const points = allScores[awardType]?.[teamName]?.[week]?.[index];
             const sleeperId = allPlayerIds[awardType]?.[teamName]?.[week]?.[index];
             if (!sleeperId) continue;
             const playerInfo = this.playersData[sleeperId];
+            const subInfo = subInfoByTeamSlot?.get(`${teamName}|${index}`);
             players.push({
                 playerName: playerInfo ? `${playerInfo.first_name || ''} ${playerInfo.last_name || ''}`.trim() : 'Unknown',
                 playerPosition: playerInfo?.position || '',
-                points: points ?? 0
+                points: points ?? 0,
+                isSub: !!subInfo,
+                subSource: subInfo?.source ?? null,
+                originalPlayerName: subInfo?.original_name ?? null
             });
         }
         return players;
+    }
+
+    // Builds the `${teamName}|${playerIndex}` -> sub info lookup map that
+    // getTeamPlayersForWeek's subInfoByTeamSlot expects, from a single
+    // getActiveSubstitutionsForWeek query - fetched once per (week,
+    // awardType) rather than re-querying on every getTeamPlayersForWeek
+    // call, since a single recap calls that many times across matchups,
+    // the upset, and every standings row.
+    async buildSubInfoMapForWeek(week, awardType) {
+        const subs = await this.dataLayer.getActiveSubstitutionsForWeek(week, awardType);
+        const map = new Map();
+        for (const sub of subs) {
+            map.set(`${sub.teamName}|${sub.player_index}`, { source: sub.source, original_name: sub.original_name });
+        }
+        return map;
     }
 
     // Best individual performance among a given award's current duo
@@ -2071,7 +2103,7 @@ class BrownBellAutomator {
     // that could start to matter). Next Up and Season of Boom have no
     // bonus mechanic at all, so bonusTotal is always 0 for those and
     // "combined" is just the season total.
-    async buildStandingsTop3ThroughWeek(week, awardType, allScores, allPlayerIds) {
+    async buildStandingsTop3ThroughWeek(week, awardType, allScores, allPlayerIds, subInfoByTeamSlot = null) {
         const seasonTotals = {};
         for (const teamName of Object.keys(this.knownDuos[awardType] || {})) {
             let total = 0;
@@ -2100,7 +2132,7 @@ class BrownBellAutomator {
                 // player who contributed to the season total - duos can
                 // change over a season, so the current pairing is what's
                 // actually meaningful to show alongside a live standing.
-                players: this.getTeamPlayersForWeek(row.teamName, awardType, week, allScores, allPlayerIds)
+                players: this.getTeamPlayersForWeek(row.teamName, awardType, week, allScores, allPlayerIds, subInfoByTeamSlot)
             }));
 
         return ranked;

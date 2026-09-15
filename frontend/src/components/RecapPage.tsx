@@ -6,6 +6,9 @@ interface PlayerLine {
     playerName: string;
     playerPosition: string;
     points: number;
+    isSub?: boolean;
+    subSource?: 'owner' | 'auto' | 'admin' | null;
+    originalPlayerName?: string | null;
 }
 
 interface MatchupSummary {
@@ -369,9 +372,19 @@ function PlayerLines({ players, dim }: { players: PlayerLine[] | undefined; dim?
     return (
         <div className="mt-0.5 flex flex-col gap-0.5">
             {players.map((p, i) => (
-                <p key={i} className={`font-mono text-xs ${dim ? 'text-chalk-dim' : 'text-chalk'}`}>
-                    {p.playerName} <span className="text-chalk-dim">({p.playerPosition})</span> {p.points.toFixed(1)}
-                </p>
+                <div key={i} className={`font-mono text-xs ${dim ? 'text-chalk-dim' : 'text-chalk'}`}>
+                    <p>
+                        {p.playerName} <span className="text-chalk-dim">({p.playerPosition})</span> {p.points.toFixed(1)}
+                        {p.isSub && (
+                            <span className="ml-1.5 rounded bg-panel-line px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-chalk-dim">
+                                {p.subSource === 'auto' ? 'Auto-sub' : 'Sub'}
+                            </span>
+                        )}
+                    </p>
+                    {p.isSub && p.originalPlayerName && (
+                        <p className="text-[10px] text-chalk-dim">for {p.originalPlayerName}</p>
+                    )}
+                </div>
             ))}
         </div>
     );

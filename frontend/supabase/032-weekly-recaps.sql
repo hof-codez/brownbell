@@ -15,8 +15,11 @@
 -- only award with an opponent, tier, bonus, or prediction mechanic at
 -- all); Next Up and Season of Boom are each a standalone season-long
 -- point race per team, so their sections are deliberately smaller.
--- A "players" array is { playerName, playerPosition, points }[] - that
--- team's current duo for the award in question, for that specific week:
+-- A "players" array is { playerName, playerPosition, points, isSub,
+-- subSource, originalPlayerName }[] - that team's current duo for the
+-- award in question, for that specific week. isSub/subSource/
+-- originalPlayerName are only meaningful when isSub is true (subSource
+-- is 'owner'|'auto'|'admin', originalPlayerName is who they replaced):
 -- {
 --   week: number,
 --   main: {
