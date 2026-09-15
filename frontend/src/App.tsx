@@ -80,8 +80,22 @@ export default function App() {
   // regardless of what the link promised.
   const predictionsHashMatch = window.location.hash.match(/^#\/predictions\/(\d+)$/);
   const [activeTab, setActiveTab] = useState(() => (leagueHashMatch ? 'league' : (predictionsHashMatch ? 'bonus' : 'teams')));
-  const [initialLeagueAward] = useState(() => (leagueHashMatch?.[1] as 'main' | 'nextup' | 'boom' | undefined));
-  const [initialPredictionsWeek] = useState(() => (predictionsHashMatch ? Number(predictionsHashMatch[1]) : undefined));
+  const [initialLeagueAward, setInitialLeagueAward] = useState(() => (leagueHashMatch?.[1] as 'main' | 'nextup' | 'boom' | undefined));
+  const [initialPredictionsWeek, setInitialPredictionsWeek] = useState(() => (predictionsHashMatch ? Number(predictionsHashMatch[1]) : undefined));
+
+  // Consumed once, by whichever of LeagueTab/ShowdownTab mounts first with
+  // it seeded via its own lazy useState initializer - cleared right after
+  // so a LATER remount (navigating away from that tab and back) doesn't
+  // keep replaying a page-load-time deep link forever. A real reported
+  // bug: after following the recap's "Vote for next week" link once,
+  // Showdown kept reopening on Predictions on every subsequent visit
+  // instead of defaulting back to Matchups, since ShowdownTab fully
+  // unmounts/remounts each time activeTab leaves and returns to 'bonus',
+  // and this initial value was never being reset in between.
+  useEffect(() => {
+    setInitialLeagueAward(undefined);
+    setInitialPredictionsWeek(undefined);
+  }, []);
   // Set alongside switching to the Misc tab so MiscTab knows to force the
   // Bonus sub-tab open (currently the only deep-linked section) and which
   // element to scroll to - cleared once the target component has consumed
