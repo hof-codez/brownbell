@@ -10,6 +10,17 @@ on:
     # --- Standalone checkpoints (outside any game-day window) ---
     # Tuesday at 10 AM ET (7 AM AZ) - 2 PM UTC - weekly cleanup
     - cron: '0 14 * * 2'
+    # Tuesday at 12 PM AZ (7 PM UTC) - guaranteed weekly recap checkpoint.
+    # By this point the week is always long since finalized (the Monday
+    # night watchdog above should already have generated it hours
+    # earlier), so this exists purely as a backstop - if that watchdog
+    # window somehow missed catching the week's finalization (a delayed
+    # Monday night game, an unusual schedule that week, etc.), this
+    # guarantees the recap exists by a fixed, predictable time every
+    # week regardless, matching Sleeper's own weekly report cadence
+    # (Sleeper sends theirs at 12 PM ET Tuesdays) so there's always
+    # something ready to share on the same reliable schedule.
+    - cron: '0 19 * * 2'
     # Thursday at 2:30 PM AZ (9:30 PM UTC) - pre-TNF injury checkpoint
     - cron: '30 14 * * 4'
     # Saturday at 4 AM AZ (11 AM UTC) - international game prep
