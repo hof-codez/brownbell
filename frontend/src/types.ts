@@ -58,6 +58,13 @@ export interface DuoRow {
    * this," as opposed to 'auto') - the full distinction is still visible
    * in the History tab. */
   current_sub_source: 'owner' | 'auto' | 'admin' | null;
+  /** The original player's name, from the same active substitutions row
+   * current_sub_source comes from - lets a caller show "for [name]"
+   * alongside the Sub/Auto-sub badge (Showdown's matchup cards do this,
+   * so an owner voting on predictions can see who was actually replaced,
+   * not just that a sub happened at all). Null under the same conditions
+   * as current_sub_source. */
+  current_sub_original_name: string | null;
 }
 
 /** A team's two duo slots for one award. A slot is null if it hasn't been set yet. */

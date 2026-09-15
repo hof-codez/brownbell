@@ -15,6 +15,14 @@ export interface MatchupPlayer {
      * below); null for past weeks' weekly_scores rows, since a "next game"
      * for an already-played week doesn't mean anything. */
     team: string | null;
+    /** Only ever populated for the current/upcoming week's live duo picks
+     * (same reasoning as team above) - a real requested feature: owners
+     * voting on predictions for an upcoming matchup couldn't tell a
+     * just-subbed-in player apart from a team's normal, expected pick,
+     * which matters for accurately calling who's actually favored. */
+    isSub?: boolean;
+    subSource?: 'owner' | 'auto' | 'admin' | null;
+    originalPlayerName?: string | null;
 }
 
 export interface Matchup {
@@ -130,13 +138,23 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                 teamNameById[t.team.id] = t.team.display_name;
                 currentMainDuoByTeamId[t.team.id] = t.main
                     .filter((s): s is NonNullable<typeof s> => s !== null && !!s.sleeper_player_id)
-                    .map(s => ({
-                        sleeperPlayerId: s.sleeper_player_id!,
-                        playerName: s.player_name,
-                        playerPosition: s.player_position,
-                        points: 0,
-                        team: s.player_team
-                    }));
+                    .map(s => {
+                        // Same isSubstituted logic DuoSlotDisplay already
+                        // uses on the Teams tab - kept consistent so this
+                        // badge and that one never disagree about whether
+                        // a given slot is currently substituted.
+                        const isSub = !s.player_departed && !!s.original_sleeper_player_id && s.original_sleeper_player_id !== s.sleeper_player_id;
+                        return {
+                            sleeperPlayerId: s.sleeper_player_id!,
+                            playerName: s.player_name,
+                            playerPosition: s.player_position,
+                            points: 0,
+                            team: s.player_team,
+                            isSub,
+                            subSource: isSub ? s.current_sub_source : null,
+                            originalPlayerName: isSub ? s.current_sub_original_name : null
+                        };
+                    });
             });
 
             const rows = bonusResultsRes.data ?? [];

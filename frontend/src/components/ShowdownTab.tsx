@@ -51,7 +51,7 @@ function PillToggle<T extends string>({ options, value, onChange }: { options: {
 }
 
 interface MatchupSideProps {
-    team: { teamId: string; teamName: string; score: number; players: { sleeperPlayerId: string; playerName: string; playerPosition: string; points: number; team: string | null }[] };
+    team: { teamId: string; teamName: string; score: number; players: { sleeperPlayerId: string; playerName: string; playerPosition: string; points: number; team: string | null; isSub?: boolean; subSource?: 'owner' | 'auto' | 'admin' | null; originalPlayerName?: string | null }[] };
     isMe: boolean;
     isWinner: boolean;
     align: 'left' | 'right';
@@ -96,7 +96,15 @@ function MatchupSide({ team, isMe, isWinner, align, name, outcome, getGameInfo }
                     <div key={p.sleeperPlayerId} className="font-mono text-[11px] text-chalk-dim">
                         <p>
                             {p.playerName} ({p.playerPosition}) <span className="text-chalk">{p.points.toFixed(1)}</span>
+                            {p.isSub && (
+                                <span className="ml-1 rounded bg-panel-line px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-chalk-dim">
+                                    {p.subSource === 'auto' ? 'Auto-sub' : 'Sub'}
+                                </span>
+                            )}
                         </p>
+                        {p.isSub && p.originalPlayerName && (
+                            <p className="text-[9px] text-chalk-dim">for {p.originalPlayerName}</p>
+                        )}
                         <PlayerGameInfo gameInfo={getGameInfo?.(p.team)} />
                     </div>
                 ))}
