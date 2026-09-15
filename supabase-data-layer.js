@@ -723,6 +723,99 @@ class SupabaseDataLayer {
         if (error) console.error(`Failed to clear stale bonus results for week ${week} (non-fatal): ${error.message}`);
     }
 
+    // Every prediction vote cast for a given week, keyed by team NAME (not
+    // team_id) via the reverse of this.teamIdByName - the recap's whole
+    // content blob is built and stored in terms of team names throughout,
+    // since it's a static, read-only snapshot with no need to reference
+    // live team rows at all once written.
+    async getMatchupPredictionsForWeek(week) {
+        const teamNameById = Object.fromEntries(Object.entries(this.teamIdByName).map(([name, id]) => [id, name]));
+
+        const { data, error } = await this.supabase
+            .from('matchup_predictions')
+            .select('team_a_id, team_b_id, predicted_winner_team_id')
+            .eq('week', week);
+
+        if (error) {
+            console.error(`Failed to fetch predictions for week ${week} (non-fatal, recap will omit this section): ${error.message}`);
+            return [];
+        }
+
+        return (data || [])
+            .map(row => ({
+                teamAName: teamNameById[row.team_a_id],
+                teamBName: teamNameById[row.team_b_id],
+                predictedWinnerName: teamNameById[row.predicted_winner_team_id]
+            }))
+            .filter(row => row.teamAName && row.teamBName && row.predictedWinnerName);
+    }
+
+    // Every team's accumulated Main Award bonus points through (and
+    // including) a given week, counting only rows that were already
+    // marked is_final - matches the same rule the frontend's season
+    // standings use (a team's tier/bonus amount isn't genuinely stable
+    // until its whole week is done), so the recap's standings snapshot
+    // can't disagree with what the League tab itself shows for the same
+    // week. Keyed by team NAME, same reasoning as getMatchupPredictionsForWeek.
+    //
+    // Deliberately does NOT include prediction-poll bonus points, unlike
+    // the frontend's "combined" ranking - porting the 4-week block
+    // logic here was judged out of scope for now. This can only actually
+    // diverge from the frontend starting the week a block first
+    // completes (every 4th week) - revisit before then if this recap
+    // feature is still in use at that point.
+    async getBonusTotalsThroughWeek(week) {
+        const teamNameById = Object.fromEntries(Object.entries(this.teamIdByName).map(([name, id]) => [id, name]));
+
+        const { data, error } = await this.supabase
+            .from('bonus_results')
+            .select('team_id, bonus_points')
+            .eq('is_final', true)
+            .lte('week', week);
+
+        if (error) {
+            console.error(`Failed to fetch bonus totals through week ${week} (non-fatal, recap standings will show season points only): ${error.message}`);
+            return {};
+        }
+
+        const totals = {};
+        for (const row of data || []) {
+            const teamName = teamNameById[row.team_id];
+            if (!teamName) continue;
+            totals[teamName] = (totals[teamName] || 0) + Number(row.bonus_points);
+        }
+        return totals;
+    }
+
+    // Inserts a week's recap content ONLY if one doesn't already exist -
+    // deliberately not an upsert. A link someone has already been given
+    // shouldn't change under them later if, say, a stat correction comes
+    // in after the fact; a genuine need to regenerate one is a separate,
+    // manual action, not a side effect of a routine automation run.
+    async saveWeeklyRecapIfNotExists(week, content) {
+        const { data: existing, error: checkError } = await this.supabase
+            .from('weekly_recaps')
+            .select('week')
+            .eq('week', week)
+            .maybeSingle();
+
+        if (checkError) {
+            console.error(`Failed to check for existing recap for week ${week} (non-fatal, skipping recap generation this run): ${checkError.message}`);
+            return;
+        }
+        if (existing) return; // already generated - never silently overwrite
+
+        const { error: insertError } = await this.supabase
+            .from('weekly_recaps')
+            .insert({ week, content });
+
+        if (insertError) {
+            console.error(`Failed to save weekly recap for week ${week} (non-fatal): ${insertError.message}`);
+        } else {
+            console.log(`📰 Generated weekly recap for week ${week}`);
+        }
+    }
+
     async loadRosterChanges() {
         const { data, error } = await this.supabase
             .from('roster_changes')

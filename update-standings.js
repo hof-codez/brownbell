@@ -1,6 +1,7 @@
 // update-standings.js - GitHub Actions automation script
 const https = require('https');
 const SupabaseDataLayer = require('./supabase-data-layer');
+const { computeTeamStats, computeWinProbability } = require('./win-probability');
 
 class BrownBellAutomator {
     constructor(leagueId) {
@@ -1720,6 +1721,197 @@ class BrownBellAutomator {
         return resultsByTeam;
     }
 
+    // Builds the full content payload for a week's shareable recap, once
+    // that week's matchups have all gone final. A deliberate simplification
+    // from the frontend's own "Matchup of the Week" logic (which restricts
+    // candidates to the top half of teams by cumulative score before
+    // picking the closest gap among them) - here it's simply the closest
+    // score gap among all 6 matchups, full stop. That's a reasonable
+    // narrative substitute for a one-off recap and avoids needing to port
+    // the frontend's whole cumulative-ranking machinery just for this.
+    async buildWeeklyRecap(week, brownBellMatchups, brownBellBonuses, allScores, allPlayerIds) {
+        const matchupSummaries = brownBellMatchups.map(([teamA, teamB]) => {
+            const resultA = brownBellBonuses[teamA] || {};
+            const resultB = brownBellBonuses[teamB] || {};
+            const scoreA = resultA.teamScore ?? 0;
+            const scoreB = resultB.teamScore ?? 0;
+            const winner = resultA.outcome === 'win' ? teamA : (resultB.outcome === 'win' ? teamB : null); // null = tie
+            const tier = resultA.tier !== null && resultA.tier !== undefined ? resultA.tier : resultB.tier;
+            const bonus = resultA.tier !== null && resultA.tier !== undefined ? resultA.bonusPoints : resultB.bonusPoints;
+            return { teamA, teamB, scoreA, scoreB, winner, tier: tier ?? null, bonus: bonus ?? 0, margin: Math.abs(scoreA - scoreB) };
+        });
+
+        const matchupOfTheWeek = matchupSummaries.length > 0
+            ? matchupSummaries.reduce((closest, m) => (m.margin < closest.margin ? m : closest))
+            : null;
+        const biggestBlowout = matchupSummaries.length > 0
+            ? matchupSummaries.reduce((biggest, m) => (m.margin > biggest.margin ? m : biggest))
+            : null;
+
+        const topScorer = this.findTopScorerForWeek(week, allScores, allPlayerIds);
+        const biggestUpset = await this.findBiggestUpsetForWeek(week, brownBellMatchups, matchupSummaries, allScores);
+        const leaguePredictions = await this.buildLeaguePredictionsForWeek(week, matchupSummaries);
+        const standingsTop3 = await this.buildStandingsTop3ThroughWeek(week, allScores);
+
+        return {
+            week,
+            matchupOfTheWeek,
+            matchups: matchupSummaries,
+            biggestBlowout,
+            topScorer,
+            biggestUpset,
+            leaguePredictions,
+            standingsTop3
+        };
+    }
+
+    // Best individual performance among every current Main Award duo
+    // player this week - not a league-wide "best of any rostered player"
+    // stat like Sleeper's own report, since Brown Bell specifically only
+    // ever tracks these 24 players (12 teams x 2) to begin with.
+    findTopScorerForWeek(week, allScores, allPlayerIds) {
+        let topScorer = null;
+        for (const teamName of Object.keys(this.knownDuos.main || {})) {
+            for (let index = 0; index < 2; index++) {
+                const points = allScores.main[teamName]?.[week]?.[index];
+                const sleeperId = allPlayerIds.main[teamName]?.[week]?.[index];
+                if (points === undefined || points === null || !sleeperId) continue;
+                if (!topScorer || points > topScorer.points) {
+                    const playerInfo = this.playersData[sleeperId];
+                    topScorer = {
+                        teamName,
+                        playerName: playerInfo ? `${playerInfo.first_name || ''} ${playerInfo.last_name || ''}`.trim() : 'Unknown',
+                        playerPosition: playerInfo?.position || '',
+                        points
+                    };
+                }
+            }
+        }
+        return topScorer;
+    }
+
+    // The winning team with the lowest pre-week win probability, using the
+    // same statistical model as the frontend's own win probability display
+    // (see win-probability.js) - genuinely meaningful only once some prior
+    // weeks of scoring history exist, so returns null on a week where no
+    // matchup has a computable probability at all (most notably week 1,
+    // where nothing but a league-wide fallback exists yet, and that
+    // fallback alone can't distinguish any team from another).
+    async findBiggestUpsetForWeek(week, brownBellMatchups, matchupSummaries, allScores) {
+        const getWeeklyTotalsBeforeWeek = (teamName) => {
+            const totals = [];
+            for (let w = 1; w < week; w++) {
+                const byIndex = allScores.main[teamName]?.[w];
+                if (!byIndex) continue;
+                const weekTotal = Object.values(byIndex).reduce((sum, p) => sum + (p || 0), 0);
+                totals.push(weekTotal);
+            }
+            return totals;
+        };
+
+        const allPriorValues = [];
+        for (const teamName of Object.keys(this.knownDuos.main || {})) {
+            allPriorValues.push(...getWeeklyTotalsBeforeWeek(teamName));
+        }
+        let leagueMean = null, leagueStdev = null;
+        if (allPriorValues.length > 0) {
+            leagueMean = allPriorValues.reduce((a, b) => a + b, 0) / allPriorValues.length;
+            if (allPriorValues.length >= 2) {
+                const variance = allPriorValues.reduce((s, x) => s + (x - leagueMean) ** 2, 0) / (allPriorValues.length - 1);
+                leagueStdev = Math.sqrt(variance);
+            }
+        }
+
+        let biggestUpset = null;
+        for (const m of matchupSummaries) {
+            if (!m.winner || m.winner === undefined) continue; // skip ties - no single winner to evaluate
+            const loser = m.winner === m.teamA ? m.teamB : m.teamA;
+            const statsWinner = computeTeamStats(getWeeklyTotalsBeforeWeek(m.winner), leagueMean, leagueStdev);
+            const statsLoser = computeTeamStats(getWeeklyTotalsBeforeWeek(loser), leagueMean, leagueStdev);
+            const winnerProbability = computeWinProbability(statsWinner, statsLoser);
+            if (winnerProbability === null) continue;
+
+            if (!biggestUpset || winnerProbability < biggestUpset.winnerProbability) {
+                biggestUpset = {
+                    winner: m.winner,
+                    loser,
+                    winnerProbability,
+                    scoreWinner: m.winner === m.teamA ? m.scoreA : m.scoreB,
+                    scoreLoser: m.winner === m.teamA ? m.scoreB : m.scoreA
+                };
+            }
+        }
+        return biggestUpset;
+    }
+
+    // League-wide prediction accuracy: for each matchup, whichever side got
+    // the majority of votes is "the league's pick" - correct if that side
+    // actually won, wrong otherwise. Distinct from (and unrelated to) any
+    // individual owner's own prediction bonus - this is purely about
+    // whether the room as a whole called it right.
+    async buildLeaguePredictionsForWeek(week, matchupSummaries) {
+        const votes = await this.dataLayer.getMatchupPredictionsForWeek(week);
+        if (votes.length === 0) return null;
+
+        let correct = 0, wrong = 0;
+        const matchups = [];
+
+        for (const m of matchupSummaries) {
+            const matchingVotes = votes.filter(v =>
+                (v.teamAName === m.teamA && v.teamBName === m.teamB) ||
+                (v.teamAName === m.teamB && v.teamBName === m.teamA)
+            );
+            if (matchingVotes.length === 0) continue;
+
+            const votesForA = matchingVotes.filter(v => v.predictedWinnerName === m.teamA).length;
+            const votesForB = matchingVotes.length - votesForA;
+            const percentA = (votesForA / matchingVotes.length) * 100;
+            const percentB = (votesForB / matchingVotes.length) * 100;
+            // A dead-even split has no real "league pick" to grade.
+            const leaguePick = votesForA > votesForB ? m.teamA : (votesForB > votesForA ? m.teamB : null);
+            const leagueCorrect = leaguePick !== null && m.winner !== null ? leaguePick === m.winner : null;
+
+            if (leagueCorrect === true) correct++;
+            if (leagueCorrect === false) wrong++;
+
+            matchups.push({ teamA: m.teamA, teamB: m.teamB, percentA, percentB, winner: m.winner, leagueCorrect });
+        }
+
+        if (matchups.length === 0) return null;
+        return { record: { correct, wrong }, matchups };
+    }
+
+    // Top 3 teams by season points + accumulated Main Award bonus through
+    // this week - deliberately NOT including prediction-poll bonus points
+    // (see the comment on dataLayer.getBonusTotalsThroughWeek for why, and
+    // when that could start to matter).
+    async buildStandingsTop3ThroughWeek(week, allScores) {
+        const seasonTotals = {};
+        for (const teamName of Object.keys(this.knownDuos.main || {})) {
+            let total = 0;
+            for (let w = 1; w <= week; w++) {
+                const byIndex = allScores.main[teamName]?.[w];
+                if (!byIndex) continue;
+                total += Object.values(byIndex).reduce((sum, p) => sum + (p || 0), 0);
+            }
+            seasonTotals[teamName] = total;
+        }
+
+        const bonusTotals = await this.dataLayer.getBonusTotalsThroughWeek(week);
+
+        const ranked = Object.keys(seasonTotals)
+            .map(teamName => {
+                const seasonTotal = seasonTotals[teamName];
+                const bonusTotal = bonusTotals[teamName] || 0;
+                return { teamName, seasonTotal, bonusTotal, combined: seasonTotal + bonusTotal };
+            })
+            .sort((a, b) => b.combined - a.combined)
+            .slice(0, 3)
+            .map((row, i) => ({ rank: i + 1, ...row }));
+
+        return ranked;
+    }
+
     // The core decision engine for the duos-as-source-of-truth model. For every
     // duo slot: skip if not locked yet (pre-lock is fully owner-editable, the
     // automation stays out of it entirely). Once locked, freeze the original
@@ -2752,6 +2944,16 @@ class BrownBellAutomator {
             // use, forcing every matchup's record to wait on the week's
             // single slowest game.
             await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses, isFinalByTeamName, matchupIsFinal);
+
+            // Generate this week's shareable recap the moment the whole
+            // week is genuinely done (same condition that clears "(Not
+            // Final)" on the matchup cards) - saveWeeklyRecapIfNotExists
+            // is itself a no-op if one was already generated on an
+            // earlier run, so this is safe to reach on every run.
+            if (weekBonusIsStable) {
+                const recapContent = await this.buildWeeklyRecap(currentWeek, brownBellMatchups, brownBellBonuses, allScores, allPlayerIds);
+                await this.dataLayer.saveWeeklyRecapIfNotExists(currentWeek, recapContent);
+            }
         } else {
             console.log(`No real score data yet for week ${currentWeek} - skipping bonus computation and clearing any stale results`);
             await this.dataLayer.clearBonusResultsForWeek(currentWeek);
