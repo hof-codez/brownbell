@@ -50,6 +50,14 @@ interface MatchupSideProps {
     isWinner: boolean;
     align: 'left' | 'right';
     name?: string;
+    /** Only set once this matchup's own outcome is genuinely decided
+     * (outcomeFinal) - distinct from isWinner above, which reflects
+     * whoever's currently leading live and can still flip before the
+     * matchup actually concludes. Renders a small, explicit W/L/T badge,
+     * since a real report showed the existing bold-vs-dimmed styling
+     * alone wasn't a clear enough signal that a result was actually
+     * locked in versus just presently ahead. */
+    outcome?: 'win' | 'loss' | 'tie' | null;
     /** Looks up an NFL team's next game info (opponent, kickoff time) for
      * the currently-displayed week - only ever has anything to show for
      * the current/upcoming week's live picks, since a "next game" for an
@@ -57,13 +65,24 @@ interface MatchupSideProps {
     getGameInfo?: (nflTeam: string | null) => NFLGameInfo | undefined;
 }
 
-function MatchupSide({ team, isMe, isWinner, align, name, getGameInfo }: MatchupSideProps) {
+const OUTCOME_BADGE_STYLES: Record<'win' | 'loss' | 'tie', string> = {
+    win: 'bg-bell/20 text-bell',
+    loss: 'bg-brick/20 text-brick',
+    tie: 'bg-panel-line text-chalk-dim'
+};
+
+function MatchupSide({ team, isMe, isWinner, align, name, outcome, getGameInfo }: MatchupSideProps) {
     const alignClass = align === 'right' ? 'items-end text-right' : 'items-start text-left';
     return (
         <div className={`flex min-w-0 flex-col ${alignClass}`}>
             <p className={`truncate font-body text-sm font-semibold ${isWinner ? 'text-chalk' : 'text-chalk-dim'}`}>
                 {team.teamName}
                 {isMe && <span className="ml-1 text-xs text-bell">(You)</span>}
+                {outcome && (
+                    <span className={`ml-1.5 rounded px-1 py-0.5 align-middle font-mono text-[9px] font-bold uppercase tracking-wide ${OUTCOME_BADGE_STYLES[outcome]}`}>
+                        {outcome === 'win' ? 'W' : outcome === 'loss' ? 'L' : 'T'}
+                    </span>
+                )}
             </p>
             {name && <p className="truncate font-body text-xs italic text-chalk-dim">&ldquo;{name}&rdquo;</p>}
             <div className="mt-1 space-y-0.5">
@@ -303,6 +322,14 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                         const involvesMe = m.teamA.teamId === myTeamId || m.teamB.teamId === myTeamId;
                         const aHighlight = !m.played || aWins;
                         const bHighlight = !m.played || bWins;
+                        // Distinct from aHighlight/bHighlight above - those
+                        // reflect whoever's currently leading live and can
+                        // still flip. These are null (no badge shown) until
+                        // outcomeFinal is genuinely true for this specific
+                        // matchup, independent of the rest of the week.
+                        const isTie = m.winnerTeamIds.length === 2;
+                        const outcomeA = !m.outcomeFinal ? null : (isTie ? 'tie' as const : (aWins ? 'win' as const : 'loss' as const));
+                        const outcomeB = !m.outcomeFinal ? null : (isTie ? 'tie' as const : (bWins ? 'win' as const : 'loss' as const));
                         const aName = duoNames?.get(duoNameKey(m.teamA.teamId, 'main'));
                         const bName = duoNames?.get(duoNameKey(m.teamB.teamId, 'main'));
 
@@ -380,6 +407,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                         team={m.teamA}
                                         isMe={m.teamA.teamId === myTeamId}
                                         isWinner={aHighlight}
+                                        outcome={outcomeA}
                                         align="left"
                                         name={aName}
                                         getGameInfo={getGameInfo}
@@ -398,6 +426,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                                         team={m.teamB}
                                         isMe={m.teamB.teamId === myTeamId}
                                         isWinner={bHighlight}
+                                        outcome={outcomeB}
                                         align="right"
                                         name={bName}
                                         getGameInfo={getGameInfo}
