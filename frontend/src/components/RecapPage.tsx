@@ -158,15 +158,15 @@ export function RecapPage({ week }: RecapPageProps) {
                     ))}
                 </div>
 
-                {activeAward === 'main' && <MainAwardSections recap={content.main} />}
-                {activeAward === 'nextup' && <SimpleAwardSections recap={content.nextup} awardLabel="Next Up" />}
-                {activeAward === 'boom' && <SimpleAwardSections recap={content.boom} awardLabel="Season of Boom" />}
+                {activeAward === 'main' && <MainAwardSections recap={content.main} award="main" />}
+                {activeAward === 'nextup' && <SimpleAwardSections recap={content.nextup} awardLabel="Next Up" award="nextup" />}
+                {activeAward === 'boom' && <SimpleAwardSections recap={content.boom} awardLabel="Season of Boom" award="boom" />}
             </div>
         </div>
     );
 }
 
-function MainAwardSections({ recap }: { recap: MainAwardRecap }) {
+function MainAwardSections({ recap, award }: { recap: MainAwardRecap; award: 'main' | 'nextup' | 'boom' }) {
     return (
         <>
             {recap.matchupOfTheWeek && (
@@ -243,12 +243,12 @@ function MainAwardSections({ recap }: { recap: MainAwardRecap }) {
                 </Section>
             )}
 
-            <StandingsSection standingsTop3={recap.standingsTop3} />
+            <StandingsSection standingsTop3={recap.standingsTop3} award={award} />
         </>
     );
 }
 
-function SimpleAwardSections({ recap, awardLabel }: { recap: SimpleAwardRecap; awardLabel: string }) {
+function SimpleAwardSections({ recap, awardLabel, award }: { recap: SimpleAwardRecap; awardLabel: string; award: 'main' | 'nextup' | 'boom' }) {
     return (
         <>
             {recap.topScorer ? (
@@ -258,12 +258,12 @@ function SimpleAwardSections({ recap, awardLabel }: { recap: SimpleAwardRecap; a
             ) : (
                 <p className="mb-6 text-center font-body text-sm text-chalk-dim">No {awardLabel} scores recorded yet this week.</p>
             )}
-            <StandingsSection standingsTop3={recap.standingsTop3} />
+            <StandingsSection standingsTop3={recap.standingsTop3} award={award} />
         </>
     );
 }
 
-function StandingsSection({ standingsTop3 }: { standingsTop3: StandingsRow[] }) {
+function StandingsSection({ standingsTop3, award }: { standingsTop3: StandingsRow[]; award: 'main' | 'nextup' | 'boom' }) {
     if (standingsTop3.length === 0) return null;
     return (
         <Section title="Standings Snapshot" icon="🏆">
@@ -284,7 +284,7 @@ function StandingsSection({ standingsTop3 }: { standingsTop3: StandingsRow[] }) 
                 ))}
             </div>
             <a
-                href="https://hof-codez.github.io/brownbell/#/league"
+                href={`https://hof-codez.github.io/brownbell/#/league/${award}`}
                 className="mt-2 block text-center font-mono text-xs uppercase tracking-widest text-bell underline"
             >
                 View full standings &rarr;

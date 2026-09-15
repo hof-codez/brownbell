@@ -68,11 +68,14 @@ export default function App() {
   // replacing it.
   const [viewingPlayerNews, setViewingPlayerNews] = useState<{ playerName: string; sleeperPlayerId: string | null } | null>(null);
   // Supports a single external deep-link case for now: the recap page's
-  // "View full standings" link uses #/league so it lands where it says
-  // it will, rather than always opening on the Teams tab regardless of
-  // what an external link actually promised. Read once at mount, same
-  // as the recap hash check in main.tsx - not a general router.
-  const [activeTab, setActiveTab] = useState(() => (window.location.hash === '#/league' ? 'league' : 'teams'));
+  // "View full standings" link uses #/league or #/league/<award> so it
+  // lands where it says it will, rather than always opening on the Teams
+  // tab (or always Brown Bell within League) regardless of what an
+  // external link actually promised. Read once at mount, same as the
+  // recap hash check in main.tsx - not a general router.
+  const leagueHashMatch = window.location.hash.match(/^#\/league(?:\/(main|nextup|boom))?$/);
+  const [activeTab, setActiveTab] = useState(() => (leagueHashMatch ? 'league' : 'teams'));
+  const [initialLeagueAward] = useState(() => (leagueHashMatch?.[1] as 'main' | 'nextup' | 'boom' | undefined));
   // Set alongside switching to the Misc tab so MiscTab knows to force the
   // Bonus sub-tab open (currently the only deep-linked section) and which
   // element to scroll to - cleared once the target component has consumed
@@ -156,7 +159,7 @@ export default function App() {
         )}
 
         {activeTab === 'league' && (
-          <LeagueTab teams={teams} myTeamId={claimedTeam?.teamId ?? null} duoNames={duoNames} />
+          <LeagueTab teams={teams} myTeamId={claimedTeam?.teamId ?? null} duoNames={duoNames} initialAward={initialLeagueAward} />
         )}
 
         {activeTab === 'bonus' && (

@@ -11,9 +11,14 @@ interface LeagueTabProps {
     teams: TeamWithDuos[];
     myTeamId?: string | null;
     duoNames?: Map<string, string>;
+    /** Seeds which award tab this opens on - used by the #/league/<award>
+     * deep link (see App.tsx) so the recap page's "View full standings"
+     * link lands on whichever award the person was actually looking at
+     * (Next Up, Season of Boom), not always Brown Bell regardless. */
+    initialAward?: AwardType;
 }
 
-export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
+export function LeagueTab({ teams, myTeamId, duoNames, initialAward }: LeagueTabProps) {
     const { main, nextup, boom, loading, error } = useLeagueScores(teams);
     // The Brown Bell Award is decided by Main Award season points PLUS
     // accumulated bonus points combined - both the weekly matchup bonus AND
@@ -23,7 +28,7 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
     // actually determines who's winning.
     const { seasonRankings: bonusRankings, matchupsByWeek } = useBonusResults(teams);
     const { blocks: predictionBlocks } = usePredictions(teams.map(t => t.team), matchupsByWeek);
-    const [award, setAward] = useState<AwardType>('main');
+    const [award, setAward] = useState<AwardType>(() => initialAward ?? 'main');
     const [view, setView] = useState<'rankings' | 'weekly'>('rankings');
 
     if (loading) {
