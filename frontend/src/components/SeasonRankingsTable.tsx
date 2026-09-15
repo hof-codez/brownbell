@@ -10,8 +10,20 @@ interface SeasonRankingsTableProps {
     /** Main Award season points + bonus points combined is what actually
      * decides the Brown Bell Award - when provided (Main Award view only,
      * since Next Up has no bonus mechanic), rows are re-sorted and re-ranked
-     * by that combined number, not the raw season total alone. */
-    bonusTotals?: Map<string, number>;
+     * by that combined number, not the raw season total alone.
+     *
+     * Split into two genuinely separate sources rather than one
+     * pre-combined number, after a real reported case where a team's
+     * "Bonus" figure here (11.0) silently disagreed with the matchup
+     * bonus shown on their own Showdown card (5.0) - the gap was real,
+     * not a bug: this total also includes prediction-poll bonus points,
+     * which have nothing to do with a team's OWN matchup at all (any
+     * owner can correctly predict ANY matchup league-wide and earn
+     * points for it). Showing both components explicitly here means the
+     * numbers on both tabs can be reconciled at a glance instead of
+     * silently disagreeing. */
+    matchupBonusTotals?: Map<string, number>;
+    predictionBonusTotals?: Map<string, number>;
 }
 
 // Left-border accent + rank-number color, not a full background tint - keeps
@@ -23,18 +35,19 @@ const RANK_ACCENT: Record<number, { border: string; text: string }> = {
     3: { border: 'border-l-4 border-l-[#B08D57]', text: 'text-[#B08D57]' }  // bronze
 };
 
-export function SeasonRankingsTable({ scores, myTeamId, awardType, duoNames, bonusTotals }: SeasonRankingsTableProps) {
-    const showCombined = !!bonusTotals;
+export function SeasonRankingsTable({ scores, myTeamId, awardType, duoNames, matchupBonusTotals, predictionBonusTotals }: SeasonRankingsTableProps) {
+    const showCombined = !!matchupBonusTotals;
 
     const rows = showCombined
         ? [...scores.seasonRankings]
             .map(row => {
-                const bonus = bonusTotals!.get(row.teamId) || 0;
-                return { ...row, bonus, combined: row.total + bonus };
+                const matchupBonus = matchupBonusTotals!.get(row.teamId) || 0;
+                const predictionBonus = predictionBonusTotals?.get(row.teamId) || 0;
+                return { ...row, matchupBonus, predictionBonus, combined: row.total + matchupBonus + predictionBonus };
             })
             .sort((a, b) => b.combined - a.combined)
             .map((row, i) => ({ ...row, rank: i + 1 }))
-        : scores.seasonRankings.map(row => ({ ...row, bonus: 0, combined: row.total }));
+        : scores.seasonRankings.map(row => ({ ...row, matchupBonus: 0, predictionBonus: 0, combined: row.total }));
 
     return (
         <div className="overflow-hidden rounded-lg border border-panel-line">
@@ -88,7 +101,8 @@ export function SeasonRankingsTable({ scores, myTeamId, awardType, duoNames, bon
                                     )}
                                     {showCombined && (
                                         <div className="mt-0.5 font-mono text-xs text-chalk-dim">
-                                            Season {row.total.toFixed(1)} &middot; Bonus {row.bonus > 0 ? `+${row.bonus.toFixed(1)}` : row.bonus.toFixed(1)}
+                                            Season {row.total.toFixed(1)} &middot; Matchup {row.matchupBonus > 0 ? `+${row.matchupBonus.toFixed(1)}` : row.matchupBonus.toFixed(1)}
+                                            {row.predictionBonus > 0 && <> &middot; Prediction +{row.predictionBonus.toFixed(1)}</>}
                                         </div>
                                     )}
                                 </td>

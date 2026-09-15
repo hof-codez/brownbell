@@ -41,11 +41,20 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
     const activeScores = award === 'main' ? main : award === 'boom' ? boom : nextup;
     if (!activeScores) return null;
 
-    const bonusTotals = new Map(bonusRankings.map(r => [r.teamId, r.totalBonus]));
+    const matchupBonusTotals = new Map(bonusRankings.map(r => [r.teamId, r.totalBonus]));
+    const predictionBonusTotals = new Map<string, number>();
     for (const block of predictionBlocks) {
+        // Confirmed as a real reported issue: prediction points were being
+        // summed as soon as any matchup within the block went final, so
+        // a team's "Bonus" figure could fluctuate week to week within a
+        // still-open 4-week block, then potentially change again before
+        // the block actually closes. Prediction bonus is meant to settle
+        // once, at the end of its full block - not appear and shift
+        // week by week while votes are still being scored.
+        if (!block.isComplete) continue;
         for (const standing of block.standings) {
             if (standing.pointsAwarded > 0) {
-                bonusTotals.set(standing.teamId, (bonusTotals.get(standing.teamId) ?? 0) + standing.pointsAwarded);
+                predictionBonusTotals.set(standing.teamId, (predictionBonusTotals.get(standing.teamId) ?? 0) + standing.pointsAwarded);
             }
         }
     }
@@ -71,7 +80,8 @@ export function LeagueTab({ teams, myTeamId, duoNames }: LeagueTabProps) {
                     myTeamId={myTeamId}
                     awardType={award}
                     duoNames={duoNames}
-                    bonusTotals={award === 'main' ? bonusTotals : undefined}
+                    matchupBonusTotals={award === 'main' ? matchupBonusTotals : undefined}
+                    predictionBonusTotals={award === 'main' ? predictionBonusTotals : undefined}
                 />
             ) : (
                 <WeeklyScoresTable scores={activeScores} myTeamId={myTeamId} awardType={award} duoNames={duoNames} teams={teams} />
