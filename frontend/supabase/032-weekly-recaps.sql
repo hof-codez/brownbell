@@ -30,6 +30,10 @@
 --   },
 --   nextup: {
 --     topScorer: { teamName, playerName, playerPosition, points } | null,
+--     criticalSub: { teamName, playerName, playerPosition, points, originalName, source } | null,
+--     bounceBack: { teamName, playerName, playerPosition, points, priorAverage } | null,
+--     coldStreak: { teamName, playerName, playerPosition, points, priorAverage } | null,
+--     positionalPowerhouse: { position, totalPoints } | null,
 --     standingsTop3: [{ rank, teamName, combined, seasonTotal, bonusTotal, players }, ...]  -- bonusTotal always 0
 --   },
 --   boom: { same shape as nextup }

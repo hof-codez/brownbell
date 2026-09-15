@@ -104,6 +104,18 @@ async function run() {
     allPassed &= check('boom.topScorer correctly finds the Season of Boom top scorer (TeamA, 18 points)', recap.boom.topScorer.playerName === 'Boom Player' && recap.boom.topScorer.points === 18 && recap.boom.topScorer.teamName === 'TeamA');
     allPassed &= check('boom.standingsTop3 has no bonus mechanic either', recap.boom.standingsTop3.every(row => row.bonusTotal === 0 && row.combined === row.seasonTotal));
 
+    // New Next Up / Season of Boom recap categories.
+    allPassed &= check('nextup.positionalPowerhouse works even on week 1 (no prior-week data needed)', recap.nextup.positionalPowerhouse !== null && recap.nextup.positionalPowerhouse.position === 'WR');
+    allPassed &= check('week 1 has no prior data, so nextup.bounceBack and coldStreak are both null (not a false positive)', recap.nextup.bounceBack === null && recap.nextup.coldStreak === null);
+    allPassed &= check('no substitutions recorded, so nextup.criticalSub is null, not an empty/misleading object', recap.nextup.criticalSub === null);
+
+    // Critical Sub of the Week: mock a substitution that started this week.
+    supabase._store.substitutions = [
+        { team_id: 't-b', award_type: 'nextup', player_index: 0, start_week: 1, original_name: 'Injured Guy', substitute_name: 'Next Upstar', substitute_position: 'WR', substitute_player_id: 'p4', source: 'auto' }
+    ];
+    const recapWithSub = await automator.buildWeeklyRecap(1, brownBellMatchups, brownBellBonuses, allScores, allPlayerIds);
+    allPassed &= check('criticalSub correctly identifies the substitute player and their actual points that week', recapWithSub.nextup.criticalSub && recapWithSub.nextup.criticalSub.playerName === 'Next Upstar' && recapWithSub.nextup.criticalSub.points === 25 && recapWithSub.nextup.criticalSub.originalName === 'Injured Guy');
+
     // Player-level enrichment: a real reported gap where the recap showed
     // only owner names, none of the actual duo players involved.
     const mainMatchupAB = recap.main.matchups.find(m => m.teamA === 'TeamA');
@@ -165,6 +177,32 @@ async function run() {
     const recapWeek2 = await automator.buildWeeklyRecap(2, brownBellMatchups, brownBellBonusesWeek2, allScoresWeek2, allPlayerIds);
     allPassed &= check('week 2 upset is correctly detected (TeamB, the historically weaker team, is the winner)', recapWeek2.main.biggestUpset !== null && recapWeek2.main.biggestUpset.winner === 'TeamB');
     allPassed &= check('the detected upset has a genuinely low win probability (consistently weaker team pulling the win)', recapWeek2.main.biggestUpset && recapWeek2.main.biggestUpset.winnerProbability < 0.5);
+
+    // Isolated test for Bounce Back / Cold Streak, using dedicated,
+    // non-overlapping players (rather than the shared mock players
+    // reused across all 4 teams elsewhere in this file, which would make
+    // a per-player history comparison ambiguous).
+    const bbAutomator = new BrownBellAutomator('fake-league-id');
+    bbAutomator.knownDuos = { nextup: { TeamX: [], TeamY: [] } };
+    bbAutomator.playersData = {
+        'bb1': { first_name: 'Steady', last_name: 'Eddie', position: 'RB' },
+        'bb2': { first_name: 'Sleeper', last_name: 'Star', position: 'WR' }
+    };
+    const bbAllScores = {
+        nextup: {
+            TeamX: { 1: { 0: 10, 1: 5 }, 2: { 0: 40, 1: 5 } },
+            TeamY: { 1: { 0: 20, 1: 20 }, 2: { 0: 20, 1: 2 } }
+        }
+    };
+    const bbAllPlayerIds = {
+        nextup: {
+            TeamX: { 1: { 0: 'bb1', 1: null }, 2: { 0: 'bb1', 1: null } },
+            TeamY: { 1: { 0: null, 1: 'bb2' }, 2: { 0: null, 1: 'bb2' } }
+        }
+    };
+    const { bounceBack, coldStreak } = bbAutomator.findBounceBackAndColdStreak(2, 'nextup', bbAllScores, bbAllPlayerIds);
+    allPassed &= check('bounceBack correctly identifies a player jumping from a 10pt week-1 average to 40 in week 2', bounceBack && bounceBack.playerName === 'Steady Eddie' && bounceBack.points === 40 && bounceBack.priorAverage === 10);
+    allPassed &= check('coldStreak correctly identifies a player dropping from a 20pt week-1 average to 2 in week 2', coldStreak && coldStreak.playerName === 'Sleeper Star' && coldStreak.points === 2 && coldStreak.priorAverage === 20);
 
     console.log(allPassed ? '\n✅ ALL CHECKS PASSED' : '\n❌ SOME CHECKS FAILED');
     process.exit(allPassed ? 0 : 1);

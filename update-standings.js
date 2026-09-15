@@ -1767,13 +1767,12 @@ class BrownBellAutomator {
 
         // Next Up and Season of Boom have no opponent, tier, bonus, or
         // prediction mechanic at all - each is simply a standalone
-        // season-long point race per team, so their recap section is
-        // deliberately much smaller than Main Award's rather than forcing
-        // a uniform shape that doesn't fit what these awards actually are.
-        const nextupTopScorer = this.findTopScorerForWeek(week, 'nextup', allScores, allPlayerIds);
-        const nextupStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'nextup', allScores, allPlayerIds);
-        const boomTopScorer = this.findTopScorerForWeek(week, 'boom', allScores, allPlayerIds);
-        const boomStandingsTop3 = await this.buildStandingsTop3ThroughWeek(week, 'boom', allScores, allPlayerIds);
+        // season-long point race per team. Rather than the single Top
+        // Scorer stat these used to get (a real reported gap - they felt
+        // thin compared to Main Award's richer recap), each now gets a
+        // fuller set of 5 categories built from the same underlying data.
+        const nextupRecap = await this.buildSimpleAwardRecap(week, 'nextup', allScores, allPlayerIds);
+        const boomRecap = await this.buildSimpleAwardRecap(week, 'boom', allScores, allPlayerIds);
 
         return {
             week,
@@ -1786,9 +1785,139 @@ class BrownBellAutomator {
                 leaguePredictions,
                 standingsTop3: mainStandingsTop3
             },
-            nextup: { topScorer: nextupTopScorer, standingsTop3: nextupStandingsTop3 },
-            boom: { topScorer: boomTopScorer, standingsTop3: boomStandingsTop3 }
+            nextup: nextupRecap,
+            boom: boomRecap
         };
+    }
+
+    // All 5 recap categories for an award with no matchup mechanic (Next
+    // Up, Season of Boom): Top Scorer (existing), plus 4 new ones -
+    // Critical Sub of the Week, Bounce Back, Cold Streak, and Positional
+    // Powerhouse - each described in detail on its own helper method
+    // below. Consolidated into one method (rather than 5 separate calls
+    // at the buildWeeklyRecap call site) since Next Up and Boom are
+    // computed identically, just with a different awardType.
+    async buildSimpleAwardRecap(week, awardType, allScores, allPlayerIds) {
+        const topScorer = this.findTopScorerForWeek(week, awardType, allScores, allPlayerIds);
+        const criticalSub = await this.findCriticalSubForWeek(week, awardType, allScores);
+        const { bounceBack, coldStreak } = this.findBounceBackAndColdStreak(week, awardType, allScores, allPlayerIds);
+        const positionalPowerhouse = this.findPositionalPowerhouseForWeek(week, awardType, allScores, allPlayerIds);
+        const standingsTop3 = await this.buildStandingsTop3ThroughWeek(week, awardType, allScores, allPlayerIds);
+
+        return { topScorer, criticalSub, bounceBack, coldStreak, positionalPowerhouse, standingsTop3 };
+    }
+
+    // Best-performing substitute among any substitutions that took effect
+    // THIS specific week, for a given award - a real requested category
+    // ("Critical Sub of the Week") that didn't exist in any form before.
+    // Returns null on a week with no substitutions at all, which is the
+    // common case most weeks.
+    async findCriticalSubForWeek(week, awardType, allScores) {
+        const subs = await this.dataLayer.getSubstitutionsStartingWeek(week, awardType);
+        if (subs.length === 0) return null;
+
+        let best = null;
+        for (const sub of subs) {
+            const points = allScores[awardType]?.[sub.teamName]?.[week]?.[sub.player_index];
+            if (points === undefined || points === null) continue;
+            if (!best || points > best.points) {
+                best = {
+                    teamName: sub.teamName,
+                    playerName: sub.substitute_name,
+                    playerPosition: sub.substitute_position,
+                    points,
+                    originalName: sub.original_name,
+                    source: sub.source
+                };
+            }
+        }
+        return best;
+    }
+
+    // Every player's own weekly point history for an award, through a
+    // given week, keyed by sleeperId rather than team+slot - deliberately
+    // NOT tied to whichever team/slot a player currently sits in, since a
+    // player's own scoring history is theirs regardless of a substitution
+    // moving them in or out of a specific duo along the way. Backs both
+    // findBounceBackAndColdStreak below and could back future
+    // player-history stats without re-scanning allScores again.
+    buildPlayerWeeklyHistoryMap(awardType, week, allScores, allPlayerIds) {
+        const history = new Map(); // sleeperId -> Map<week, { points, teamName }>
+        for (const teamName of Object.keys(this.knownDuos[awardType] || {})) {
+            for (let w = 1; w <= week; w++) {
+                for (let index = 0; index < 2; index++) {
+                    const sleeperId = allPlayerIds[awardType]?.[teamName]?.[w]?.[index];
+                    const points = allScores[awardType]?.[teamName]?.[w]?.[index];
+                    if (!sleeperId || points === undefined || points === null) continue;
+                    if (!history.has(sleeperId)) history.set(sleeperId, new Map());
+                    history.get(sleeperId).set(w, { points, teamName });
+                }
+            }
+        }
+        return history;
+    }
+
+    // Biggest positive (Bounce Back) and negative (Cold Streak) jump from
+    // a player's own prior-weeks average, this week - two new, symmetric
+    // requested categories. Both null on week 1 (or for a player's first
+    // week on any current duo), same reasoning as biggestUpset - there's
+    // no prior data yet to call a jump meaningful against. Also null if
+    // the biggest swing found isn't actually in the relevant direction
+    // (e.g. every player's week was unremarkable, so the "biggest
+    // positive delta" is still negative) - reporting a technically-largest
+    // but not-actually-a-bounce-back number would be misleading.
+    findBounceBackAndColdStreak(week, awardType, allScores, allPlayerIds) {
+        const history = this.buildPlayerWeeklyHistoryMap(awardType, week, allScores, allPlayerIds);
+
+        let bounceBack = null, bounceBackDelta = -Infinity;
+        let coldStreak = null, coldStreakDelta = Infinity;
+
+        for (const [sleeperId, weekMap] of history) {
+            const thisWeekEntry = weekMap.get(week);
+            if (!thisWeekEntry) continue;
+            const priorWeeks = [...weekMap.entries()].filter(([w]) => w < week);
+            if (priorWeeks.length === 0) continue;
+
+            const priorAverage = priorWeeks.reduce((sum, [, e]) => sum + e.points, 0) / priorWeeks.length;
+            const delta = thisWeekEntry.points - priorAverage;
+            const playerInfo = this.playersData[sleeperId];
+            const entry = {
+                teamName: thisWeekEntry.teamName,
+                playerName: playerInfo ? `${playerInfo.first_name || ''} ${playerInfo.last_name || ''}`.trim() : 'Unknown',
+                playerPosition: playerInfo?.position || '',
+                points: thisWeekEntry.points,
+                priorAverage
+            };
+
+            if (delta > bounceBackDelta) { bounceBackDelta = delta; bounceBack = entry; }
+            if (delta < coldStreakDelta) { coldStreakDelta = delta; coldStreak = entry; }
+        }
+
+        return {
+            bounceBack: bounceBackDelta > 0 ? bounceBack : null,
+            coldStreak: coldStreakDelta < 0 ? coldStreak : null
+        };
+    }
+
+    // Which position (QB/RB/WR/TE/etc.) combined for the most points
+    // league-wide this week, among this award's current duos - a new,
+    // lighthearted category that works even on week 1 (no prior-week
+    // data needed at all, unlike Bounce Back/Cold Streak/Biggest Upset).
+    findPositionalPowerhouseForWeek(week, awardType, allScores, allPlayerIds) {
+        const totalsByPosition = {};
+        for (const teamName of Object.keys(this.knownDuos[awardType] || {})) {
+            for (let index = 0; index < 2; index++) {
+                const points = allScores[awardType]?.[teamName]?.[week]?.[index];
+                const sleeperId = allPlayerIds[awardType]?.[teamName]?.[week]?.[index];
+                if (!sleeperId || points === undefined || points === null) continue;
+                const position = this.playersData[sleeperId]?.position || 'Unknown';
+                totalsByPosition[position] = (totalsByPosition[position] || 0) + points;
+            }
+        }
+        const positions = Object.keys(totalsByPosition);
+        if (positions.length === 0) return null;
+        const bestPosition = positions.reduce((a, b) => (totalsByPosition[a] > totalsByPosition[b] ? a : b));
+        return { position: bestPosition, totalPoints: totalsByPosition[bestPosition] };
     }
 
     // Both of a team's current duo players for a given award/week, with

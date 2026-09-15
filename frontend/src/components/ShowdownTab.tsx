@@ -24,6 +24,12 @@ interface ShowdownTabProps {
     /** Looks up an NFL team's next game info (opponent, kickoff time) for
      * the currently-displayed week - shown next to each player. */
     getGameInfo?: (nflTeam: string | null) => NFLGameInfo | undefined;
+    /** Seeds which sub-view and week this opens on - used by the
+     * #/predictions/<week> deep link (see App.tsx), so the recap page's
+     * "Vote for next week" CTA lands directly on that week's prediction
+     * voting rather than always opening on Matchups regardless. */
+    initialView?: 'matchups' | 'season' | 'recap' | 'predictions';
+    initialWeek?: number;
 }
 
 function PillToggle<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
@@ -205,12 +211,12 @@ function WeeklyRecapSection({ teams, week }: { teams: TeamWithDuos[]; week: numb
     );
 }
 
-export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoNames, getGameInfo }: ShowdownTabProps) {
+export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoNames, getGameInfo, initialView, initialWeek }: ShowdownTabProps) {
     const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
     const predictions = usePredictions(teams.map(t => t.team), matchupsByWeek);
     const taunts = useTaunts();
-    const [view, setView] = useState<'matchups' | 'season' | 'recap' | 'predictions'>('matchups');
-    const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+    const [view, setView] = useState<'matchups' | 'season' | 'recap' | 'predictions'>(() => initialView ?? 'matchups');
+    const [selectedWeek, setSelectedWeek] = useState<number | null>(() => initialWeek ?? null);
     const [predictionError, setPredictionError] = useState<string | null>(null);
     const [tauntError, setTauntError] = useState<string | null>(null);
     const canVote = !!myTeamId && !!deviceToken;

@@ -816,6 +816,30 @@ class SupabaseDataLayer {
         }
     }
 
+    // Every substitution that took effect starting a specific week, for a
+    // given award - used by the recap's "Critical Sub of the Week"
+    // category, which needs to know not just THAT a sub happened but
+    // exactly which team/slot it landed in, so the recap can look up how
+    // that substitute actually performed that week.
+    async getSubstitutionsStartingWeek(week, awardType) {
+        const teamNameById = Object.fromEntries(Object.entries(this.teamIdByName).map(([name, id]) => [id, name]));
+
+        const { data, error } = await this.supabase
+            .from('substitutions')
+            .select('team_id, player_index, original_name, substitute_name, substitute_position, substitute_player_id, source')
+            .eq('award_type', awardType)
+            .eq('start_week', week);
+
+        if (error) {
+            console.error(`Failed to fetch substitutions for week ${week} (non-fatal, recap will omit Critical Sub): ${error.message}`);
+            return [];
+        }
+
+        return (data || [])
+            .map(row => ({ ...row, teamName: teamNameById[row.team_id] }))
+            .filter(row => row.teamName && row.substitute_player_id);
+    }
+
     async loadRosterChanges() {
         const { data, error } = await this.supabase
             .from('roster_changes')

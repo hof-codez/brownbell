@@ -74,8 +74,14 @@ export default function App() {
   // external link actually promised. Read once at mount, same as the
   // recap hash check in main.tsx - not a general router.
   const leagueHashMatch = window.location.hash.match(/^#\/league(?:\/(main|nextup|boom))?$/);
-  const [activeTab, setActiveTab] = useState(() => (leagueHashMatch ? 'league' : 'teams'));
+  // The recap page's "Vote for next week" CTA (see RecapPage.tsx) links
+  // here as #/predictions/<week>, landing directly on that week's
+  // prediction voting rather than always opening Showdown on Matchups
+  // regardless of what the link promised.
+  const predictionsHashMatch = window.location.hash.match(/^#\/predictions\/(\d+)$/);
+  const [activeTab, setActiveTab] = useState(() => (leagueHashMatch ? 'league' : (predictionsHashMatch ? 'bonus' : 'teams')));
   const [initialLeagueAward] = useState(() => (leagueHashMatch?.[1] as 'main' | 'nextup' | 'boom' | undefined));
+  const [initialPredictionsWeek] = useState(() => (predictionsHashMatch ? Number(predictionsHashMatch[1]) : undefined));
   // Set alongside switching to the Misc tab so MiscTab knows to force the
   // Bonus sub-tab open (currently the only deep-linked section) and which
   // element to scroll to - cleared once the target component has consumed
@@ -170,6 +176,8 @@ export default function App() {
             onLearnMore={() => goToMiscSection('bonus-matchups-rule')}
             duoNames={duoNames}
             getGameInfo={getGameInfo}
+            initialView={initialPredictionsWeek !== undefined ? 'predictions' : undefined}
+            initialWeek={initialPredictionsWeek}
           />
         )}
 

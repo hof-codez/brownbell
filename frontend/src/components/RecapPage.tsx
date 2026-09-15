@@ -55,9 +55,14 @@ interface MainAwardRecap {
 
 // Next Up and Season of Boom have no opponent, tier, bonus, or prediction
 // mechanic at all - each is simply a standalone season-long point race
-// per team, so their recap section only ever has these two things.
+// per team, so these 5 categories replace the matchup-based ones Main
+// Award gets.
 interface SimpleAwardRecap {
     topScorer: TopScorer | null;
+    criticalSub: { teamName: string; playerName: string; playerPosition: string; points: number; originalName: string; source: string } | null;
+    bounceBack: { teamName: string; playerName: string; playerPosition: string; points: number; priorAverage: number } | null;
+    coldStreak: { teamName: string; playerName: string; playerPosition: string; points: number; priorAverage: number } | null;
+    positionalPowerhouse: { position: string; totalPoints: number } | null;
     standingsTop3: StandingsRow[];
 }
 
@@ -158,7 +163,7 @@ export function RecapPage({ week }: RecapPageProps) {
                     ))}
                 </div>
 
-                {activeAward === 'main' && <MainAwardSections recap={content.main} award="main" />}
+                {activeAward === 'main' && <MainAwardSections recap={content.main} award="main" week={content.week} />}
                 {activeAward === 'nextup' && <SimpleAwardSections recap={content.nextup} awardLabel="Next Up" award="nextup" />}
                 {activeAward === 'boom' && <SimpleAwardSections recap={content.boom} awardLabel="Season of Boom" award="boom" />}
             </div>
@@ -166,7 +171,7 @@ export function RecapPage({ week }: RecapPageProps) {
     );
 }
 
-function MainAwardSections({ recap, award }: { recap: MainAwardRecap; award: 'main' | 'nextup' | 'boom' }) {
+function MainAwardSections({ recap, award, week }: { recap: MainAwardRecap; award: 'main' | 'nextup' | 'boom'; week: number }) {
     return (
         <>
             {recap.matchupOfTheWeek && (
@@ -244,6 +249,14 @@ function MainAwardSections({ recap, award }: { recap: MainAwardRecap; award: 'ma
             )}
 
             <StandingsSection standingsTop3={recap.standingsTop3} award={award} />
+
+            <a
+                href={`https://hof-codez.github.io/brownbell/#/predictions/${week + 1}`}
+                className="mt-2 block rounded-lg border border-bell bg-bell/10 px-4 py-4 text-center"
+            >
+                <p className="font-body text-base font-bold text-chalk">🗳️ Vote on Week {week + 1}&rsquo;s Matchups</p>
+                <p className="mt-0.5 font-mono text-xs uppercase tracking-widest text-bell">Cast your predictions &rarr;</p>
+            </a>
         </>
     );
 }
@@ -258,6 +271,52 @@ function SimpleAwardSections({ recap, awardLabel, award }: { recap: SimpleAwardR
             ) : (
                 <p className="mb-6 text-center font-body text-sm text-chalk-dim">No {awardLabel} scores recorded yet this week.</p>
             )}
+
+            {recap.criticalSub && (
+                <Section title="Critical Sub of the Week" icon="🔁">
+                    <div className="rounded-lg border border-panel-line bg-panel px-4 py-3">
+                        <p className="font-body text-sm text-chalk">
+                            <span className="font-bold">{recap.criticalSub.playerName}</span> <span className="text-chalk-dim">({recap.criticalSub.playerPosition})</span> subbed in for {recap.criticalSub.originalName}
+                        </p>
+                        <p className="font-mono text-2xl font-bold text-bell">{recap.criticalSub.points.toFixed(1)} <span className="text-base font-normal text-chalk-dim">pts</span></p>
+                        <p className="font-body text-xs text-chalk-dim">{recap.criticalSub.teamName} &middot; {recap.criticalSub.source === 'auto' ? 'auto-substituted' : recap.criticalSub.source}</p>
+                    </div>
+                </Section>
+            )}
+
+            {recap.bounceBack && (
+                <Section title="Bounce Back" icon="📈">
+                    <div className="rounded-lg border border-panel-line bg-panel px-4 py-3">
+                        <p className="font-body text-sm font-bold text-chalk">
+                            {recap.bounceBack.playerName} <span className="text-xs font-normal text-chalk-dim">({recap.bounceBack.playerPosition})</span>
+                        </p>
+                        <p className="font-mono text-2xl font-bold text-bell">{recap.bounceBack.points.toFixed(1)} <span className="text-base font-normal text-chalk-dim">pts</span></p>
+                        <p className="font-body text-xs text-chalk-dim">{recap.bounceBack.teamName} &middot; up from a {recap.bounceBack.priorAverage.toFixed(1)} average</p>
+                    </div>
+                </Section>
+            )}
+
+            {recap.coldStreak && (
+                <Section title="Cold Streak" icon="📉">
+                    <div className="rounded-lg border border-panel-line bg-panel px-4 py-3">
+                        <p className="font-body text-sm font-bold text-chalk">
+                            {recap.coldStreak.playerName} <span className="text-xs font-normal text-chalk-dim">({recap.coldStreak.playerPosition})</span>
+                        </p>
+                        <p className="font-mono text-2xl font-bold text-brick">{recap.coldStreak.points.toFixed(1)} <span className="text-base font-normal text-chalk-dim">pts</span></p>
+                        <p className="font-body text-xs text-chalk-dim">{recap.coldStreak.teamName} &middot; down from a {recap.coldStreak.priorAverage.toFixed(1)} average</p>
+                    </div>
+                </Section>
+            )}
+
+            {recap.positionalPowerhouse && (
+                <Section title="Positional Powerhouse" icon="💪">
+                    <div className="rounded-lg border border-panel-line bg-panel px-4 py-3 text-center">
+                        <p className="font-mono text-3xl font-bold text-bell">{recap.positionalPowerhouse.position}</p>
+                        <p className="font-body text-xs text-chalk-dim">combined for {recap.positionalPowerhouse.totalPoints.toFixed(1)} points league-wide this week</p>
+                    </div>
+                </Section>
+            )}
+
             <StandingsSection standingsTop3={recap.standingsTop3} award={award} />
         </>
     );
