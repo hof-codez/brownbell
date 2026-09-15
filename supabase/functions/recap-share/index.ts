@@ -88,7 +88,17 @@ Deno.serve(async (req: Request) => {
             });
         }
 
-        const targetUrl = `${SPA_BASE_URL}/#/recap/${week}`;
+        // A query param, not a hash fragment - a hash is purely
+        // client-side and never actually transmitted in the HTTP
+        // request/response at all, which several in-app browsers (used
+        // by chat/social apps for link previews) have been known to
+        // drop specifically during a cross-origin redirect like this one
+        // (supabase.co -> github.io). A query param is part of the
+        // actual request the browser makes, so it can't be lost the same
+        // way - confirmed as a real reported case where the hash-based
+        // version landed people on the bare app root instead of the
+        // recap when opened from inside Sleeper's app.
+        const targetUrl = `${SPA_BASE_URL}/?recap=${week}`;
         const userAgent = req.headers.get('user-agent') || '';
 
         if (!isLikelyBot(userAgent)) {
