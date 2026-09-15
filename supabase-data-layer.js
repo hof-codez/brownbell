@@ -618,7 +618,7 @@ class SupabaseDataLayer {
     // Brown Bell weekly bonus matchup results - one row per team per week
     // (a matchup between A and B produces 2 rows, one from each side).
     // resultsByTeamName: { teamName: { opponent, teamScore, opponentScore, outcome, tier, bonusPoints } }
-    async saveBonusResults(week, resultsByTeamName, isFinalByTeamName = {}) {
+    async saveBonusResults(week, resultsByTeamName, isFinalByTeamName = {}, outcomeFinalByTeamName = {}) {
         const rows = [];
         for (const [teamName, result] of Object.entries(resultsByTeamName)) {
             const teamId = this.teamIdByName[teamName];
@@ -634,7 +634,19 @@ class SupabaseDataLayer {
                 outcome: result.outcome,
                 tier: result.tier,
                 bonus_points: result.bonusPoints,
-                is_final: !!isFinalByTeamName[teamName]
+                // Whether the TIER/BONUS AMOUNT is stable - genuinely
+                // requires the whole week's matchups to be done, since
+                // tiers rank all of them against each other in one shared
+                // sort (see the comment in update-standings.js).
+                is_final: !!isFinalByTeamName[teamName],
+                // Whether THIS SPECIFIC matchup's winner is already
+                // decided - independent of the rest of the week. Added
+                // after a real reported case where the season-long W-L-T
+                // record was incorrectly forced to wait on the whole
+                // week's single slowest matchup, when a matchup's own
+                // outcome is already genuinely known as soon as its own 4
+                // players are done.
+                outcome_final: !!outcomeFinalByTeamName[teamName]
             });
         }
 

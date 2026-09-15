@@ -2740,7 +2740,18 @@ class BrownBellAutomator {
                 isFinalByTeamName[teamName] = matchupIsFinal[teamName] && weekBonusIsStable;
             }
 
-            await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses, isFinalByTeamName);
+            // matchupIsFinal itself, passed through unmodified - a specific
+            // matchup's own winner is genuinely decided as soon as its own
+            // 4 players are done, independent of the rest of the week (see
+            // the comment above matchupIsFinal). This is what should drive
+            // the season-long W-L-T record, updating matchup by matchup as
+            // each one wraps up - rather than isFinalByTeamName above,
+            // which correctly waits for the whole week before the TIER and
+            // BONUS AMOUNT are stable, but was also (incorrectly, per a
+            // real reported case) the only flag the record itself could
+            // use, forcing every matchup's record to wait on the week's
+            // single slowest game.
+            await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses, isFinalByTeamName, matchupIsFinal);
         } else {
             console.log(`No real score data yet for week ${currentWeek} - skipping bonus computation and clearing any stale results`);
             await this.dataLayer.clearBonusResultsForWeek(currentWeek);
