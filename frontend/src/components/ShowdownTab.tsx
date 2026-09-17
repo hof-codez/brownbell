@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useBonusResults } from '../hooks/useBonusResults';
 import { useWeeklyRecap } from '../hooks/useWeeklyRecap';
@@ -225,6 +225,16 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
     const taunts = useTaunts();
     const [view, setView] = useState<'matchups' | 'season' | 'recap' | 'predictions'>(() => initialView ?? 'matchups');
     const [selectedWeek, setSelectedWeek] = useState<number | null>(() => initialWeek ?? null);
+    // Tracks whether the CURRENT selectedWeek came from an explicit choice
+    // (the dropdown, or a deep link like the recap's "Vote for next week"
+    // CTA) rather than the auto-pick effect below. A real reported bug:
+    // once auto-pick ever set a week, it never looked again, so Showdown
+    // kept showing a stale week forever even as the season moved on and
+    // the Teams tab/header correctly advanced. Guarding on this instead
+    // of on selectedWeek !== null lets auto-pick keep following the
+    // actual current/upcoming week over time, while still respecting a
+    // week the person (or a link) chose on purpose.
+    const weekWasExplicitlyChosen = useRef(initialWeek !== undefined);
     const [predictionError, setPredictionError] = useState<string | null>(null);
     const [tauntError, setTauntError] = useState<string | null>(null);
     const canVote = !!myTeamId && !!deviceToken;
@@ -245,7 +255,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
     }
 
     useEffect(() => {
-        if (selectedWeek !== null || weeksAvailable.length === 0) return;
+        if (weekWasExplicitlyChosen.current || weeksAvailable.length === 0) return;
         if (myTeamId) {
             const upcoming = getUpcomingMatchup(myTeamId);
             if (upcoming) {
@@ -254,7 +264,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
             }
         }
         setSelectedWeek(weeksAvailable[0]);
-    }, [weeksAvailable, selectedWeek, myTeamId, getUpcomingMatchup]);
+    }, [weeksAvailable, myTeamId, getUpcomingMatchup]);
 
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading showdown&hellip;</p>;
@@ -318,7 +328,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                 {(view === 'matchups' || view === 'recap') && weeksAvailable.length > 0 && (
                     <select
                         value={selectedWeek ?? ''}
-                        onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                        onChange={(e) => { weekWasExplicitlyChosen.current = true; setSelectedWeek(Number(e.target.value)); }}
                         className="rounded border border-panel-line bg-field px-3 py-1.5 font-mono text-sm text-chalk"
                     >
                         {weeksAvailable.map(w => (
