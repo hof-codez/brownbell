@@ -1,4 +1,5 @@
 import type { TeamWithDuos, AwardType, NFLGameInfo } from '../types';
+import type { StandbyInfo } from '../hooks/useStandbyStatus';
 import { TeamCard } from './TeamCard';
 
 interface TeamsViewProps {
@@ -15,6 +16,10 @@ interface TeamsViewProps {
      * when TeamCard/DuoSlotDisplay should even offer the standby option at
      * all. */
     isLastGameOfWeek?: (nflTeam: string | null) => boolean;
+    /** Every active standby the owner has already set this week, keyed by
+     * `${awardType}|${playerIndex}` - lets DuoSlotDisplay show who's
+     * picked instead of just offering to set one. */
+    standbyByKey?: Map<string, StandbyInfo>;
     byePlayerIds?: Set<string>;
     duoNames?: Map<string, string>;
     currentWeekScores?: Map<string, number>;
@@ -28,7 +33,7 @@ interface TeamsViewProps {
     onViewHistory?: (teamId: string) => void;
 }
 
-export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, onSetStandby, isLastGameOfWeek, byePlayerIds, duoNames, currentWeekScores, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory }: TeamsViewProps) {
+export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, onSetStandby, isLastGameOfWeek, standbyByKey, byePlayerIds, duoNames, currentWeekScores, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory }: TeamsViewProps) {
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading teams&hellip;</p>;
     }
@@ -75,6 +80,7 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, onSe
                             onEditSlot={onEditSlot}
                             onSetStandby={onSetStandby}
                             isLastGameOfWeek={isLastGameOfWeek}
+                            standbyByKey={standbyByKey}
                             byePlayerIds={byePlayerIds}
                             duoNames={duoNames}
                             currentWeekScore={currentWeekScores?.get(myTeam.team.id)}

@@ -3,6 +3,7 @@ import { useSeasonData } from './hooks/useSeasonData';
 import { useTeamClaim } from './hooks/useTeamClaim';
 import { useDuoPicker } from './hooks/useDuoPicker';
 import { useStandbyPicker } from './hooks/useStandbyPicker';
+import { useStandbyStatus } from './hooks/useStandbyStatus';
 import { useLockCountdown } from './hooks/useLockCountdown';
 import { useLeagueScores } from './hooks/useLeagueScores';
 import { useNFLSchedule } from './hooks/useNFLSchedule';
@@ -138,6 +139,7 @@ export default function App() {
   // teamId/deviceToken, and there's nothing to edit without one.
   const picker = useDuoPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
   const standbyPicker = useStandbyPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
+  const { standbyByKey, refetch: refetchStandbyStatus } = useStandbyStatus(claimedTeam?.teamId ?? null, displayWeek);
   const naming = useDuoNaming(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
   const background = useTeamBackground(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
 
@@ -176,6 +178,7 @@ export default function App() {
             onEditSlot={(awardType, playerIndex) => setEditingSlot({ awardType, playerIndex })}
             onSetStandby={(awardType, playerIndex, currentPlayerName) => setSettingStandbyFor({ awardType, playerIndex, currentPlayerName })}
             isLastGameOfWeek={isLastGameOfWeek}
+            standbyByKey={standbyByKey}
             byePlayerIds={byePlayerIds}
             duoNames={duoNames}
             currentWeekScores={currentWeekScores}
@@ -256,6 +259,7 @@ export default function App() {
           onDone={() => {
             setSettingStandbyFor(null);
             refetch();
+            refetchStandbyStatus();
           }}
           onClose={() => setSettingStandbyFor(null)}
         />

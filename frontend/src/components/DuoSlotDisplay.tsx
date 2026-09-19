@@ -1,4 +1,5 @@
 import type { DuoRow, NFLGameInfo } from '../types';
+import type { StandbyInfo } from '../hooks/useStandbyStatus';
 import { PlayerGameInfo } from './PlayerGameInfo';
 import { INJURY_DOT_COLOR } from '../lib/injuryDotColor';
 
@@ -24,9 +25,13 @@ interface DuoSlotDisplayProps {
      * simply hides the option here rather than needing its own
      * eligibility logic duplicated in this component too. */
     onSetStandby?: () => void;
+    /** The standby already set for this slot, if any - shown instead of
+     * the plain "Set a Standby" prompt once an owner has actually picked
+     * one, so they can see who without having to reopen the picker. */
+    currentStandby?: StandbyInfo;
 }
 
-export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews, onSetStandby }: DuoSlotDisplayProps) {
+export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews, onSetStandby, currentStandby }: DuoSlotDisplayProps) {
     if (!slot) {
         return (
             <div className="flex items-center justify-between rounded border border-dashed border-panel-line px-3 py-2">
@@ -110,13 +115,23 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                 </div>
             )}
             {onSetStandby && (
-                <button
-                    onClick={onSetStandby}
-                    className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell"
-                    title="This player's game is the week's last one - if they're ruled out, a pre-picked standby can step in automatically"
-                >
-                    Set a Standby &rarr;
-                </button>
+                currentStandby ? (
+                    <button
+                        onClick={onSetStandby}
+                        className="mt-1 flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-chalk-dim"
+                        title="This player's game is the week's last one - if they're ruled out, this pre-picked standby steps in automatically. Tap to change."
+                    >
+                        <span className="text-bell">Standby:</span> {currentStandby.playerName} ({currentStandby.playerPosition})
+                    </button>
+                ) : (
+                    <button
+                        onClick={onSetStandby}
+                        className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell"
+                        title="This player's game is the week's last one - if they're ruled out, a pre-picked standby can step in automatically"
+                    >
+                        Set a Standby &rarr;
+                    </button>
+                )
             )}
         </div>
     );
