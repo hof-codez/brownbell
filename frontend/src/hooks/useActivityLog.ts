@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Team, AwardType } from '../types';
 
-export type ActivityBadge = 'SET' | 'SUB' | 'TRADE-SUB' | 'AUTO-SUB' | 'AUTO-TRADE' | 'REVERTED' | 'CLEARED' | 'NO-SUB' | 'ADMIN-FIX';
+export type ActivityBadge = 'SET' | 'SUB' | 'TRADE-SUB' | 'AUTO-SUB' | 'AUTO-TRADE' | 'REVERTED' | 'CLEARED' | 'NO-SUB' | 'ADMIN-FIX' | 'STANDBY';
 
 export interface ActivityEntry {
     id: string;
@@ -42,6 +42,12 @@ function deriveBadge(source: 'owner' | 'auto' | 'admin', reason: string | null, 
     if (source === 'owner') {
         if (r === 'Owner set pick') return 'SET';
         if (r.startsWith('Owner replacement - permanent')) return 'TRADE-SUB';
+        // A pre-committed standby activating (see 033-standby-substitutes.sql) -
+        // logged with source: 'owner' since the owner made this choice, just
+        // in advance rather than in the moment - kept as its own distinct
+        // badge (not lumped into plain SUB) so it doesn't look like an
+        // ordinary manual swap made right now.
+        if (r.startsWith('Standby activated')) return 'STANDBY';
         return 'SUB'; // 'Owner changed pick before lock' / 'Owner replacement - temporary'
     }
     // source === 'auto'

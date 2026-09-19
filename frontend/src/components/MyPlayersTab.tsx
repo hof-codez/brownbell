@@ -17,7 +17,8 @@ const BADGE_STYLES: Record<ActivityBadge, string> = {
     REVERTED: 'bg-bell/20 text-bell',
     CLEARED: 'bg-panel-line text-chalk-dim',
     'NO-SUB': 'bg-brick/20 text-brick',
-    'ADMIN-FIX': 'bg-brick/20 text-brick'
+    'ADMIN-FIX': 'bg-brick/20 text-brick',
+    STANDBY: 'bg-yellow-500/20 text-yellow-500'
 };
 
 // One merged, chronological entry - either an app-tracked activity event
@@ -156,7 +157,7 @@ export function MyPlayersTab({ myTeam }: MyPlayersTabProps) {
                                             <>
                                                 <span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> &rarr;{' '}
                                                 <span className="text-chalk">{entry.substituteName} ({entry.substitutePosition})</span>
-                                                {entry.badge === 'ADMIN-FIX' && entry.reason && <><br />{entry.reason}</>}
+                                                {(entry.badge === 'ADMIN-FIX' || entry.badge === 'STANDBY') && entry.reason && <><br />{entry.reason}</>}
                                             </>
                                         ) : (
                                             <><span className="text-chalk">{entry.originalName} ({entry.originalPosition})</span> - slot cleared, awaiting owner pick</>

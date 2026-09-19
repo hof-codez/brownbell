@@ -121,6 +121,36 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                 </p>
             </RuleSection>
 
+            <RuleSection title="Standby substitutes - for a player scheduled Monday night">
+                <p>
+                    Auto-sub&rsquo;s replacement always has to be someone whose own game kicks off at the same
+                    time or later than the player being replaced &mdash; that&rsquo;s what stops anyone from
+                    picking a replacement based on stats that already happened. But when your locked player IS
+                    the week&rsquo;s last game (almost always Monday Night), nothing else that week kicks off
+                    later &mdash; so if that player gets ruled out, there&rsquo;s structurally no one auto-sub
+                    can turn to.
+                </p>
+                <p className="mt-2">
+                    A <span className="text-chalk">standby</span> solves this by letting you pre-commit a
+                    replacement in advance, before either game has started. It only ever shows up as an option
+                    on a slot whose current player&rsquo;s game is genuinely the week&rsquo;s last one &mdash;
+                    every other week, auto-sub already has this covered on its own.
+                </p>
+                <p className="mt-2">
+                    You can set or change your standby any time before{' '}
+                    <span className="text-chalk">either game has started</span> &mdash; your own player&rsquo;s,
+                    or the standby candidate&rsquo;s. Once either kicks off, the choice locks for that week, the
+                    same no-early-information principle behind the normal kickoff-time rule, just applied ahead
+                    of time instead of in the moment.
+                </p>
+                <p className="mt-2">
+                    If your Monday Night player ends up ruled out, your standby steps in automatically &mdash;
+                    even though their own game already happened earlier in the week. If your player plays
+                    normally, the standby simply goes unused; it never activates unless it&rsquo;s actually
+                    needed. This works the same way for all three awards, including Season of Boom.
+                </p>
+            </RuleSection>
+
             <RuleSection title="Trades &amp; releases - permanent swaps">
                 <p>
                     If your locked player is traded away or released &mdash; no longer on your roster at all
