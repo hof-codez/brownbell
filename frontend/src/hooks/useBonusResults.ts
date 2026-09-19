@@ -383,7 +383,17 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
         for (let week = 1; week <= REGULAR_SEASON_WEEKS; week++) {
             const matchups = matchupsByWeek.get(week) || [];
             const mine = matchups.find(m => m.teamA.teamId === teamId || m.teamB.teamId === teamId);
-            if (mine && !mine.played) return mine;
+            // Deliberately outcomeFinal, not played - played only means
+            // SOME score data has been saved for this matchup, which
+            // becomes true the instant a single live game reports any
+            // stats at all, long before the week is genuinely over.
+            // outcomeFinal specifically means this matchup's own winner
+            // is decided (both teams' 4 players have finished their own
+            // games) - the correct signal for "has this week's matchup
+            // actually concluded," confirmed as a real reported bug
+            // where Showdown jumped ahead to the next week while the
+            // current week's games were still in progress.
+            if (mine && !mine.outcomeFinal) return mine;
         }
         return null;
     }
