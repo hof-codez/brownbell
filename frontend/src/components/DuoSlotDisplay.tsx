@@ -17,9 +17,16 @@ interface DuoSlotDisplayProps {
      * showing instead of stacking multiple modals on top of each other -
      * many DuoSlotDisplay instances render at once on the Teams tab. */
     onViewPlayerNews?: (playerName: string, sleeperPlayerId: string | null) => void;
+    /** Opens the standby picker - only ever passed a real handler by
+     * TeamCard when this specific slot's current player's game is
+     * genuinely the week's last one and hasn't started yet (see
+     * TeamCard.tsx's getStandbyHandler); undefined otherwise, which
+     * simply hides the option here rather than needing its own
+     * eligibility logic duplicated in this component too. */
+    onSetStandby?: () => void;
 }
 
-export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews }: DuoSlotDisplayProps) {
+export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews, onSetStandby }: DuoSlotDisplayProps) {
     if (!slot) {
         return (
             <div className="flex items-center justify-between rounded border border-dashed border-panel-line px-3 py-2">
@@ -101,6 +108,15 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                 <div className="mt-0.5">
                     <PlayerGameInfo gameInfo={gameInfo} />
                 </div>
+            )}
+            {onSetStandby && (
+                <button
+                    onClick={onSetStandby}
+                    className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell"
+                    title="This player's game is the week's last one - if they're ruled out, a pre-picked standby can step in automatically"
+                >
+                    Set a Standby &rarr;
+                </button>
             )}
         </div>
     );

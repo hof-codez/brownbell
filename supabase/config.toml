@@ -25,3 +25,6 @@ verify_jwt = false
 
 [functions.recap-share]
 verify_jwt = false
+
+[functions.set-standby]
+verify_jwt = false

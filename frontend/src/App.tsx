@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSeasonData } from './hooks/useSeasonData';
 import { useTeamClaim } from './hooks/useTeamClaim';
 import { useDuoPicker } from './hooks/useDuoPicker';
+import { useStandbyPicker } from './hooks/useStandbyPicker';
 import { useLockCountdown } from './hooks/useLockCountdown';
 import { useLeagueScores } from './hooks/useLeagueScores';
 import { useNFLSchedule } from './hooks/useNFLSchedule';
@@ -14,6 +15,7 @@ import { Header } from './components/Header';
 import { ClaimStatusBar } from './components/ClaimStatusBar';
 import { ClaimTeamModal } from './components/ClaimTeamModal';
 import { DuoPickerModal } from './components/DuoPickerModal';
+import { StandbyPickerModal } from './components/StandbyPickerModal';
 import { DuoNameModal } from './components/DuoNameModal';
 import { TeamBackgroundModal } from './components/TeamBackgroundModal';
 import { PlayerNewsModal } from './components/PlayerNewsModal';
@@ -56,9 +58,15 @@ export default function App() {
   // in the replacement picker - reuses the exact same displayWeek as
   // currentWeekScores above, so both always agree on which week is
   // "current" rather than risking two independent notions of it.
-  const { getGameInfo } = useNFLSchedule(displayWeek);
+  const { getGameInfo, isLastGameOfWeek } = useNFLSchedule(displayWeek);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
+  // Separate from editingSlot above - this is for pre-committing a
+  // standby replacement (see StandbyPickerModal.tsx), not editing the
+  // current pick itself. currentPlayerName is captured here rather than
+  // looked up again inside the modal, since the modal has no other way
+  // to know who it's setting a standby FOR.
+  const [settingStandbyFor, setSettingStandbyFor] = useState<{ awardType: AwardType; playerIndex: 0 | 1; currentPlayerName: string } | null>(null);
   const [namingAward, setNamingAward] = useState<AwardType | null>(null);
   const [showBackgroundModal, setShowBackgroundModal] = useState(false);
   // Single shared source of truth for the player-news modal - many
@@ -129,6 +137,7 @@ export default function App() {
   // Only meaningful once there's a claimed team - both hooks need a real
   // teamId/deviceToken, and there's nothing to edit without one.
   const picker = useDuoPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
+  const standbyPicker = useStandbyPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
   const naming = useDuoNaming(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
   const background = useTeamBackground(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
 
@@ -165,6 +174,8 @@ export default function App() {
             myTeam={myTeam}
             otherTeams={otherTeams}
             onEditSlot={(awardType, playerIndex) => setEditingSlot({ awardType, playerIndex })}
+            onSetStandby={(awardType, playerIndex, currentPlayerName) => setSettingStandbyFor({ awardType, playerIndex, currentPlayerName })}
+            isLastGameOfWeek={isLastGameOfWeek}
             byePlayerIds={byePlayerIds}
             duoNames={duoNames}
             currentWeekScores={currentWeekScores}
@@ -230,6 +241,23 @@ export default function App() {
             refetch();
           }}
           onClose={() => setEditingSlot(null)}
+        />
+      )}
+
+      {settingStandbyFor && myTeam && (
+        <StandbyPickerModal
+          awardType={settingStandbyFor.awardType}
+          playerIndex={settingStandbyFor.playerIndex}
+          currentPlayerName={settingStandbyFor.currentPlayerName}
+          fetchEligible={standbyPicker.fetchEligible}
+          setStandby={standbyPicker.setStandby}
+          saving={standbyPicker.saving}
+          getGameInfo={getGameInfo}
+          onDone={() => {
+            setSettingStandbyFor(null);
+            refetch();
+          }}
+          onClose={() => setSettingStandbyFor(null)}
         />
       )}
 

@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { NFLGameInfo } from '../types';
+import { isLastGameOfWeek } from '../lib/isLastGameOfWeek';
 
 interface UseNFLScheduleResult {
     loading: boolean;
     error: string | null;
     getGameInfo: (nflTeam: string | null) => NFLGameInfo | undefined;
+    /** Whether a given NFL team's game is the LAST one of the week - used
+     * to decide when to show the standby substitute option (see
+     * StandbyPickerModal.tsx), since that only ever applies when a duo
+     * member's own game is the one nothing else this week kicks off
+     * later than. */
+    isLastGameOfWeek: (nflTeam: string | null) => boolean;
 }
 
 // Reads from nfl_schedule, which the Node automation keeps populated every
@@ -53,5 +60,9 @@ export function useNFLSchedule(week: number | null): UseNFLScheduleResult {
         return scheduleByTeam.get(nflTeam);
     }
 
-    return { loading, error, getGameInfo };
+    function checkIsLastGameOfWeek(nflTeam: string | null): boolean {
+        return isLastGameOfWeek(scheduleByTeam, nflTeam);
+    }
+
+    return { loading, error, getGameInfo, isLastGameOfWeek: checkIsLastGameOfWeek };
 }

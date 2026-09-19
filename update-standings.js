@@ -2439,19 +2439,56 @@ class BrownBellAutomator {
                     });
                     events.push({ type: 'temporary-fill', teamName: row.teamName, awardType: row.awardType, replacement: replacement.name });
                 } else {
-                    // No eligible replacement anywhere on the roster - leave the
-                    // injured player in place (they're still legitimately theirs,
-                    // just out this week) but log it so the owner isn't left
-                    // guessing why nothing changed.
-                    await this.dataLayer.logSubstitution({
-                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
-                        originalName: row.playerName, originalPosition: row.playerPosition,
-                        substituteName: null, substitutePlayerId: null, substitutePosition: null,
-                        week, source: 'auto',
-                        reason: `No eligible replacement found - ${player.first_name} ${player.last_name} is ${status}, left in slot`,
-                        noReplacementAvailable: true
-                    });
-                    events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
+                    // The normal auto-sub rule (a replacement's own game must
+                    // kick off at the same time or later than the player
+                    // being replaced) structurally can't find anyone once
+                    // the ruled-out player IS the week's Monday Night game -
+                    // nothing else that week kicks off later. Before giving
+                    // up, check whether the owner pre-committed a standby
+                    // for exactly this situation (see
+                    // 033-standby-substitutes.sql) - set in advance, before
+                    // either game started, so it doesn't violate the
+                    // no-sandbagging principle the normal rule exists for.
+                    const standby = await this.dataLayer.getStandbyForSlot(row.teamName, row.awardType, row.playerIndex, week, row.sleeperPlayerId);
+                    // Re-validated now, not just trusted from when it was set -
+                    // time has passed, and the standby could since have been
+                    // traded away, gone on IR themselves, or gotten claimed by
+                    // this team's other award/slot in the meantime.
+                    const standbyStillEligible = standby
+                        && this.isPlayerOnTeamRoster(row.teamName, standby.standby_sleeper_player_id)
+                        && !excludeIds.includes(standby.standby_sleeper_player_id)
+                        && !['out', 'doubtful', 'ir', 'pup'].includes((this.playersData[standby.standby_sleeper_player_id]?.injury_status || '').toLowerCase());
+
+                    if (standby && standbyStillEligible) {
+                        await this.dataLayer.upsertDuoSlot({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            playerName: standby.standby_player_name, playerPosition: standby.standby_player_position,
+                            sleeperPlayerId: standby.standby_sleeper_player_id, source: 'owner'
+                        });
+                        await this.dataLayer.logSubstitution({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            originalName: row.playerName, originalPosition: row.playerPosition,
+                            substituteName: standby.standby_player_name, substitutePlayerId: standby.standby_sleeper_player_id, substitutePosition: standby.standby_player_position,
+                            week, source: 'owner', reason: `Standby activated - ${player.first_name} ${player.last_name} is ${status}, no normally-eligible replacement existed (Monday Night)`
+                        });
+                        await this.dataLayer.consumeStandby(standby.id);
+                        events.push({ type: 'standby-activated', teamName: row.teamName, awardType: row.awardType, replacement: standby.standby_player_name });
+                    } else {
+                        // No eligible replacement anywhere on the roster, and no
+                        // usable standby either - leave the injured player in
+                        // place (they're still legitimately theirs, just out
+                        // this week) but log it so the owner isn't left
+                        // guessing why nothing changed.
+                        await this.dataLayer.logSubstitution({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            originalName: row.playerName, originalPosition: row.playerPosition,
+                            substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                            week, source: 'auto',
+                            reason: `No eligible replacement found - ${player.first_name} ${player.last_name} is ${status}, left in slot`,
+                            noReplacementAvailable: true
+                        });
+                        events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
+                    }
                 }
 
             } else {

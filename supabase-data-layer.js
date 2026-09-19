@@ -872,6 +872,45 @@ class SupabaseDataLayer {
             .filter(row => row.teamName);
     }
 
+    // The un-consumed standby (if any) an owner pre-committed for a
+    // specific team/award/slot/week, for the Monday Night no-eligible-
+    // replacement gap - see 033-standby-substitutes.sql. coversSleeperPlayerId
+    // must match what the standby was actually set up to cover - if the
+    // slot's occupant changed since the standby was set (a manual owner
+    // swap), this correctly returns nothing rather than activating a
+    // standby for the wrong player.
+    async getStandbyForSlot(teamName, awardType, playerIndex, week, coversSleeperPlayerId) {
+        const teamId = this.teamIdByName[teamName];
+        if (!teamId) return null;
+
+        const { data, error } = await this.supabase
+            .from('standby_substitutes')
+            .select('id, standby_sleeper_player_id, standby_player_name, standby_player_position, covers_sleeper_player_id')
+            .eq('team_id', teamId)
+            .eq('award_type', awardType)
+            .eq('player_index', playerIndex)
+            .eq('week', week)
+            .eq('consumed', false)
+            .maybeSingle();
+
+        if (error) {
+            console.error(`Failed to check for a standby substitute (non-fatal, treated as none set): ${error.message}`);
+            return null;
+        }
+        if (!data || data.covers_sleeper_player_id !== coversSleeperPlayerId) return null;
+        return data;
+    }
+
+    // Marks a standby as used - never reused or reconsidered again after
+    // this, even if this same week gets re-processed on a later run.
+    async consumeStandby(standbyId) {
+        const { error } = await this.supabase
+            .from('standby_substitutes')
+            .update({ consumed: true })
+            .eq('id', standbyId);
+        if (error) console.error(`Failed to mark standby ${standbyId} as consumed (non-fatal): ${error.message}`);
+    }
+
     async loadRosterChanges() {
         const { data, error } = await this.supabase
             .from('roster_changes')
