@@ -27,6 +27,7 @@ import { corsHeaders, handleCorsPreflightRequest } from '../_shared/cors.ts';
 import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
 import { hasTeamGameStarted, fetchWeekSchedule, isEligibleForSubFromSchedule, getMinutesUntilKickoffFromSchedule } from '../_shared/nflSchedule.ts';
+import { getPlayerLockWeek } from '../_shared/playerLockWeek.ts';
 import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS, BOOM_POSITIONS } from '../_shared/eligibility.ts';
 import { classifySwapSituation, checkSwapPermission } from '../_shared/swapStatus.ts';
 
@@ -82,7 +83,8 @@ Deno.serve(async (req: Request) => {
         if (!forStandby && currentPlayer?.sleeper_player_id) {
             const p = allPlayers[currentPlayer.sleeper_player_id];
             if (p?.team) {
-                locked = await hasTeamGameStarted(p.team, 1, String(season.year));
+                const lockWeek = await getPlayerLockWeek(supabase, teamId, awardType, playerIndex, currentPlayer.sleeper_player_id);
+                locked = await hasTeamGameStarted(p.team, lockWeek, String(season.year));
             }
         }
 
