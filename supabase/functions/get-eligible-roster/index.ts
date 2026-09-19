@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
     if (preflight) return preflight;
 
     try {
-        const { teamId, awardType, playerIndex } = await req.json();
+        const { teamId, awardType, playerIndex, forStandby } = await req.json();
 
         if (!teamId || !['main', 'nextup', 'boom'].includes(awardType) || ![0, 1].includes(playerIndex)) {
             return jsonResponse({ error: 'Missing or invalid teamId/awardType/playerIndex' }, 400);
@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
         ]);
 
         let locked = false;
-        if (currentPlayer?.sleeper_player_id) {
+        if (!forStandby && currentPlayer?.sleeper_player_id) {
             const p = allPlayers[currentPlayer.sleeper_player_id];
             if (p?.team) {
                 locked = await hasTeamGameStarted(p.team, 1, String(season.year));
@@ -88,9 +88,18 @@ Deno.serve(async (req: Request) => {
 
         let situation: 'healthy-locked' | 'temporary' | 'permanent' | null = null;
         let permissionReason: string | undefined;
+        // A standby is preparing a contingency for a currently-healthy
+        // player, not changing the current pick right now - the normal
+        // lock/injury/permanent-swap gate above answers a completely
+        // different question (can THIS pick be changed at this exact
+        // moment) that doesn't apply to a standby at all. Confirmed via a
+        // real reported case: a healthy, not-yet-played Monday Night
+        // player was correctly "locked" under the normal rule, which
+        // then incorrectly emptied the standby candidate list entirely
+        // rather than just gating the unrelated normal-swap flow.
         let allowSwap = true;
 
-        if (locked) {
+        if (!forStandby && locked) {
             situation = classifySwapSituation(currentPlayer?.sleeper_player_id ?? null, rosterPlayerIds, allPlayers);
             const permanentSwapUsed = awardType === 'nextup' ? team.nextup_permanent_swap_used
                 : awardType === 'boom' ? team.boom_permanent_swap_used

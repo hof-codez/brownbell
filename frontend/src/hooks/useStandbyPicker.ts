@@ -24,7 +24,7 @@ export function useStandbyPicker(teamId: string, deviceToken: string): UseStandb
         setError(null);
 
         const { data, error: fnError } = await supabase.functions.invoke('get-eligible-roster', {
-            body: { teamId, awardType, playerIndex }
+            body: { teamId, awardType, playerIndex, forStandby: true }
         });
 
         setFetching(false);
