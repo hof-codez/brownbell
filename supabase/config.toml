@@ -1,3 +1,5 @@
+project_id = "govhbcxrzmvghbdewpls"
+
 # supabase/config.toml
 # These two functions implement their own PIN-based auth instead of relying
 # on Supabase Auth user sessions, so the default "require a valid user JWT"
