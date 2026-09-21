@@ -2568,7 +2568,18 @@ class BrownBellAutomator {
             sub.playerIndex === playerIndex &&
             sub.awardType === awardType &&
             sub.startWeek <= week &&
-            (!sub.endWeek || sub.endWeek >= week)
+            // Deliberately == null, not a falsy check (!sub.endWeek) - a
+            // superseded pick before lock gets end_week: 0 (see set-duo's
+            // "Owner changed pick before lock" rows), meaning "never
+            // actually took effect," which is a real, meaningful value -
+            // not the same as end_week: null (genuinely permanent, no
+            // end at all). !sub.endWeek treats 0 and null identically in
+            // JS, which was a confirmed real bug: it let an old,
+            // superseded pick's row still match as "active" for every
+            // week, and once multiple rows all matched, whichever was
+            // created first won regardless of which pick was actually
+            // current.
+            (sub.endWeek == null || sub.endWeek >= week)
         );
     }
 
@@ -2682,7 +2693,7 @@ class BrownBellAutomator {
                             sub.playerIndex === index &&
                             sub.awardType === awardType &&
                             sub.startWeek <= week &&
-                            (!sub.endWeek || sub.endWeek >= week)
+                            (sub.endWeek == null || sub.endWeek >= week)
                         );
 
                         // Find temporary bye replacement first (highest priority)
@@ -2774,11 +2785,11 @@ class BrownBellAutomator {
                             // Only zero the substitute's score, not the original player's score
                             const player1Sub = existingSubstitutions.find(sub =>
                                 sub.teamName === teamName && sub.playerIndex === 0 && sub.awardType === 'nextup' &&
-                                sub.startWeek <= week && (!sub.endWeek || sub.endWeek >= week)
+                                sub.startWeek <= week && (sub.endWeek == null || sub.endWeek >= week)
                             );
                             const player2Sub = existingSubstitutions.find(sub =>
                                 sub.teamName === teamName && sub.playerIndex === 1 && sub.awardType === 'nextup' &&
-                                sub.startWeek <= week && (!sub.endWeek || sub.endWeek >= week)
+                                sub.startWeek <= week && (sub.endWeek == null || sub.endWeek >= week)
                             );
 
                             // Zero only the substitute player's score
@@ -2824,7 +2835,7 @@ class BrownBellAutomator {
             sub.playerIndex === playerIndex &&
             sub.awardType === 'nextup' &&
             sub.startWeek <= week &&
-            (!sub.endWeek || sub.endWeek >= week)
+            (sub.endWeek == null || sub.endWeek >= week)
         );
 
         if (activeSub && activeSub.substitutePlayerId) {
