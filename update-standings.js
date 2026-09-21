@@ -2158,16 +2158,21 @@ class BrownBellAutomator {
     // processDuoSlots below) and the periodic re-check of an already-vacant
     // slot (checkPendingVacancy) - both need the identical decision, just
     // with different wording depending on what caused the vacancy.
-    async resolveVacancy(teamName, awardType, playerIndex, excludeIds, otherSlotInfo, originalPlayerSleeperId, currentPlayerName, currentPlayerPosition, reasonWhenWaiting, reasonWhenAutoFilled, reasonWhenNoneAvailable, eventTypeWaiting, eventTypeAutoFilled, week) {
+    async resolveVacancy(teamName, awardType, playerIndex, excludeIds, otherSlotInfo, originalPlayerSleeperId, currentPlayerName, currentPlayerPosition, reasonWhenWaiting, reasonWhenAutoFilled, reasonWhenNoneAvailable, eventTypeWaiting, eventTypeAutoFilled, week, existingSubstitutions) {
         const bestCandidate = await this.selectAutoReplacement(teamName, awardType, week, excludeIds, otherSlotInfo, 0, originalPlayerSleeperId);
 
         if (!bestCandidate) {
-            await this.dataLayer.logSubstitution({
-                teamName, awardType, playerIndex,
-                originalName: currentPlayerName, originalPosition: currentPlayerPosition,
-                substituteName: null, substitutePlayerId: null, substitutePosition: null,
-                week, source: 'auto', reason: reasonWhenNoneAvailable, noReplacementAvailable: true
-            });
+            // Repeats identically on every run until either a candidate
+            // appears or the owner acts - guarded the same way as the
+            // injury/departure "left in slot" cases above.
+            if (!this.alreadyLoggedThisWeek(existingSubstitutions, teamName, awardType, playerIndex, week, reasonWhenNoneAvailable)) {
+                await this.dataLayer.logSubstitution({
+                    teamName, awardType, playerIndex,
+                    originalName: currentPlayerName, originalPosition: currentPlayerPosition,
+                    substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                    week, source: 'auto', reason: reasonWhenNoneAvailable, noReplacementAvailable: true
+                });
+            }
             return { type: 'no-replacement', teamName, awardType };
         }
 
@@ -2186,12 +2191,17 @@ class BrownBellAutomator {
                 teamName, awardType, playerIndex,
                 playerName: null, playerPosition: null, sleeperPlayerId: null, source: 'auto'
             });
-            await this.dataLayer.logSubstitution({
-                teamName, awardType, playerIndex,
-                originalName: currentPlayerName, originalPosition: currentPlayerPosition,
-                substituteName: null, substitutePlayerId: null, substitutePosition: null,
-                week, source: 'auto', reason: reasonWhenWaiting
-            });
+            // Same repeating-state risk as above - "still waiting, plenty
+            // of time" can hold true for many consecutive runs before
+            // kickoff actually approaches.
+            if (!this.alreadyLoggedThisWeek(existingSubstitutions, teamName, awardType, playerIndex, week, reasonWhenWaiting)) {
+                await this.dataLayer.logSubstitution({
+                    teamName, awardType, playerIndex,
+                    originalName: currentPlayerName, originalPosition: currentPlayerPosition,
+                    substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                    week, source: 'auto', reason: reasonWhenWaiting
+                });
+            }
             return { type: eventTypeWaiting, teamName, awardType };
         }
 
@@ -2214,7 +2224,7 @@ class BrownBellAutomator {
     // never been set at all (no frozen original) is untouched by this - the
     // owner just hasn't made their initial pick yet, nothing pending to
     // resolve.
-    async checkPendingVacancy(row, week, byTeamAward) {
+    async checkPendingVacancy(row, week, byTeamAward, existingSubstitutions) {
         if (!row.originalSleeperPlayerId) return null;
 
         const originalPlayer = this.playersData[row.originalSleeperPlayerId];
@@ -2264,14 +2274,15 @@ class BrownBellAutomator {
             'Still awaiting owner pick - plenty of time before kickoff',
             'Auto-sub - kickoff approaching, no owner pick made',
             'No eligible replacement currently available - still waiting',
-            'permanent-cleared-for-owner', 'permanent-auto-fill', week
+            'permanent-cleared-for-owner', 'permanent-auto-fill', week, existingSubstitutions
         );
     }
 
     // Each award's permanent-swap budget is independent (see
     // 022-per-award-permanent-swaps.sql) - a departure in one award has no
     // effect on the other two's budgets.
-    async processDuoSlots(week) {
+    async processDuoSlots(week, existingSubstitutions) {
+        existingSubstitutions = existingSubstitutions || [];
         const duoRows = await this.dataLayer.loadDuoRows();
         const events = [];
         // Captured for EVERY row with a resolved player, locked or not - this
@@ -2292,7 +2303,7 @@ class BrownBellAutomator {
 
         for (const row of duoRows) {
             if (!row.sleeperPlayerId) {
-                const event = await this.checkPendingVacancy(row, week, byTeamAward);
+                const event = await this.checkPendingVacancy(row, week, byTeamAward, existingSubstitutions);
                 if (event) events.push(event);
                 continue;
             }
@@ -2478,16 +2489,20 @@ class BrownBellAutomator {
                         // usable standby either - leave the injured player in
                         // place (they're still legitimately theirs, just out
                         // this week) but log it so the owner isn't left
-                        // guessing why nothing changed.
-                        await this.dataLayer.logSubstitution({
-                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
-                            originalName: row.playerName, originalPosition: row.playerPosition,
-                            substituteName: null, substitutePlayerId: null, substitutePosition: null,
-                            week, source: 'auto',
-                            reason: `No eligible replacement found - ${player.first_name} ${player.last_name} is ${status}, left in slot`,
-                            noReplacementAvailable: true
-                        });
-                        events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
+                        // guessing why nothing changed. Only once per distinct
+                        // reason though - see alreadyLoggedThisWeek above.
+                        const noReplacementReason = `No eligible replacement found - ${player.first_name} ${player.last_name} is ${status}, left in slot`;
+                        if (!this.alreadyLoggedThisWeek(existingSubstitutions, row.teamName, row.awardType, row.playerIndex, week, noReplacementReason)) {
+                            await this.dataLayer.logSubstitution({
+                                teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                                originalName: row.playerName, originalPosition: row.playerPosition,
+                                substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                                week, source: 'auto',
+                                reason: noReplacementReason,
+                                noReplacementAvailable: true
+                            });
+                            events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
+                        }
                     }
                 }
 
@@ -2519,17 +2534,22 @@ class BrownBellAutomator {
                         // slot pointing at a player who's no longer even on this
                         // team would be actively misleading - clear it instead, same
                         // as the "1st departure" case below, so it honestly reads as
-                        // empty rather than showing a phantom player.
+                        // empty rather than showing a phantom player. clearDuoSlot is
+                        // idempotent regardless, but the log entry still needs its
+                        // own once-per-reason guard - see alreadyLoggedThisWeek above.
                         await this.dataLayer.clearDuoSlot(row.teamName, row.awardType, row.playerIndex);
-                        await this.dataLayer.logSubstitution({
-                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
-                            originalName: row.playerName, originalPosition: row.playerPosition,
-                            substituteName: null, substitutePlayerId: null, substitutePosition: null,
-                            week, source: 'auto',
-                            reason: 'No eligible replacement found - slot cleared, awaiting owner pick',
-                            noReplacementAvailable: true
-                        });
-                        events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
+                        const slotClearedReason = 'No eligible replacement found - slot cleared, awaiting owner pick';
+                        if (!this.alreadyLoggedThisWeek(existingSubstitutions, row.teamName, row.awardType, row.playerIndex, week, slotClearedReason)) {
+                            await this.dataLayer.logSubstitution({
+                                teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                                originalName: row.playerName, originalPosition: row.playerPosition,
+                                substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                                week, source: 'auto',
+                                reason: slotClearedReason,
+                                noReplacementAvailable: true
+                            });
+                            events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
+                        }
                     }
                 } else {
                     // This award's one permanent departure of the season -
@@ -2540,7 +2560,7 @@ class BrownBellAutomator {
                         'Permanent departure - cleared (this award\'s one permanent swap of the season) - pick a replacement or auto-sub kicks in near kickoff',
                         'Permanent departure - auto-subbed (kickoff approaching, no owner pick made) - this award\'s permanent swap for the season',
                         'Permanent departure - no eligible replacement currently available - still waiting (this award\'s permanent swap of the season)',
-                        'permanent-cleared-for-owner', 'permanent-auto-fill', week
+                        'permanent-cleared-for-owner', 'permanent-auto-fill', week, existingSubstitutions
                     );
                     events.push(event);
                     // Uses up this award's one permanent swap - independent of
@@ -2580,6 +2600,26 @@ class BrownBellAutomator {
             // created first won regardless of which pick was actually
             // current.
             (sub.endWeek == null || sub.endWeek >= week)
+        );
+    }
+
+    // "No eligible replacement, left in slot" situations don't change
+    // anything about the duo itself, so the exact same check keeps
+    // matching on every watchdog run (every ~15 min during game windows)
+    // for as long as the situation persists - sometimes for hours. Without
+    // this, that logs a fresh, identical History entry every single run.
+    // Confirmed as a real reported case: 6 back-to-back duplicate entries
+    // for one player in one week. Guards on the exact reason text (not
+    // just team/award/slot/week) so a genuine change - the player's
+    // status moving from questionable to out, say - still logs its own
+    // new entry rather than being silently swallowed too.
+    alreadyLoggedThisWeek(existingSubstitutions, teamName, awardType, playerIndex, week, reason) {
+        return existingSubstitutions.some(sub =>
+            sub.teamName === teamName &&
+            sub.awardType === awardType &&
+            sub.playerIndex === playerIndex &&
+            sub.startWeek === week &&
+            sub.reason === reason
         );
     }
 
@@ -3123,7 +3163,7 @@ class BrownBellAutomator {
         // that duos is the single source of truth.
         let slotEvents = [];
         if (shouldRunSubstitutions) {
-            slotEvents = await this.processDuoSlots(currentWeek);
+            slotEvents = await this.processDuoSlots(currentWeek, cleanedSubstitutions);
             console.log(`${checkpointType}: ${slotEvents.length} duo slot change(s) this run`);
         }
 
