@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSeasonData } from './hooks/useSeasonData';
 import { useTeamClaim } from './hooks/useTeamClaim';
 import { useDuoPicker } from './hooks/useDuoPicker';
@@ -38,10 +38,19 @@ const BASE_TABS = [
 
 export default function App() {
   const { loading, error, season, teams, refetch } = useSeasonData();
+  // teams.map(t => t.team) produces a brand-new array every render even
+  // when the underlying teams data hasn't changed - anything using it as
+  // an effect dependency (useDuoNames, for instance) would then refetch on
+  // every single App re-render, not just when teams itself actually
+  // changes. Confirmed as a real cause of excessive Supabase egress: this
+  // was responsible for tens of thousands of duo_names requests in a
+  // single day. Memoized here once so every consumer shares one stable
+  // reference.
+  const plainTeams = useMemo(() => teams.map(t => t.team), [teams]);
   const { status, claimedTeam, claiming, claimError, claim, forget } = useTeamClaim();
   const { lockTime } = useLockCountdown(season?.id ?? null);
   const byePlayerIds = useCurrentWeekByeStatus(season);
-  const { names: duoNames, refetch: refetchDuoNames } = useDuoNames(teams.map(t => t.team));
+  const { names: duoNames, refetch: refetchDuoNames } = useDuoNames(plainTeams);
   // Current-week Brown Bell score per team, shown directly on each Teams
   // tab card so checking how someone's doing right now doesn't require
   // switching to League. Reuses the same "which week counts as current"
@@ -213,7 +222,7 @@ export default function App() {
 
         {activeTab === 'misc' && (
           <MiscTab
-            teams={teams.map(t => t.team)}
+            teams={plainTeams}
             miscScrollTarget={miscScrollTarget}
             historyTeamFilter={historyTeamFilter}
             onClearHistoryFilter={() => setHistoryTeamFilter(null)}
@@ -223,7 +232,7 @@ export default function App() {
 
       {showClaimModal && (
         <ClaimTeamModal
-          teams={teams.map(t => t.team)}
+          teams={plainTeams}
           claiming={claiming}
           claimError={claimError}
           onClaim={claim}
