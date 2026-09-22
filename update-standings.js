@@ -2728,11 +2728,25 @@ class BrownBellAutomator {
                             // a historical week's does - mirrors the same
                             // active=true lookup DuoRow's current_sub_* fields
                             // use on the frontend (see useSeasonData.ts).
+                            // Excludes two active:true reasons that don't
+                            // actually mean "this player is a substitute":
+                            // the initial pick itself (every slot gets one
+                            // of these the moment it locks, whether or not
+                            // it's ever subbed), and a revert back to the
+                            // original after a temporary sub - both leave
+                            // an active:true row behind, but neither means
+                            // the CURRENT occupant is a stand-in. Confirmed
+                            // as a real reported bug: every player was
+                            // showing "Sub... for (not set)" because this
+                            // lookup was matching the initial-pick row for
+                            // slots that had never actually been subbed.
                             activeSub = existingSubstitutions.find(sub =>
                                 sub.teamName === teamName &&
                                 sub.playerIndex === index &&
                                 sub.awardType === awardType &&
-                                sub.active === true
+                                sub.active === true &&
+                                sub.reason !== 'Owner set pick' &&
+                                sub.reason !== 'Reverted to original player - healthy again'
                             ) || null;
                         } else {
                         // Check if this player was traded
