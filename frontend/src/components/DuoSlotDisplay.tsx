@@ -57,13 +57,21 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
     // Never shown for a departed slot - that has its own, more urgent
     // indicator below instead.
     const isSubstituted = !slot.player_departed && !!slot.original_sleeper_player_id && slot.original_sleeper_player_id !== slot.sleeper_player_id;
+    // True whenever the active substitution for this slot was specifically
+    // a standby stepping in (Monday Night player ruled out, pre-committed
+    // choice activates) - neither an owner manually swapping mid-week nor
+    // the normal kickoff-time auto-sub, so it gets its own label rather
+    // than being lumped into either. Matches the same reason-text prefix
+    // the History tab's STANDBY badge already keys off, so both places
+    // agree on what counts.
+    const isStandbyActivation = !slot.player_departed && !!slot.current_sub_reason?.startsWith('Standby activated');
     // 'admin' reads as "Sub" here too - both it and 'owner' are "a human
     // set this," as opposed to 'auto'. The full owner/admin distinction
     // stays visible in the History tab; this is just the Teams tab's
     // at-a-glance version. Falls back to "Sub" if the source is
     // ever unknown (e.g. the substitutions fetch failed), rather than
     // showing nothing for a slot that's clearly been substituted.
-    const subLabel = slot.current_sub_source === 'auto' ? 'Auto-sub' : 'Sub';
+    const subLabel = isStandbyActivation ? 'Standby' : slot.current_sub_source === 'auto' ? 'Auto-sub' : 'Sub';
 
     return (
         <div className={`rounded border px-3 py-2 ${slot.player_departed ? 'border-brick/50 bg-brick/10' : 'border-panel-line bg-field/40'}`}>
@@ -90,7 +98,13 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                     {isSubstituted && (
                         <span
                             className="rounded bg-panel-line px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-chalk-dim"
-                            title={subLabel === 'Auto-sub' ? 'The system automatically subbed this player in' : 'This player was subbed in for the original pick'}
+                            title={
+                                subLabel === 'Standby'
+                                    ? 'A pre-committed standby stepped in for this slot'
+                                    : subLabel === 'Auto-sub'
+                                        ? 'The system automatically subbed this player in'
+                                        : 'This player was subbed in for the original pick'
+                            }
                         >
                             {subLabel}
                         </span>

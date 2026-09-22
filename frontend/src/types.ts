@@ -65,6 +65,15 @@ export interface DuoRow {
    * not just that a sub happened at all). Null under the same conditions
    * as current_sub_source. */
   current_sub_original_name: string | null;
+  /** The reason text from that same active substitutions row - null under
+   * the same conditions as current_sub_source. Its only current purpose is
+   * detecting a standby activation (reason starts with "Standby
+   * activated") so the Teams tab can label the slot "Standby" rather than
+   * the generic "Sub"/"Auto-sub" - a standby is neither an owner manually
+   * swapping mid-week nor the normal kickoff-time auto-sub, so lumping it
+   * into either badge would misstate why the player is actually in the
+   * slot. */
+  current_sub_reason: string | null;
 }
 
 /** A team's two duo slots for one award. A slot is null if it hasn't been set yet. */

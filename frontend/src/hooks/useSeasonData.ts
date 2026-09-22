@@ -73,7 +73,7 @@ export function useSeasonData(): UseSeasonDataResult {
           // Teams tab - the duos table itself has no notion of source.
           supabase
             .from('substitutions')
-            .select('team_id, award_type, player_index, source, original_name')
+            .select('team_id, award_type, player_index, source, original_name, reason')
             .in('team_id', teamIds)
             .eq('active', true)
         ]);
@@ -83,12 +83,12 @@ export function useSeasonData(): UseSeasonDataResult {
           return;
         }
 
-        const subInfoByKey = new Map<string, { source: 'owner' | 'auto' | 'admin'; originalName: string | null }>();
+        const subInfoByKey = new Map<string, { source: 'owner' | 'auto' | 'admin'; originalName: string | null; reason: string | null }>();
         if (activeSubsRes.error) {
           console.error('Failed to load active substitutions (non-fatal - Sub/Auto-sub labels will be unavailable):', activeSubsRes.error.message);
         } else {
           for (const row of activeSubsRes.data ?? []) {
-            subInfoByKey.set(`${row.team_id}|${row.award_type}|${row.player_index}`, { source: row.source, originalName: row.original_name ?? null });
+            subInfoByKey.set(`${row.team_id}|${row.award_type}|${row.player_index}`, { source: row.source, originalName: row.original_name ?? null, reason: row.reason ?? null });
           }
         }
 
@@ -97,7 +97,8 @@ export function useSeasonData(): UseSeasonDataResult {
           return {
             ...row,
             current_sub_source: subInfo?.source ?? null,
-            current_sub_original_name: subInfo?.originalName ?? null
+            current_sub_original_name: subInfo?.originalName ?? null,
+            current_sub_reason: subInfo?.reason ?? null
           };
         });
       }
