@@ -1953,7 +1953,13 @@ class BrownBellAutomator {
                 points: points ?? 0,
                 isSub: !!subInfo,
                 subSource: subInfo?.source ?? null,
-                originalPlayerName: subInfo?.original_name ?? null
+                originalPlayerName: subInfo?.original_name ?? null,
+                // Same standby-detection prefix the Teams/History/Showdown
+                // tabs all already use, so the recap agrees with all three
+                // on what counts - a standby is neither an owner's manual
+                // swap nor the normal auto-sub, so lumping it into "Sub"
+                // misstates why the player was actually in the slot.
+                isStandby: !!subInfo?.reason?.startsWith('Standby activated')
             });
         }
         return players;
@@ -1969,7 +1975,7 @@ class BrownBellAutomator {
         const subs = await this.dataLayer.getActiveSubstitutionsForWeek(week, awardType);
         const map = new Map();
         for (const sub of subs) {
-            map.set(`${sub.teamName}|${sub.player_index}`, { source: sub.source, original_name: sub.original_name });
+            map.set(`${sub.teamName}|${sub.player_index}`, { source: sub.source, original_name: sub.original_name, reason: sub.reason });
         }
         return map;
     }

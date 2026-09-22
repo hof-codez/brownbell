@@ -9,6 +9,7 @@ interface PlayerLine {
     isSub?: boolean;
     subSource?: 'owner' | 'auto' | 'admin' | null;
     originalPlayerName?: string | null;
+    isStandby?: boolean;
 }
 
 interface MatchupSummary {
@@ -377,7 +378,7 @@ function PlayerLines({ players, dim }: { players: PlayerLine[] | undefined; dim?
                         {p.playerName} <span className="text-chalk-dim">({p.playerPosition})</span> {p.points.toFixed(1)}
                         {p.isSub && (
                             <span className="ml-1.5 rounded bg-panel-line px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-chalk-dim">
-                                {p.subSource === 'auto' ? 'Auto-sub' : 'Sub'}
+                                {p.isStandby ? 'Standby' : p.subSource === 'auto' ? 'Auto-sub' : 'Sub'}
                             </span>
                         )}
                     </p>
