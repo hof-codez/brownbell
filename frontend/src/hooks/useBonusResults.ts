@@ -23,6 +23,15 @@ export interface MatchupPlayer {
     isSub?: boolean;
     subSource?: 'owner' | 'auto' | 'admin' | null;
     originalPlayerName?: string | null;
+    /** True specifically when the active substitution was a standby
+     * stepping in (Monday Night player ruled out, pre-committed choice
+     * activates) - neither an owner manually swapping mid-week nor the
+     * normal kickoff-time auto-sub, so it needs its own label rather than
+     * being lumped into either. Same reason-text prefix the Teams tab and
+     * History tab both already key off, so all three places agree on
+     * what counts. Only ever populated alongside isSub, for the same
+     * current/upcoming-week-only reason as team above. */
+    isStandby?: boolean;
 }
 
 export interface Matchup {
@@ -144,6 +153,14 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                         // badge and that one never disagree about whether
                         // a given slot is currently substituted.
                         const isSub = !s.player_departed && !!s.original_sleeper_player_id && s.original_sleeper_player_id !== s.sleeper_player_id;
+                        // Same standby-detection prefix DuoSlotDisplay uses
+                        // too - see current_sub_reason's own doc comment in
+                        // types.ts for why this is checked rather than
+                        // trusting subSource alone (a standby activation is
+                        // logged with source: 'owner', same as a manual
+                        // swap, so subSource can't distinguish them on its
+                        // own).
+                        const isStandby = isSub && !!s.current_sub_reason?.startsWith('Standby activated');
                         return {
                             sleeperPlayerId: s.sleeper_player_id!,
                             playerName: s.player_name,
@@ -152,7 +169,8 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                             team: s.player_team,
                             isSub,
                             subSource: isSub ? s.current_sub_source : null,
-                            originalPlayerName: isSub ? s.current_sub_original_name : null
+                            originalPlayerName: isSub ? s.current_sub_original_name : null,
+                            isStandby
                         };
                     });
             });
