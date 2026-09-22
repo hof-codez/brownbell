@@ -563,7 +563,7 @@ class SupabaseDataLayer {
 
     // scores/playerIds shape: { [awardType]: { [teamName]: { [week]: { [index]: value } } } }
     // (this matches updateAllScores()'s existing internal structure - see update-standings.js)
-    async saveWeeklyScores(scores, playerIds, playersData, wasBye) {
+    async saveWeeklyScores(scores, playerIds, playersData, wasBye, subInfo) {
         const rows = [];
         for (const awardType of ['main', 'nextup', 'boom']) {
             for (const [teamName, byWeek] of Object.entries(scores[awardType] || {})) {
@@ -580,6 +580,12 @@ class SupabaseDataLayer {
                         const player = playersData?.[sleeperPlayerId];
                         const playerName = player ? `${player.first_name || ''} ${player.last_name || ''}`.trim() : null;
 
+                        // Whether this player was a substitute at this specific
+                        // week, and why - captured at write time same as
+                        // playerName/playerPosition above, so a PLAYED week's row
+                        // carries this too. See 034-weekly-scores-sub-info.sql.
+                        const sub = subInfo?.[awardType]?.[teamName]?.[week]?.[index];
+
                         rows.push({
                             team_id: teamId,
                             award_type: awardType,
@@ -589,7 +595,10 @@ class SupabaseDataLayer {
                             player_name: playerName || null,
                             player_position: player?.position || null,
                             was_bye: !!wasBye?.[awardType]?.[teamName]?.[week]?.[index],
-                            player_index: Number(index)
+                            player_index: Number(index),
+                            sub_source: sub?.source ?? null,
+                            sub_original_name: sub?.originalName ?? null,
+                            sub_reason: sub?.reason ?? null
                         });
                     }
                 }

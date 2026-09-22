@@ -15,11 +15,13 @@ export interface MatchupPlayer {
      * below); null for past weeks' weekly_scores rows, since a "next game"
      * for an already-played week doesn't mean anything. */
     team: string | null;
-    /** Only ever populated for the current/upcoming week's live duo picks
-     * (same reasoning as team above) - a real requested feature: owners
-     * voting on predictions for an upcoming matchup couldn't tell a
-     * just-subbed-in player apart from a team's normal, expected pick,
-     * which matters for accurately calling who's actually favored. */
+    /** Populated for BOTH the current/upcoming week (from live duos, see
+     * currentMainDuoByTeamId) AND any played week (straight off
+     * weekly_scores' own sub_source/sub_original_name/sub_reason columns -
+     * see 034-weekly-scores-sub-info.sql) - a real requested feature:
+     * owners wanted to see who was subbed in and for whom on a matchup
+     * card regardless of whether that week had already been played,
+     * not just for an upcoming one. */
     isSub?: boolean;
     subSource?: 'owner' | 'auto' | 'admin' | null;
     originalPlayerName?: string | null;
@@ -29,8 +31,8 @@ export interface MatchupPlayer {
      * normal kickoff-time auto-sub, so it needs its own label rather than
      * being lumped into either. Same reason-text prefix the Teams tab and
      * History tab both already key off, so all three places agree on
-     * what counts. Only ever populated alongside isSub, for the same
-     * current/upcoming-week-only reason as team above. */
+     * what counts. Only ever populated alongside isSub, for played weeks
+     * and the current week alike (see isSub above). */
     isStandby?: boolean;
 }
 
@@ -123,7 +125,7 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
                 // Only Main Award scores are relevant here - bonus matchups are a
                 // Main Award mechanic, Next Up never enters into this.
                 supabase.from('weekly_scores')
-                    .select('team_id, week, sleeper_player_id, points, player_name, player_position')
+                    .select('team_id, week, sleeper_player_id, points, player_name, player_position, sub_source, sub_original_name, sub_reason')
                     .eq('award_type', 'main')
                     .in('team_id', teamIds)
             ]);
@@ -185,16 +187,28 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
 
             // Real Main Award players who actually scored that week - captured
             // at write time, so this stays accurate even after a later swap.
+            // isSub/subSource/originalPlayerName/isStandby now come straight
+            // off weekly_scores' own sub_source/sub_original_name/sub_reason
+            // columns (see 034-weekly-scores-sub-info.sql) - previously these
+            // were never set at all for a played week, since weekly_scores
+            // carried nothing but raw points and player identity, meaning a
+            // matchup card's Sub/Standby badge only ever worked for the
+            // current, still-unplayed week.
             const playersByWeekAndTeam = new Map<string, MatchupPlayer[]>();
             for (const row of scoreRows) {
                 const key = `${row.week}|${row.team_id}`;
                 const list = playersByWeekAndTeam.get(key) || [];
+                const isSub = !!row.sub_source;
                 list.push({
                     sleeperPlayerId: row.sleeper_player_id,
                     playerName: row.player_name || 'Unknown player',
                     playerPosition: row.player_position || '',
                     points: Number(row.points),
-                    team: null
+                    team: null,
+                    isSub,
+                    subSource: isSub ? row.sub_source : null,
+                    originalPlayerName: isSub ? row.sub_original_name : null,
+                    isStandby: isSub && !!row.sub_reason?.startsWith('Standby activated')
                 });
                 playersByWeekAndTeam.set(key, list);
             }

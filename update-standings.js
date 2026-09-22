@@ -2657,6 +2657,11 @@ class BrownBellAutomator {
         const scores = { main: {}, nextup: {}, boom: {} };
         const playerIds = { main: {}, nextup: {}, boom: {} };
         const wasBye = { main: {}, nextup: {}, boom: {} }; // captured alongside scores - who was on bye, per week, for the historical badge
+        // Captured alongside scores/playerIds - who was a substitute (and
+        // why) for each slot at each week, so a PLAYED week's stored row
+        // can carry this info too, not just the live/current week. See
+        // 034-weekly-scores-sub-info.sql.
+        const subInfo = { main: {}, nextup: {}, boom: {} };
 
         existingSubstitutions = existingSubstitutions || [];
         rosterChanges = rosterChanges || [];
@@ -2671,6 +2676,7 @@ class BrownBellAutomator {
                 scores[awardType][teamName] = {};
                 playerIds[awardType][teamName] = {};
                 wasBye[awardType][teamName] = {};
+                subInfo[awardType][teamName] = {};
 
                 const roster = this.leagueData.rosters.find(r =>
                     this.leagueData.userMap[r.owner_id] === teamName
@@ -2697,6 +2703,7 @@ class BrownBellAutomator {
                     scores[awardType][teamName][week] = {};
                     playerIds[awardType][teamName][week] = {};
                     wasBye[awardType][teamName][week] = {};
+                    subInfo[awardType][teamName][week] = {};
 
                     for (let index = 0; index < originalDuo.length; index++) {
                         const originalPlayer = originalDuo[index];
@@ -2715,6 +2722,18 @@ class BrownBellAutomator {
                             if (playerId) {
                                 console.log(`Week ${week} (current): ${originalPlayer.name} (${playerId}) for ${teamName}, from live duos`);
                             }
+                            // Still need to know whether the LIVE occupant is
+                            // itself a substitute, so the current week's stored
+                            // row carries the same sub_source/sub_reason info
+                            // a historical week's does - mirrors the same
+                            // active=true lookup DuoRow's current_sub_* fields
+                            // use on the frontend (see useSeasonData.ts).
+                            activeSub = existingSubstitutions.find(sub =>
+                                sub.teamName === teamName &&
+                                sub.playerIndex === index &&
+                                sub.awardType === awardType &&
+                                sub.active === true
+                            ) || null;
                         } else {
                         // Check if this player was traded
                         const tradeInfo = rosterChanges.find(rc =>
@@ -2770,6 +2789,7 @@ class BrownBellAutomator {
                                 scores[awardType][teamName][week][index] = awardScores?.[teamName]?.[week]?.[index] || 0;
                                 playerIds[awardType][teamName][week][index] = null;
                                 wasBye[awardType][teamName][week][index] = false;
+                                subInfo[awardType][teamName][week][index] = null;
                                 continue;
                             }
                             playerId = this.findPlayerInRoster(originalPlayer, roster);
@@ -2777,6 +2797,14 @@ class BrownBellAutomator {
                         }
 
                         playerIds[awardType][teamName][week][index] = playerId || null;
+                        // Captured whether this week's branch was the live-duos
+                        // fast path or the historical reconstruction above -
+                        // activeSub is whatever either path left it as (a
+                        // matched substitutions row, or null for a
+                        // never-substituted original pick).
+                        subInfo[awardType][teamName][week][index] = activeSub
+                            ? { source: activeSub.source, originalName: activeSub.originalName, reason: activeSub.reason }
+                            : null;
 
                         if (playerId && weekScores[playerId] !== undefined) {
                             // Check if this player is on bye this week
@@ -2847,7 +2875,7 @@ class BrownBellAutomator {
             }
         }
 
-        return { scores, playerIds, wasBye };
+        return { scores, playerIds, wasBye, subInfo };
     }
 
     getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions, currentWeek) {
@@ -3153,7 +3181,7 @@ class BrownBellAutomator {
 
         // Update scores
         const existingScoresForFallback = { main: {}, nextup: {}, boom: {} }; // inactive-team historical fallback; see updateAllScores
-        const { scores: allScores, playerIds: allPlayerIds, wasBye: allWasBye } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
+        const { scores: allScores, playerIds: allPlayerIds, wasBye: allWasBye, subInfo: allSubInfo } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
 
         // Process every duo slot: pre-lock slots are skipped entirely (fully
         // owner-editable), locked slots get the full healthy/temporary/permanent
@@ -3285,7 +3313,7 @@ class BrownBellAutomator {
         // call only persists cleanupSubstitutions()'s in-memory fixups (e.g. an
         // invalid date range correction) to the existing rows, nothing new.
         await this.dataLayer.saveSubstitutions(cleanedSubstitutions);
-        await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds, this.playersData, allWasBye);
+        await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds, this.playersData, allWasBye, allSubInfo);
         if (scheduleSnapshotTeams) {
             await this.dataLayer.saveScheduleSnapshot(currentWeek, scheduleSnapshotTeams, scheduleSnapshotCapturedAt);
             await this.dataLayer.saveScheduleChanges(currentWeek, newlyDetectedChanges);
