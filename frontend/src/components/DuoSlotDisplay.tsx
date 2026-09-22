@@ -114,8 +114,23 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                     <PlayerGameInfo gameInfo={gameInfo} />
                 </div>
             )}
-            {onSetStandby && (
-                currentStandby ? (
+            {currentStandby && (
+                // Shown whenever an un-consumed standby exists for this slot,
+                // regardless of onSetStandby - that prop only gates whether
+                // it's still EDITABLE (kickoff hasn't happened), not whether
+                // it's still true that one was set. Without this split, the
+                // instant a game started, any trace of a standby ever having
+                // existed disappeared from the UI entirely - confirmed as a
+                // real gap: an owner had no way to tell, after the fact,
+                // whether a pre-committed standby simply never got a chance
+                // to matter (their original player played fine) or should
+                // have activated but didn't. A consumed standby stops
+                // appearing here at all once it's used - useStandbyStatus
+                // only fetches un-consumed ones - since the slot's own "Sub"
+                // badge above already communicates that a swap happened,
+                // making a redundant "Standby: X" line beneath it
+                // unnecessary once that's the case.
+                onSetStandby ? (
                     <button
                         onClick={onSetStandby}
                         className="mt-1 flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-chalk-dim"
@@ -124,14 +139,22 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                         <span className="text-bell">Standby:</span> {currentStandby.playerName} ({currentStandby.playerPosition})
                     </button>
                 ) : (
-                    <button
-                        onClick={onSetStandby}
-                        className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell"
-                        title="This player's game is the week's last one - if they're ruled out, a pre-picked standby can step in automatically"
+                    <p
+                        className="mt-1 flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-chalk-dim"
+                        title="This standby was set before kickoff and can no longer be changed."
                     >
-                        Set a Standby &rarr;
-                    </button>
+                        <span className="text-bell">Standby:</span> {currentStandby.playerName} ({currentStandby.playerPosition})
+                    </p>
                 )
+            )}
+            {!currentStandby && onSetStandby && (
+                <button
+                    onClick={onSetStandby}
+                    className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell"
+                    title="This player's game is the week's last one - if they're ruled out, a pre-picked standby can step in automatically"
+                >
+                    Set a Standby &rarr;
+                </button>
             )}
         </div>
     );
