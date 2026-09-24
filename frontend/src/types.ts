@@ -50,6 +50,15 @@ export interface DuoRow {
    * already shows for the same event. Null before the slot has ever
    * locked. */
   original_sleeper_player_id: string | null;
+  /** Live injury status of the FROZEN ORIGINAL player for this slot - not
+   * the current occupant, which injury_status already tracks. Null
+   * unless a substitution has happened for this slot. */
+  original_injury_status: string | null;
+  /** Weeks remaining before this slot's temporary IR/PUP substitution
+   * auto-converts to a permanent one - null unless the frozen original
+   * is currently ir/pup AND this award's permanent swap hasn't been
+   * used yet. Powers the Teams tab countdown badge. */
+  ir_pup_weeks_until_permanent: number | null;
   /** The source of whatever active substitution currently applies to this
    * slot (from the substitutions table's active=true record) - null if
    * the slot has never been substituted at all (current player still

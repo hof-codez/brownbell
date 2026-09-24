@@ -128,6 +128,14 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                     <PlayerGameInfo gameInfo={gameInfo} />
                 </div>
             )}
+            {typeof slot.ir_pup_weeks_until_permanent === 'number' && (
+                <p
+                    className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-yellow-500"
+                    title="This award's one permanent swap is used automatically once the countdown reaches 0 - the current player becomes the new pick going forward, no take-backs."
+                >
+                    Becomes permanent in {slot.ir_pup_weeks_until_permanent} week{slot.ir_pup_weeks_until_permanent === 1 ? '' : 's'}
+                </p>
+            )}
             {currentStandby && (
                 // Shown whenever an un-consumed standby exists for this slot,
                 // regardless of onSetStandby - that prop only gates whether

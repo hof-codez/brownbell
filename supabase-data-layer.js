@@ -158,8 +158,20 @@ class SupabaseDataLayer {
     async updateDuoInjuryStatuses(updates) {
         if (!updates || updates.length === 0) return;
 
-        const results = await Promise.all(updates.map(({ rowId, injuryStatus }) =>
-            this.supabase.from('duos').update({ injury_status: injuryStatus }).eq('id', rowId)
+        const results = await Promise.all(updates.map(({ rowId, injuryStatus, originalInjuryStatus, irPupWeeksUntilPermanent }) =>
+            this.supabase.from('duos').update({
+                injury_status: injuryStatus,
+                // Live status of the FROZEN ORIGINAL player (not the
+                // current occupant, which injury_status already tracks),
+                // and, once that original is specifically ir/pup with
+                // this award's permanent swap not yet used, how many
+                // weeks remain before this slot's temporary substitution
+                // auto-converts to permanent - see the matching comment
+                // in processDuoSlots. Both null on a row with no active
+                // substitution at all. See 036-duos-ir-pup-countdown.sql.
+                original_injury_status: originalInjuryStatus ?? null,
+                ir_pup_weeks_until_permanent: irPupWeeksUntilPermanent ?? null
+            }).eq('id', rowId)
         ));
 
         const failed = results.find(r => r.error);

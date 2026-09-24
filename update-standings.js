@@ -2348,7 +2348,14 @@ class BrownBellAutomator {
                 continue;
             }
 
-            injuryStatusUpdates.push({ rowId: row.rowId, injuryStatus: player.injury_status || null });
+            // originalInjuryStatus/irPupWeeksUntilPermanent default to
+            // null and are only ever filled in later, in the auto-revert
+            // check below, once row.originalSleeperPlayerId is known to
+            // differ from the current occupant - kept as a live object
+            // reference (not re-pushed) so that later code in this same
+            // row's processing can set them without a second array entry.
+            const injuryUpdateEntry = { rowId: row.rowId, injuryStatus: player.injury_status || null, originalInjuryStatus: null, irPupWeeksUntilPermanent: null };
+            injuryStatusUpdates.push(injuryUpdateEntry);
 
             // Locks are for the SEASON - always checked against week 1, matching
             // the Edge Functions (get-eligible-roster/set-duo) exactly.
@@ -2448,6 +2455,64 @@ class BrownBellAutomator {
                         });
                         events.push({ type: 'reverted', teamName: row.teamName, awardType: row.awardType });
                         continue;
+                    }
+
+                    // Live status of the frozen original, captured
+                    // whenever a substitution exists regardless of the
+                    // specific status - powers the Teams tab's display of
+                    // WHY a slot is substituted, not just that it is.
+                    injuryUpdateEntry.originalInjuryStatus = originalStatus || null;
+
+                    // IR/PUP specifically (not out/doubtful) run multiple
+                    // weeks minimum by NFL rule, unlike a single-game
+                    // designation - previously treated identically, this
+                    // let an owner get an unlimited, free, indefinite
+                    // auto-sub for a season-ending IR/PUP player without
+                    // ever spending this award's one permanent swap, while
+                    // a genuine trade/release spent it on the very first
+                    // pick. After the SAME replacement has held this slot
+                    // for 4 consecutive weeks, the swap is spent
+                    // automatically and that replacement becomes the new
+                    // frozen original - no take-backs, and the revert
+                    // check above naturally never fires again for this row
+                    // once that happens, since originalSleeperPlayerId now
+                    // matches the current occupant.
+                    if (['ir', 'pup'].includes(originalStatus)) {
+                        const IR_PUP_PERMANENT_CONVERSION_WEEKS = 4;
+                        const activeSub = existingSubstitutions.find(sub =>
+                            sub.teamName === row.teamName && sub.awardType === row.awardType &&
+                            sub.playerIndex === row.playerIndex && sub.active === true
+                        );
+                        const swapState = this.dataLayer.getTeamSwapState(row.teamName, row.awardType);
+
+                        if (activeSub && !swapState.permanentSwapUsed) {
+                            const weeksElapsed = week - activeSub.startWeek;
+
+                            if (weeksElapsed >= IR_PUP_PERMANENT_CONVERSION_WEEKS - 1) {
+                                await this.dataLayer.freezeOriginalPlayer(row.rowId, row.sleeperPlayerId);
+                                row.originalSleeperPlayerId = row.sleeperPlayerId;
+                                await this.dataLayer.updateTeamSwapState(row.teamName, row.awardType, true);
+                                await this.dataLayer.logSubstitution({
+                                    teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                                    originalName: originalPlayer ? `${originalPlayer.first_name || ''} ${originalPlayer.last_name || ''}`.trim() : row.playerName,
+                                    originalPosition: originalPlayer?.position || row.playerPosition,
+                                    substituteName: row.playerName, substitutePlayerId: row.sleeperPlayerId, substitutePosition: row.playerPosition,
+                                    week, source: 'auto',
+                                    reason: `Converted to permanent - ${originalStatus.toUpperCase()} for ${IR_PUP_PERMANENT_CONVERSION_WEEKS}+ weeks, this award's manual swap now used`
+                                });
+                                events.push({ type: 'ir-pup-converted-permanent', teamName: row.teamName, awardType: row.awardType });
+                                // No longer a temporary situation as of
+                                // this run - clear both fields rather than
+                                // leave a stale countdown behind.
+                                injuryUpdateEntry.originalInjuryStatus = null;
+                                injuryUpdateEntry.irPupWeeksUntilPermanent = null;
+                                continue;
+                            }
+
+                            // Not yet at the cap - surfaced for the Teams
+                            // tab's countdown badge.
+                            injuryUpdateEntry.irPupWeeksUntilPermanent = IR_PUP_PERMANENT_CONVERSION_WEEKS - 1 - weeksElapsed;
+                        }
                     }
                 }
 

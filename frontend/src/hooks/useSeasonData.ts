@@ -64,7 +64,7 @@ export function useSeasonData(): UseSeasonDataResult {
         const [duosRes, activeSubsRes] = await Promise.all([
           supabase
             .from('duos')
-            .select('team_id, award_type, player_index, player_name, player_position, sleeper_player_id, player_team, experience, injury_status, player_departed, original_sleeper_player_id')
+            .select('team_id, award_type, player_index, player_name, player_position, sleeper_player_id, player_team, experience, injury_status, player_departed, original_sleeper_player_id, original_injury_status, ir_pup_weeks_until_permanent')
             .in('team_id', teamIds),
           // Only ever at most one active=true row per (team_id, award_type,
           // player_index) - logSubstitution always closes out the prior
