@@ -946,19 +946,46 @@ class BrownBellAutomator {
         // Cap between 1 and 18 (NFL regular season)
         calculatedWeek = Math.max(1, Math.min(18, calculatedWeek));
 
-        // Prefer Sleeper's own live league.leg when it's reporting a real in-season
-        // value - it's the actual source of truth, not a date calculation.
+        // Sleeper's own live league.leg is usually the more precise source
+        // of truth, but it only advances whenever Sleeper's own internal
+        // process bumps it - commonly sometime Tuesday, but confirmed as a
+        // real reported case where it still hadn't moved by Wednesday even
+        // though every one of that week's games had already finished.
+        // Blindly preferring it whenever it's in-range let a lag like that
+        // freeze the ENTIRE app on the prior week - every player's lock
+        // check treated the just-finished week as still current, blocking
+        // owners from setting next week's lineup, even though the
+        // calendar-driven calculatedWeek had already correctly moved on.
+        // Taking whichever of the two is FURTHER ALONG fixes this without
+        // giving up Sleeper's value for cases it genuinely helps with (bye
+        // weeks, schedule quirks the calendar formula alone can't know
+        // about) - neither signal should ever be allowed to pull the week
+        // backward or get stuck behind the other.
         const sleeperWeek = this.leagueData?.league?.leg;
-        if (sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18) {
-            console.log(`Using Sleeper week: ${sleeperWeek}, Calculated week: ${calculatedWeek}`);
-            return sleeperWeek;
-        }
+        const sleeperWeekValid = sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18;
+        const resolvedWeek = sleeperWeekValid ? Math.max(sleeperWeek, calculatedWeek) : calculatedWeek;
 
-        console.log(`Using calculated week: ${calculatedWeek} (days since start: ${daysSinceStart})`);
-        return calculatedWeek;
+        console.log(`Using week: ${resolvedWeek} (Sleeper week: ${sleeperWeekValid ? sleeperWeek : 'n/a'}, calculated week: ${calculatedWeek}, days since start: ${daysSinceStart})`);
+        return resolvedWeek;
     }
 
     async getWeeklyScores(week) {
+        // Cached for this run only, same pattern as this.cachedSchedule -
+        // a fresh process runs on every checkpoint, so this never goes
+        // stale across checkpoints, but within one run this exact data
+        // gets asked for repeatedly (once per team per award type in
+        // updateAllScores' loop alone, plus again per candidate player
+        // whenever selectAutoReplacement/findSubstitute need it) and was
+        // being re-fetched from Sleeper every single time - confirmed as
+        // a real reported case where a run took 39+ minutes and appeared
+        // stuck, almost certainly from dozens of fully redundant fetches
+        // of the identical week's data compounding as more weeks of
+        // season history accumulate.
+        this.cachedWeeklyScores = this.cachedWeeklyScores || {};
+        if (this.cachedWeeklyScores[week]) {
+            return this.cachedWeeklyScores[week];
+        }
+
         console.log(`Fetching scores for week ${week}...`);
 
         try {
@@ -975,6 +1002,7 @@ class BrownBellAutomator {
                 }
             });
 
+            this.cachedWeeklyScores[week] = allPlayerScores;
             return allPlayerScores;
         } catch (error) {
             console.warn(`Could not fetch scores for week ${week}:`, error.message);
