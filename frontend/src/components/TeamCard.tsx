@@ -8,12 +8,16 @@ import { duoNameKey } from '../hooks/useDuoNames';
 interface TeamCardProps {
     teamWithDuos: TeamWithDuos;
     onEditSlot?: (awardType: AwardType, playerIndex: 0 | 1) => void;
-    /** Opens the standby picker - only ever offered for a slot whose
-     * current player's game is the week's last one (see
-     * isLastGameOfWeek below), since that's the only situation the
-     * normal substitution system can't already cover. */
+    /** Opens the standby picker - offered whenever the slot has a real,
+     * not-yet-started player; set-standby itself is now the authoritative
+     * gate on whether a standby can actually be saved (no eligible
+     * replacement currently exists on the roster), the same "fail safe
+     * toward showing the option, let the server enforce the real rule"
+     * pattern canEditSlot already uses below. Previously gated here on
+     * isLastGameOfWeek, which was too narrow - a real reported case had a
+     * Sunday Night player with zero eligible replacements even though
+     * Monday Night still followed that same week. */
     onSetStandby?: (awardType: AwardType, playerIndex: 0 | 1, currentPlayerName: string) => void;
-    isLastGameOfWeek?: (nflTeam: string | null) => boolean;
     /** Every active standby the owner has already set this week, keyed by
      * `${awardType}|${playerIndex}` - lets DuoSlotDisplay show who's
      * picked instead of just offering to set one. */
@@ -73,7 +77,7 @@ function canEditSlot(slot: TeamWithDuos['main'][number], gameInfo: NFLGameInfo |
     return true; // temporary injury situation - still eligible
 }
 
-export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, isLastGameOfWeek, standbyByKey, byePlayerIds, duoNames, currentWeekScore, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory, collapsible }: TeamCardProps) {
+export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, standbyByKey, byePlayerIds, duoNames, currentWeekScore, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory, collapsible }: TeamCardProps) {
     const { team, main, nextup, boom } = teamWithDuos;
     const [expanded, setExpanded] = useState(true);
 
@@ -85,14 +89,19 @@ export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, isLastGameOfW
         return () => onEditSlot(awardType, playerIndex);
     }
 
-    // Only offered when the slot has a real current player, their game is
-    // genuinely the week's last one, AND that game hasn't started yet -
-    // once it has, the choice is meant to be locked (see set-standby's
-    // own server-side enforcement of the same rule), so the option
-    // disappears from the UI too rather than just failing on submit.
+    // Only offered when the slot has a real current player AND that
+    // game hasn't started yet - once it has, the choice is meant to be
+    // locked (see set-standby's own server-side enforcement of the same
+    // rule), so the option disappears from the UI too rather than just
+    // failing on submit. Whether a standby is actually NEEDED right now
+    // (no eligible on-roster replacement exists) is no longer checked
+    // here at all - that requires full roster/injury/schedule data this
+    // component doesn't have, and set-standby is the authoritative check
+    // regardless. Showing the button and letting a genuinely-not-needed
+    // attempt fail with a clear error is the same tradeoff canEditSlot
+    // already makes above.
     function getStandbyHandler(awardType: AwardType, playerIndex: 0 | 1, slot: TeamWithDuos['main'][number], gameInfo: NFLGameInfo | undefined) {
         if (!onSetStandby || !slot?.sleeper_player_id || slot.player_departed) return undefined;
-        if (!isLastGameOfWeek?.(slot.player_team ?? null)) return undefined;
         if (gameInfo?.kickoff_time && new Date(gameInfo.kickoff_time) <= new Date()) return undefined;
         return () => onSetStandby(awardType, playerIndex, slot.player_name);
     }

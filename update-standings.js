@@ -2499,10 +2499,24 @@ class BrownBellAutomator {
                     // time has passed, and the standby could since have been
                     // traded away, gone on IR themselves, or gotten claimed by
                     // this team's other award/slot in the meantime.
+                    // Combo re-validation, added alongside widening when a
+                    // standby can be set (no longer just "last game of the
+                    // week") - a standby offered more often makes a stale
+                    // combo (valid when set, invalid by the time it would
+                    // activate, since the OTHER slot can change in the
+                    // meantime) a real risk rather than a theoretical one.
+                    const standbyPlayer = standby ? this.playersData[standby.standby_sleeper_player_id] : null;
+                    const standbyComboValid = !standby || row.awardType === 'boom' || !otherSlotInfo || !standbyPlayer?.position
+                        ? true
+                        : (row.awardType === 'main'
+                            ? this.validateDuoCombination(otherSlotInfo.position, standbyPlayer.position)
+                            : this.isValidNextUpCombo(otherSlotInfo, { position: standbyPlayer.position, years: standbyPlayer.years_exp || 0 }));
+
                     const standbyStillEligible = standby
                         && this.isPlayerOnTeamRoster(row.teamName, standby.standby_sleeper_player_id)
                         && !excludeIds.includes(standby.standby_sleeper_player_id)
-                        && !['out', 'doubtful', 'ir', 'pup'].includes((this.playersData[standby.standby_sleeper_player_id]?.injury_status || '').toLowerCase());
+                        && !['out', 'doubtful', 'ir', 'pup'].includes((this.playersData[standby.standby_sleeper_player_id]?.injury_status || '').toLowerCase())
+                        && standbyComboValid;
 
                     if (standby && standbyStillEligible) {
                         await this.dataLayer.upsertDuoSlot({

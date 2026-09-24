@@ -148,7 +148,7 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                     <button
                         onClick={onSetStandby}
                         className="mt-1 flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-chalk-dim"
-                        title="This player's game is the week's last one - if they're ruled out, this pre-picked standby steps in automatically. Tap to change."
+                        title="No eligible replacement exists on your roster for this player right now - if they're ruled out, this pre-picked standby steps in automatically. Tap to change."
                     >
                         <span className="text-bell">Standby:</span> {currentStandby.playerName} ({currentStandby.playerPosition})
                     </button>
@@ -165,7 +165,7 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                 <button
                     onClick={onSetStandby}
                     className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell"
-                    title="This player's game is the week's last one - if they're ruled out, a pre-picked standby can step in automatically"
+                    title="No eligible replacement exists on your roster for this player right now - if they're ruled out, a pre-picked standby can step in automatically"
                 >
                     Set a Standby &rarr;
                 </button>

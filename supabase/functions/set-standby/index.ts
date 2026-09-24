@@ -5,10 +5,13 @@
 // Solves a real, structural gap in the existing auto-sub logic: a
 // replacement's own game must kick off at the same time or later than
 // the player being replaced (a no-sandbagging rule, see
-// update-standings.js's selectAutoReplacement) - but when the duo
-// member's own game IS the week's last one, nothing else that week
-// kicks off later, so there is structurally no eligible auto-sub
-// candidate at all if that player gets ruled out.
+// update-standings.js's selectAutoReplacement) - which can leave a slot
+// with structurally no eligible auto-sub candidate at all, not just on
+// the week's literal last game. A standby is only offered once
+// _shared/replacementCheck.ts confirms the normal substitution system
+// genuinely has nobody who could cover this slot right now - not as a
+// general-purpose hedge available any time a player is merely
+// questionable.
 //
 // This lets an owner pre-commit a "standby" for exactly that situation -
 // but only while it's still genuinely blind: BOTH the current player's
@@ -30,6 +33,7 @@ import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
 import { fetchWeekSchedule, getMinutesUntilKickoffFromSchedule } from '../_shared/nflSchedule.ts';
 import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS, BOOM_POSITIONS } from '../_shared/eligibility.ts';
+import { hasEligibleReplacement } from '../_shared/replacementCheck.ts';
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -103,20 +107,38 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'Could not resolve the current player\'s NFL team' }, 400);
         }
 
-        // The actual condition this feature exists for: not literally
-        // "is this a Monday" (which gets genuinely messy across a kickoff
-        // that crosses midnight UTC), but "does nothing else this week
-        // kick off later than this player's own game" - the exact
-        // structural reason the normal auto-sub rule can find no one.
-        // Comparing raw kickoff Date objects directly sidesteps any
-        // timezone conversion entirely.
-        const allKickoffs = [...weekSchedule.values()].map(d => d.getTime());
-        const latestKickoff = allKickoffs.length > 0 ? Math.max(...allKickoffs) : null;
-        const currentKickoff = weekSchedule.get(currentP.team)?.getTime() ?? null;
-        const isLastGameOfWeek = latestKickoff !== null && currentKickoff === latestKickoff;
+        // The actual condition this feature exists for: not "is this
+        // literally the last game of the week" (too narrow - a real
+        // reported case had a Sunday Night player with zero eligible
+        // replacements on the roster, even though Monday Night still
+        // followed that same week), but "does the normal substitution
+        // system have anyone at all who could cover this player right
+        // now." A standby is only offered when that answer is genuinely
+        // no - not as a general-purpose hedge available any time a player
+        // is merely questionable.
+        const excludeSleeperIds = new Set<string>([
+            currentPlayer.sleeper_player_id,
+            ...(otherSlotPlayer?.sleeper_player_id ? [otherSlotPlayer.sleeper_player_id] : []),
+            ...otherAwardPlayerIds
+        ]);
+        const otherSlotInfo = (() => {
+            if (!otherSlotPlayer?.sleeper_player_id) return null;
+            const otherP = allPlayers[otherSlotPlayer.sleeper_player_id];
+            return otherP?.position ? { position: otherP.position, yearsExp: otherP.years_exp || 0 } : null;
+        })();
 
-        if (!isLastGameOfWeek) {
-            return jsonResponse({ success: false, error: 'A standby can only be set for a player whose game is the last one of the week - every other week, the normal substitution system already covers this.' }, 400);
+        const eligibleReplacementExists = hasEligibleReplacement({
+            rosterPlayerIds,
+            allPlayers,
+            excludeSleeperIds,
+            awardType,
+            otherSlotInfo,
+            weekSchedule,
+            currentPlayerTeam: currentP.team ?? null
+        });
+
+        if (eligibleReplacementExists) {
+            return jsonResponse({ success: false, error: 'A standby can only be set when no eligible replacement currently exists on your roster for this slot - a normal substitution already covers this situation.' }, 400);
         }
 
         const currentMinutesUntilKickoff = getMinutesUntilKickoffFromSchedule(weekSchedule, currentP.team);

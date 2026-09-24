@@ -8,14 +8,11 @@ interface TeamsViewProps {
     myTeam: TeamWithDuos | null;
     otherTeams: TeamWithDuos[];
     onEditSlot: (awardType: AwardType, playerIndex: 0 | 1) => void;
-    /** Opens the standby picker for a slot whose current player's game is
-     * the week's last one (see isLastGameOfWeek below) - only ever
-     * relevant for the owner's own team, same as onEditSlot. */
+    /** Opens the standby picker - only ever relevant for the owner's own
+     * team, same as onEditSlot. See TeamCard's own onSetStandby doc for
+     * why eligibility is no longer pre-checked here (set-standby itself
+     * is now the authoritative gate). */
     onSetStandby?: (awardType: AwardType, playerIndex: 0 | 1, currentPlayerName: string) => void;
-    /** Whether a given NFL team's game is the LAST one of the week - decides
-     * when TeamCard/DuoSlotDisplay should even offer the standby option at
-     * all. */
-    isLastGameOfWeek?: (nflTeam: string | null) => boolean;
     /** Every active standby the owner has already set this week, keyed by
      * `${awardType}|${playerIndex}` - lets DuoSlotDisplay show who's
      * picked instead of just offering to set one. */
@@ -33,7 +30,7 @@ interface TeamsViewProps {
     onViewHistory?: (teamId: string) => void;
 }
 
-export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, onSetStandby, isLastGameOfWeek, standbyByKey, byePlayerIds, duoNames, currentWeekScores, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory }: TeamsViewProps) {
+export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, onSetStandby, standbyByKey, byePlayerIds, duoNames, currentWeekScores, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory }: TeamsViewProps) {
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading teams&hellip;</p>;
     }
@@ -79,7 +76,6 @@ export function TeamsView({ loading, error, myTeam, otherTeams, onEditSlot, onSe
                             teamWithDuos={myTeam}
                             onEditSlot={onEditSlot}
                             onSetStandby={onSetStandby}
-                            isLastGameOfWeek={isLastGameOfWeek}
                             standbyByKey={standbyByKey}
                             byePlayerIds={byePlayerIds}
                             duoNames={duoNames}

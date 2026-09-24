@@ -68,7 +68,7 @@ export default function App() {
   // in the replacement picker - reuses the exact same displayWeek as
   // currentWeekScores above, so both always agree on which week is
   // "current" rather than risking two independent notions of it.
-  const { getGameInfo, isLastGameOfWeek } = useNFLSchedule(displayWeek);
+  const { getGameInfo } = useNFLSchedule(displayWeek);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
   // Separate from editingSlot above - this is for pre-committing a
@@ -186,7 +186,6 @@ export default function App() {
             otherTeams={otherTeams}
             onEditSlot={(awardType, playerIndex) => setEditingSlot({ awardType, playerIndex })}
             onSetStandby={(awardType, playerIndex, currentPlayerName) => setSettingStandbyFor({ awardType, playerIndex, currentPlayerName })}
-            isLastGameOfWeek={isLastGameOfWeek}
             standbyByKey={standbyByKey}
             byePlayerIds={byePlayerIds}
             duoNames={duoNames}

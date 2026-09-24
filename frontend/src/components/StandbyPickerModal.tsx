@@ -79,7 +79,7 @@ export function StandbyPickerModal({ awardType, playerIndex, currentPlayerName, 
                     If <span className="text-chalk">{currentPlayerName}</span> is ruled out before kickoff, this player steps in automatically.
                 </p>
                 <p className="mt-2 font-body text-xs italic text-chalk-dim">
-                    This only exists because {currentPlayerName}&rsquo;s game is the last one of the week - normally, the usual substitution system already covers an injury. Pick before either game starts; the choice locks once one does.
+                    This only exists because no eligible replacement currently exists on your roster for {currentPlayerName} - normally, the usual substitution system already covers an injury. Pick before either game starts; the choice locks once one does.
                 </p>
 
                 {!loading && data && data.candidates.length > 0 && (
