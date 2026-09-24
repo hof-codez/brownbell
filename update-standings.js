@@ -2664,11 +2664,26 @@ class BrownBellAutomator {
     // the known gap noted elsewhere. Pure filtering + a minor date-range
     // fixup, no other side effects.
     cleanupSubstitutions(substitutions, currentWeek) {
+        // Only rows genuinely fixed here (the invalid-date-range case)
+        // should ever get written back - see the matching change in
+        // saveSubstitutions/generateCompleteData. Confirmed as a real,
+        // widespread bug: saveSubstitutions used to blanket-rewrite EVERY
+        // row's end_week/active from this function's return value, which
+        // is a snapshot taken once at the very start of the run - so any
+        // close-out that happened DURING this same run (this file's own
+        // logSubstitution calls, or an owner's set-duo call mid-run) got
+        // silently reopened the moment this run's saveSubstitutions call
+        // fired at the end. 13 team/slot combinations were found with
+        // multiple simultaneously "active" rows as a direct result, one
+        // with 7 - each one meant an ambiguous, effectively-random pick
+        // among them for both current-week display and historical scoring.
+        const modifiedForSave = [];
         const validSubstitutions = substitutions.filter(sub => {
             // Fix invalid date ranges
             if (sub.endWeek && sub.endWeek < sub.startWeek) {
                 console.log(`Fixing invalid date range for ${sub.substituteName}`);
                 sub.endWeek = null;
+                modifiedForSave.push(sub);
             }
 
             // Remove future substitutions
@@ -2681,7 +2696,7 @@ class BrownBellAutomator {
         });
 
         console.log(`Validated ${validSubstitutions.length} substitutions (removed ${substitutions.length - validSubstitutions.length})`);
-        return validSubstitutions;
+        return { validSubstitutions, modifiedForSave };
     }
 
     async updateAllScores(existingSubstitutions, rosterChanges, existingScores) {
@@ -3223,7 +3238,7 @@ class BrownBellAutomator {
 
         // Load existing state from Supabase (replaces the old file-based JSON read)
         const cleanedSubstitutionsRaw = await this.dataLayer.loadSubstitutions();
-        const cleanedSubstitutions = this.cleanupSubstitutions(cleanedSubstitutionsRaw, currentWeek);
+        const { validSubstitutions: cleanedSubstitutions, modifiedForSave } = this.cleanupSubstitutions(cleanedSubstitutionsRaw, currentWeek);
         const rosterChanges = await this.dataLayer.loadRosterChanges();
         this.managerChanges = await this.dataLayer.loadManagerChanges();
 
@@ -3377,7 +3392,7 @@ class BrownBellAutomator {
         // entries directly via dataLayer.logSubstitution() as they happened - this
         // call only persists cleanupSubstitutions()'s in-memory fixups (e.g. an
         // invalid date range correction) to the existing rows, nothing new.
-        await this.dataLayer.saveSubstitutions(cleanedSubstitutions);
+        await this.dataLayer.saveSubstitutions(modifiedForSave);
         await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds, this.playersData, allWasBye, allSubInfo);
         if (scheduleSnapshotTeams) {
             await this.dataLayer.saveScheduleSnapshot(currentWeek, scheduleSnapshotTeams, scheduleSnapshotCapturedAt);
