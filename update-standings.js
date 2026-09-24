@@ -2780,6 +2780,7 @@ class BrownBellAutomator {
                                 sub.awardType === awardType &&
                                 sub.active === true &&
                                 sub.reason !== 'Owner set pick' &&
+                                sub.reason !== 'Owner changed pick before lock' &&
                                 sub.reason !== 'Reverted to original player - healthy again'
                             ) || null;
                         } else {
@@ -2849,8 +2850,24 @@ class BrownBellAutomator {
                         // fast path or the historical reconstruction above -
                         // activeSub is whatever either path left it as (a
                         // matched substitutions row, or null for a
-                        // never-substituted original pick).
-                        subInfo[awardType][teamName][week][index] = activeSub
+                        // never-substituted original pick). The historical
+                        // branch's own activeSub resolution above deliberately
+                        // stays broad enough to match an initial pick or a
+                        // pre-lock change too - that's exactly how playerId
+                        // correctly resolves for a slot that was never really
+                        // subbed. But none of those three reasons are an
+                        // actual in-season substitution, so they're excluded
+                        // here, at the metadata level, rather than from that
+                        // broader match. Confirmed as a real reported case: a
+                        // pre-lock pick change (Kenneth Walker replacing Caleb
+                        // Williams before the season even started) showed as
+                        // "Sub for Caleb Williams" in a played week's matchup
+                        // card and recap, and every never-subbed player in
+                        // that same week showed "Sub for (not set)" - both
+                        // from this same historical-week gap, which the
+                        // current-week lookup above already excludes.
+                        const NOT_A_REAL_SUB_REASONS = ['Owner set pick', 'Owner changed pick before lock', 'Reverted to original player - healthy again'];
+                        subInfo[awardType][teamName][week][index] = (activeSub && !NOT_A_REAL_SUB_REASONS.includes(activeSub.reason))
                             ? { source: activeSub.source, originalName: activeSub.originalName, reason: activeSub.reason }
                             : null;
 

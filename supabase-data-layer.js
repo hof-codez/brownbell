@@ -893,7 +893,7 @@ class SupabaseDataLayer {
         // whether it had ever actually been subbed.
         return (data || [])
             .filter(row => row.end_week === null || row.end_week === undefined || row.end_week >= week)
-            .filter(row => row.reason !== 'Owner set pick' && row.reason !== 'Reverted to original player - healthy again')
+            .filter(row => row.reason !== 'Owner set pick' && row.reason !== 'Owner changed pick before lock' && row.reason !== 'Reverted to original player - healthy again')
             .map(row => ({ ...row, teamName: teamNameById[row.team_id] }))
             .filter(row => row.teamName);
     }
