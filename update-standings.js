@@ -2431,10 +2431,31 @@ class BrownBellAutomator {
 
             if (onRoster) {
                 // Auto-revert check FIRST, whenever we're currently covering with
-                // someone other than the frozen original - regardless of whether
-                // that stand-in is themselves fine right now. A working stand-in
-                // must never block restoring the true original once they're back.
-                if (row.sleeperPlayerId !== row.originalSleeperPlayerId) {
+                // someone other than the frozen original AND that stand-in was
+                // placed by the AUTOMATION itself (source: 'auto') - regardless
+                // of whether the stand-in is themselves fine right now. A
+                // working auto-picked stand-in must never block restoring the
+                // true original once they're back.
+                //
+                // Deliberately excludes an OWNER-picked stand-in (source:
+                // 'owner' or 'admin'). Confirmed as a real, dangerous reported
+                // case: an owner manually chose a specific replacement during a
+                // temporary injury situation, and the very next automation run
+                // silently reverted that deliberate choice back to the original
+                // the moment the original's injury designation happened to read
+                // as healthy for one single check - injury statuses fluctuate
+                // throughout the week, sometimes hour to hour, well before a
+                // final designation - discarding the owner's actual pick
+                // without their knowledge, and then (once the original's status
+                // flipped back to a qualifying injury on a LATER check)
+                // auto-subbing in a random top-4 candidate the owner never
+                // asked for at all. A human's most recent, deliberate choice
+                // for this slot is never something the automation should
+                // override on its own initiative - it should only ever clean
+                // up after its OWN prior auto-picks. The owner can always
+                // manually switch back to the original themselves if they want
+                // to - temporary situations allow unlimited manual swaps.
+                if (row.sleeperPlayerId !== row.originalSleeperPlayerId && row.source === 'auto') {
                     const originalPlayer = this.playersData[row.originalSleeperPlayerId];
                     const originalOnRoster = this.isPlayerOnTeamRoster(row.teamName, row.originalSleeperPlayerId);
                     const originalStatus = (originalPlayer?.injury_status || '').toLowerCase();
