@@ -26,8 +26,21 @@ const BADGE_STYLES: Record<ActivityBadge, string> = {
     STANDBY: 'bg-yellow-500/20 text-yellow-500'
 };
 
-function StatCorrectionsSection({ teams }: { teams: Team[] }) {
-    const { corrections, loading, error } = useStatCorrections(teams);
+function StatCorrectionsSection({ teams, selectedWeek, teamFilter }: { teams: Team[]; selectedWeek: number | 'all' | null; teamFilter?: string | null }) {
+    const { corrections: allCorrections, loading, error } = useStatCorrections(teams);
+    // Scoped to whichever week is currently selected, same as the
+    // activity log entries below - a correction is genuinely about ONE
+    // specific week, so it shouldn't keep appearing regardless of which
+    // week is actually being viewed. Confirmed as a real reported case: a
+    // Week 2 correction kept showing while viewing Week 3's history.
+    const weekFiltered = selectedWeek === 'all' || selectedWeek === null
+        ? allCorrections
+        : allCorrections.filter(c => c.week === selectedWeek);
+    // Same team-filtering the activity log entries below already get when
+    // arriving here via a team card's History link - without this, a
+    // single-team filtered view still showed every OTHER team's
+    // correction alerts too.
+    const corrections = teamFilter ? weekFiltered.filter(c => c.teamId === teamFilter) : weekFiltered;
 
     if (loading || error || corrections.length === 0) return null;
 
@@ -132,7 +145,7 @@ export function HistoryTab({ teams, teamFilter, onClearFilter }: HistoryTabProps
                 </div>
             )}
 
-            <StatCorrectionsSection teams={teams} />
+            <StatCorrectionsSection teams={teams} selectedWeek={selectedWeek} teamFilter={teamFilter} />
 
             {loading ? (
                 <p className="font-body text-sm text-chalk-dim">Loading activity log&hellip;</p>
