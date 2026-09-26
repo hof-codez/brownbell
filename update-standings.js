@@ -2192,7 +2192,7 @@ class BrownBellAutomator {
     // processDuoSlots below) and the periodic re-check of an already-vacant
     // slot (checkPendingVacancy) - both need the identical decision, just
     // with different wording depending on what caused the vacancy.
-    async resolveVacancy(teamName, awardType, playerIndex, excludeIds, otherSlotInfo, originalPlayerSleeperId, currentPlayerName, currentPlayerPosition, reasonWhenWaiting, reasonWhenAutoFilled, reasonWhenNoneAvailable, eventTypeWaiting, eventTypeAutoFilled, week, existingSubstitutions) {
+    async resolveVacancy(teamName, awardType, playerIndex, excludeIds, otherSlotInfo, originalPlayerSleeperId, currentPlayerName, currentPlayerPosition, reasonWhenWaiting, reasonWhenAutoFilled, reasonWhenNoneAvailable, eventTypeWaiting, eventTypeAutoFilled, week, existingSubstitutions, injuryUpdateEntry = null) {
         const bestCandidate = await this.selectAutoReplacement(teamName, awardType, week, excludeIds, otherSlotInfo, 0, originalPlayerSleeperId);
 
         if (!bestCandidate) {
@@ -2244,6 +2244,18 @@ class BrownBellAutomator {
             playerName: bestCandidate.name, playerPosition: bestCandidate.position,
             sleeperPlayerId: bestCandidate.id, source: 'auto'
         });
+        // Keeps the later batched injuryStatusUpdates write in sync with
+        // what upsertDuoSlot just wrote directly - without this, that
+        // later call would stomp the correct, just-written status back
+        // to whoever occupied this slot at the START of this run. Only
+        // ever passed when reached from the main loop (a fresh permanent
+        // departure detected and auto-filled this same run) -
+        // checkPendingVacancy's own call never needs this, since a row
+        // with no current occupant never got pushed to
+        // injuryStatusUpdates in the first place this run.
+        if (injuryUpdateEntry) {
+            injuryUpdateEntry.injuryStatus = this.playersData[bestCandidate.id]?.injury_status || null;
+        }
         await this.dataLayer.logSubstitution({
             teamName, awardType, playerIndex,
             originalName: currentPlayerName, originalPosition: currentPlayerPosition,
@@ -2468,6 +2480,7 @@ class BrownBellAutomator {
                             playerName: originalName, playerPosition: originalPlayer.position,
                             sleeperPlayerId: row.originalSleeperPlayerId, source: 'auto'
                         });
+                        injuryUpdateEntry.injuryStatus = originalPlayer.injury_status || null;
                         await this.dataLayer.logSubstitution({
                             teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
                             originalName: row.playerName, originalPosition: row.playerPosition,
@@ -2562,6 +2575,7 @@ class BrownBellAutomator {
                         playerName: replacement.name, playerPosition: replacement.position,
                         sleeperPlayerId: replacement.id, source: 'auto'
                     });
+                    injuryUpdateEntry.injuryStatus = this.playersData[replacement.id]?.injury_status || null;
                     await this.dataLayer.logSubstitution({
                         teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
                         originalName: row.playerName, originalPosition: row.playerPosition,
@@ -2610,6 +2624,7 @@ class BrownBellAutomator {
                             playerName: standby.standby_player_name, playerPosition: standby.standby_player_position,
                             sleeperPlayerId: standby.standby_sleeper_player_id, source: 'owner'
                         });
+                        injuryUpdateEntry.injuryStatus = this.playersData[standby.standby_sleeper_player_id]?.injury_status || null;
                         await this.dataLayer.logSubstitution({
                             teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
                             originalName: row.playerName, originalPosition: row.playerPosition,
@@ -2654,6 +2669,7 @@ class BrownBellAutomator {
                             playerName: replacement.name, playerPosition: replacement.position,
                             sleeperPlayerId: replacement.id, source: 'auto'
                         });
+                        injuryUpdateEntry.injuryStatus = this.playersData[replacement.id]?.injury_status || null;
 
                         await this.dataLayer.logSubstitution({
                             teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
@@ -2694,7 +2710,7 @@ class BrownBellAutomator {
                         'Permanent departure - cleared (this award\'s one permanent swap of the season) - pick a replacement or auto-sub kicks in near kickoff',
                         'Permanent departure - auto-subbed (kickoff approaching, no owner pick made) - this award\'s permanent swap for the season',
                         'Permanent departure - no eligible replacement currently available - still waiting (this award\'s permanent swap of the season)',
-                        'permanent-cleared-for-owner', 'permanent-auto-fill', week, existingSubstitutions
+                        'permanent-cleared-for-owner', 'permanent-auto-fill', week, existingSubstitutions, injuryUpdateEntry
                     );
                     events.push(event);
                     // Uses up this award's one permanent swap - independent of

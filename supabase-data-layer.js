@@ -247,6 +247,17 @@ class SupabaseDataLayer {
             // players (see initializeLeagueData), not passed in by each
             // caller individually.
             player_team: sleeperPlayerId ? (this.playersData?.[sleeperPlayerId]?.team || null) : null,
+            // Same reasoning as player_team above, and for the same real
+            // bug: this row's own write is what actually changes who's in
+            // the slot, so it must carry that NEW player's own injury
+            // status immediately, in this same write - not wait for the
+            // separate, batched updateDuoInjuryStatuses call later in the
+            // run, whose own snapshot is captured BEFORE this exact swap
+            // happens. Confirmed as a real reported case: a healthy sub
+            // came in but the Teams tab's injury dot kept showing the
+            // just-replaced, injured player's status. Fixing it here
+            // covers every call site that ever changes sleeper_player_id.
+            injury_status: sleeperPlayerId ? (this.playersData?.[sleeperPlayerId]?.injury_status || null) : null,
             source
         };
         if (originalSleeperPlayerId !== undefined) row.original_sleeper_player_id = originalSleeperPlayerId;
