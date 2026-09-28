@@ -21,6 +21,10 @@ on:
     # (Sleeper sends theirs at 12 PM ET Tuesdays) so there's always
     # something ready to share on the same reliable schedule.
     - cron: '0 19 * * 2'
+    # Wednesday at 7 AM AZ (2 PM UTC) - rolls the season to the new week.
+    # The calendar week flips at 00:00 UTC Wednesday, and nothing else runs
+    # before Thursday afternoon.
+    - cron: '0 14 * * 3'
     # Thursday at 2:30 PM AZ (9:30 PM UTC) - pre-TNF injury checkpoint
     - cron: '30 14 * * 4'
     # Saturday at 4 AM AZ (11 AM UTC) - international game prep

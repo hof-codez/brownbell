@@ -3189,6 +3189,7 @@ class BrownBellAutomator {
         const CRON_CHECKPOINTS = {
             // Standalone checkpoints, outside any game-day window
             '0 14 * * 2': 'TUESDAY_CHECK',                 // Tue 10am ET / 7am AZ - weekly cleanup
+            '0 14 * * 3': 'WEDNESDAY_CHECK',               // Wed 7am AZ - rolls the season to the new week
             '30 14 * * 4': 'THURSDAY_CHECK',                // Thu 2:30pm AZ - pre-TNF injury checkpoint
             '0 11 * * 6': 'SATURDAY_INTERNATIONAL_PREP',    // Sat 4am AZ - international prep
             '0 11 * * 0': 'SUNDAY_INTERNATIONAL_CHECK',     // Sun 4am AZ - pre-international

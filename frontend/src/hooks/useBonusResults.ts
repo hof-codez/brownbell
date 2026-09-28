@@ -97,7 +97,9 @@ interface UseBonusResultsResult {
     /** Cumulative record between two teams across every played matchup so far this season. */
     getHeadToHead: (teamIdA: string, teamIdB: string) => HeadToHeadRecord;
     /** This team's next unplayed scheduled matchup, if any. */
-    getUpcomingMatchup: (teamId: string) => Matchup | null;
+    getUpcomingMatchup: (teamId: string, reviewedThroughWeek?: number) => Matchup | null;
+    /** The week the automation is currently on, derived from the latest week that has score rows. */
+    currentWeek: number;
 }
 
 export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsResult {
@@ -105,6 +107,7 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
     const [seasonRankings, setSeasonRankings] = useState<SeasonBonusRanking[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [currentWeek, setCurrentWeek] = useState(1);
 
     useEffect(() => {
         if (teamsWithDuos.length === 0) {
@@ -384,6 +387,9 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
             if (!cancelled) {
                 setMatchupsByWeek(byWeek);
                 setSeasonRankings(rankings);
+                // Score rows exist only up to the week the automation is on,
+                // and the same run that writes them updates current_week.
+                setCurrentWeek(Math.max(1, scoreRows.reduce((max, r) => Math.max(max, Number(r.week)), 0)));
                 setLoading(false);
             }
         }
@@ -411,31 +417,24 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
         return { wins, losses, ties };
     }
 
-    function getUpcomingMatchup(teamId: string): Matchup | null {
+    function getUpcomingMatchup(teamId: string, reviewedThroughWeek = 0): Matchup | null {
         for (let week = 1; week <= REGULAR_SEASON_WEEKS; week++) {
             const matchups = matchupsByWeek.get(week) || [];
             const mine = matchups.find(m => m.teamA.teamId === teamId || m.teamB.teamId === teamId);
-            // Deliberately outcomeFinal, not played - played only means
-            // SOME score data has been saved for this matchup, which
-            // becomes true the instant a single live game reports any
-            // stats at all, long before the week is genuinely over.
-            // outcomeFinal specifically means this matchup's own winner
-            // is decided (both teams' 4 players have finished their own
-            // games) - the correct signal for "has this week's matchup
-            // actually concluded," confirmed as a real reported bug
-            // where Showdown jumped ahead to the next week while the
-            // current week's games were still in progress.
-            // The whole week has to be over, not just this one matchup.
-            // Advancing per matchup pushed owners to next week's matchup
-            // while the current week still had games left (Monday night),
-            // and before next week's lineups could even be set.
-            const weekFullyConcluded = matchups.length > 0 && matchups.every(m => m.outcomeFinal);
-            if (mine && !weekFullyConcluded) return mine;
+            if (!mine) continue;
+
+            // A week is left behind only when the season has moved to the
+            // next week, or this device already showed the owner their
+            // final result for it. Advancing the moment one matchup ended
+            // pushed owners to next week while games were still live.
+            const weekHasRolledOver = currentWeek > week;
+            const ownerHasReviewed = mine.outcomeFinal && week <= reviewedThroughWeek;
+            if (!weekHasRolledOver && !ownerHasReviewed) return mine;
         }
         return null;
     }
 
     const weeksAvailable = Array.from({ length: REGULAR_SEASON_WEEKS }, (_, i) => i + 1);
 
-    return { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup };
+    return { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup, currentWeek };
 }

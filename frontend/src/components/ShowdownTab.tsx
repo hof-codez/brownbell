@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useBonusResults } from '../hooks/useBonusResults';
 import { useWeeklyRecap } from '../hooks/useWeeklyRecap';
@@ -10,6 +10,29 @@ import { PredictionStandings } from './PredictionStandings';
 import { TauntBox } from './TauntBox';
 import { PlayerGameInfo } from './PlayerGameInfo';
 import type { TeamWithDuos, NFLGameInfo } from '../types';
+
+const REVIEWED_KEY_PREFIX = 'brownbell:showdown-reviewed:';
+
+// Highest week whose final result this device has already shown this team.
+function readReviewedThroughWeek(teamId: string | null | undefined): number {
+    if (!teamId) return 0;
+    try {
+        const n = Number(window.localStorage.getItem(REVIEWED_KEY_PREFIX + teamId) || 0);
+        return Number.isFinite(n) ? n : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function writeReviewedThroughWeek(teamId: string, week: number) {
+    try {
+        if (week > readReviewedThroughWeek(teamId)) {
+            window.localStorage.setItem(REVIEWED_KEY_PREFIX + teamId, String(week));
+        }
+    } catch {
+        // Storage unavailable: the tab just won't advance early on this device.
+    }
+}
 
 interface ShowdownTabProps {
     teams: TeamWithDuos[];
@@ -220,7 +243,8 @@ function WeeklyRecapSection({ teams, week }: { teams: TeamWithDuos[]; week: numb
 }
 
 export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoNames, getGameInfo, initialView, initialWeek }: ShowdownTabProps) {
-    const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup } = useBonusResults(teams);
+    const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup, currentWeek } = useBonusResults(teams);
+    const reviewedThroughWeekAtOpen = useMemo(() => readReviewedThroughWeek(myTeamId), [myTeamId]);
     const predictions = usePredictions(teams.map(t => t.team), matchupsByWeek);
     const taunts = useTaunts();
     const [view, setView] = useState<'matchups' | 'season' | 'recap' | 'predictions'>(() => initialView ?? 'matchups');
@@ -257,14 +281,23 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
     useEffect(() => {
         if (weekWasExplicitlyChosen.current || weeksAvailable.length === 0) return;
         if (myTeamId) {
-            const upcoming = getUpcomingMatchup(myTeamId);
+            const upcoming = getUpcomingMatchup(myTeamId, reviewedThroughWeekAtOpen);
             if (upcoming) {
                 setSelectedWeek(upcoming.week);
                 return;
             }
         }
-        setSelectedWeek(weeksAvailable[0]);
-    }, [weeksAvailable, myTeamId, getUpcomingMatchup]);
+        // No team, or nothing found: default to the current week, not Week 1.
+        setSelectedWeek(Math.min(currentWeek, weeksAvailable[weeksAvailable.length - 1]));
+    }, [weeksAvailable, myTeamId, getUpcomingMatchup, reviewedThroughWeekAtOpen, currentWeek]);
+
+    // Once this device has displayed the owner's own final result for a
+    // week, remember it. The next time Showdown opens, it moves on.
+    useEffect(() => {
+        if (loading || view !== 'matchups' || selectedWeek === null || !myTeamId) return;
+        const mine = (matchupsByWeek.get(selectedWeek) ?? []).find(m => m.teamA.teamId === myTeamId || m.teamB.teamId === myTeamId);
+        if (mine?.outcomeFinal) writeReviewedThroughWeek(myTeamId, selectedWeek);
+    }, [loading, view, selectedWeek, myTeamId, matchupsByWeek]);
 
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading showdown&hellip;</p>;
@@ -278,7 +311,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
         );
     }
 
-    const myUpcoming = myTeamId ? getUpcomingMatchup(myTeamId) : null;
+    const myUpcoming = myTeamId ? getUpcomingMatchup(myTeamId, reviewedThroughWeekAtOpen) : null;
     const myOpponentId = myUpcoming
         ? (myUpcoming.teamA.teamId === myTeamId ? myUpcoming.teamB.teamId : myUpcoming.teamA.teamId)
         : null;
