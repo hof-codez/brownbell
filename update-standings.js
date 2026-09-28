@@ -2467,13 +2467,16 @@ class BrownBellAutomator {
                 // up after its OWN prior auto-picks. The owner can always
                 // manually switch back to the original themselves if they want
                 // to - temporary situations allow unlimited manual swaps.
-                if (row.sleeperPlayerId !== row.originalSleeperPlayerId && row.source === 'auto') {
+                if (row.sleeperPlayerId !== row.originalSleeperPlayerId) {
                     const originalPlayer = this.playersData[row.originalSleeperPlayerId];
                     const originalOnRoster = this.isPlayerOnTeamRoster(row.teamName, row.originalSleeperPlayerId);
                     const originalStatus = (originalPlayer?.injury_status || '').toLowerCase();
                     const originalHealthy = originalOnRoster && !['out', 'doubtful', 'ir', 'pup'].includes(originalStatus);
 
-                    if (originalHealthy) {
+                    // Only the revert is limited to the automation's own
+                    // picks. The status tracking and IR/PUP conversion
+                    // below apply to any substituted slot.
+                    if (originalHealthy && row.source === 'auto') {
                         const originalName = `${originalPlayer.first_name || ''} ${originalPlayer.last_name || ''}`.trim();
                         await this.dataLayer.upsertDuoSlot({
                             teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
@@ -2616,7 +2619,11 @@ class BrownBellAutomator {
                         && this.isPlayerOnTeamRoster(row.teamName, standby.standby_sleeper_player_id)
                         && !excludeIds.includes(standby.standby_sleeper_player_id)
                         && !['out', 'doubtful', 'ir', 'pup'].includes((this.playersData[standby.standby_sleeper_player_id]?.injury_status || '').toLowerCase())
-                        && standbyComboValid;
+                        && standbyComboValid
+                        // Only a definitive designation activates a standby.
+                        // Doubtful can still change before kickoff, and an
+                        // activated standby is used up and does not revert.
+                        && ['out', 'ir', 'pup'].includes(status);
 
                     if (standby && standbyStillEligible) {
                         await this.dataLayer.upsertDuoSlot({

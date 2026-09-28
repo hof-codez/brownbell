@@ -425,7 +425,12 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
             // actually concluded," confirmed as a real reported bug
             // where Showdown jumped ahead to the next week while the
             // current week's games were still in progress.
-            if (mine && !mine.outcomeFinal) return mine;
+            // The whole week has to be over, not just this one matchup.
+            // Advancing per matchup pushed owners to next week's matchup
+            // while the current week still had games left (Monday night),
+            // and before next week's lineups could even be set.
+            const weekFullyConcluded = matchups.length > 0 && matchups.every(m => m.outcomeFinal);
+            if (mine && !weekFullyConcluded) return mine;
         }
         return null;
     }
