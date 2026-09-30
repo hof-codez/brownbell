@@ -2550,6 +2550,48 @@ class BrownBellAutomator {
                             // tab's countdown badge.
                             injuryUpdateEntry.irPupWeeksUntilPermanent = IR_PUP_PERMANENT_CONVERSION_WEEKS - 1 - weeksElapsed;
                         }
+                    } else {
+                        // Week-boundary reset for short-term (non-IR/PUP)
+                        // situations - covers both an ordinary temporary
+                        // injury sub AND a standby activation alike, since
+                        // neither was ever meant to persist past the
+                        // specific week it actually covered. A single-game
+                        // out/doubtful designation is tied to THAT week's
+                        // game and doesn't reliably clear from Sleeper's
+                        // own data the instant a new week begins -
+                        // confirmed as a real reported gap where a
+                        // stand-in stayed in place indefinitely, leaving
+                        // the owner no chance to reconsider or set a fresh
+                        // standby for their own original player going into
+                        // the new week. Deliberately NOT limited to
+                        // source === 'auto' like the healthy-revert check
+                        // above - this is a predictable, once-per-week
+                        // reset every owner can anticipate, not a random
+                        // mid-week second-guess of a choice they just made.
+                        const activeSub = existingSubstitutions.find(sub =>
+                            sub.teamName === row.teamName && sub.awardType === row.awardType &&
+                            sub.playerIndex === row.playerIndex && sub.active === true
+                        );
+
+                        if (activeSub && week > activeSub.startWeek && originalOnRoster
+                            && !(await this.hasPlayerGameStarted(row.originalSleeperPlayerId, week))) {
+                            const originalName = originalPlayer ? `${originalPlayer.first_name || ''} ${originalPlayer.last_name || ''}`.trim() : row.playerName;
+                            await this.dataLayer.upsertDuoSlot({
+                                teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                                playerName: originalName, playerPosition: originalPlayer?.position || row.playerPosition,
+                                sleeperPlayerId: row.originalSleeperPlayerId, source: 'auto'
+                            });
+                            injuryUpdateEntry.injuryStatus = originalPlayer?.injury_status || null;
+                            injuryUpdateEntry.originalInjuryStatus = null;
+                            await this.dataLayer.logSubstitution({
+                                teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                                originalName: row.playerName, originalPosition: row.playerPosition,
+                                substituteName: originalName, substitutePlayerId: row.originalSleeperPlayerId, substitutePosition: originalPlayer?.position || row.playerPosition,
+                                week, source: 'auto', reason: 'Reverted to original player - new week, short-term substitution reset'
+                            });
+                            events.push({ type: 'week-boundary-reset', teamName: row.teamName, awardType: row.awardType });
+                            continue;
+                        }
                     }
                 }
 
