@@ -23,7 +23,10 @@ on:
     - cron: '0 19 * * 2'
     # Wednesday at 7 AM AZ (2 PM UTC) - rolls the season to the new week.
     # The calendar week flips at 00:00 UTC Wednesday, and nothing else runs
-    # before Thursday afternoon.
+    # before Thursday afternoon. Routed through watchdog.js's retry loop
+    # (WEEK_ROLL_MODE, see the job step below) rather than a single
+    # one-shot run, since a delayed or dropped trigger here has no
+    # backstop until Thursday.
     - cron: '0 14 * * 3'
     # Thursday at 2:30 PM AZ (9:30 PM UTC) - pre-TNF injury checkpoint
     - cron: '30 14 * * 4'
@@ -188,6 +191,14 @@ jobs:
         case "$CRON_SCHEDULE" in
           "7 22 * * 3"|"47 3 * * 4"|"7 22 * * 4"|"47 3 * * 5"|"7 12 * * 6"|"47 17 * * 6"|"27 23 * * 6"|"7 12 * * 0"|"47 17 * * 0"|"27 23 * * 0"|"7 22 * * 1"|"47 3 * * 2")
             export WATCHDOG_DURATION_MINUTES=340
+            node watchdog.js
+            ;;
+          "0 14 * * 3")
+            # Retries every 15 min for 90 min in case this specific
+            # trigger is delayed or dropped - see watchdog.js's
+            # WEEK_ROLL_MODE comment for why a live-game gate is skipped.
+            export WEEK_ROLL_MODE=true
+            export WATCHDOG_DURATION_MINUTES=90
             node watchdog.js
             ;;
           *)

@@ -89,7 +89,27 @@ async function runWatchdogLoop({ maxDurationMs, loopIntervalMs, createAutomator,
 module.exports = { runWatchdogLoop };
 
 if (require.main === module) {
-    process.env.WATCHDOG_MODE = 'true';
+    // WEEK_ROLL_MODE is a separate, narrower use of this same retry loop:
+    // rolling the season to a new week only happens when
+    // update-standings.js actually runs, and GitHub's own schedule
+    // trigger is documented above as "best effort" - confirmed directly,
+    // more than once, as delayed 2-4+ hours or dropped outright under
+    // high platform load. A single one-shot Wednesday-morning checkpoint
+    // has no second chance if THAT trigger is the one delayed or
+    // dropped - the week would then stay stuck until Thursday afternoon's
+    // checkpoint, a full day late. This mode deliberately does NOT set
+    // WATCHDOG_MODE, so determineCheckpoint() takes its normal
+    // CRON_SCHEDULE path (the WEDNESDAY_CHECK mapping) instead of the
+    // LIVE_CHECK path WATCHDOG_MODE forces - a week-roll check needs to
+    // run and actually update current_week regardless of whether any
+    // game happens to be live at that moment, which LIVE_CHECK would
+    // otherwise skip entirely (never true on a Wednesday morning). Once
+    // this job has actually started, its own internal retries are safe
+    // from the same GitHub-side queue delay - only STARTING a new
+    // scheduled run is subject to that.
+    if (process.env.WEEK_ROLL_MODE !== 'true') {
+        process.env.WATCHDOG_MODE = 'true';
+    }
 
     const LOOP_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes, matching the original cron intent
     // Default 5.5 hours - safely under GitHub Actions' 6-hour job time
