@@ -70,7 +70,16 @@ function canEditSlot(slot: TeamWithDuos['main'][number], gameInfo: NFLGameInfo |
     const isLocked = new Date(gameInfo.kickoff_time) <= new Date();
     if (!isLocked) return true; // pre-lock - always fully editable
 
-    const isQualifyingInjury = !!slot.injury_status && QUALIFYING_INJURY_STATUSES.has(slot.injury_status.toLowerCase());
+    // The FROZEN ORIGINAL pick's own status decides this, not whoever
+    // currently occupies the slot - falls back to injury_status when
+    // original_injury_status is null (no substitution has ever happened
+    // here, so they're the same player anyway). Confirmed as a real
+    // reported case: a healthy auto-subbed replacement for an IR'd
+    // player made this read "healthy-locked" purely because the
+    // REPLACEMENT wasn't hurt, blocking the owner from swapping out a
+    // pick they didn't ask for during an actively ongoing IR situation.
+    const relevantStatus = (slot.original_injury_status ?? slot.injury_status ?? '').toLowerCase();
+    const isQualifyingInjury = QUALIFYING_INJURY_STATUSES.has(relevantStatus);
     if (!isQualifyingInjury) return false; // healthy-locked - no eligible event has happened
     if (permanentSwapUsed) return false; // this award's swap budget is already spent
 
@@ -87,7 +96,8 @@ function isUrgentChangeSituation(slot: TeamWithDuos['main'][number], gameInfo: N
     if (!slot || !gameInfo?.kickoff_time) return false;
     const isLocked = new Date(gameInfo.kickoff_time) <= new Date();
     if (!isLocked) return false;
-    return !!slot.injury_status && QUALIFYING_INJURY_STATUSES.has(slot.injury_status.toLowerCase());
+    // Same frozen-original rule as canEditSlot above.
+    return QUALIFYING_INJURY_STATUSES.has((slot.original_injury_status ?? slot.injury_status ?? '').toLowerCase());
 }
 
 export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, standbyByKey, byePlayerIds, duoNames, currentWeekScore, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory, collapsible }: TeamCardProps) {

@@ -57,7 +57,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const { data: allDuos, error: duoError } = await supabase
-            .from('duos').select('award_type, player_index, player_name, player_position, sleeper_player_id')
+            .from('duos').select('award_type, player_index, player_name, player_position, sleeper_player_id, original_sleeper_player_id')
             .eq('team_id', teamId);
         if (duoError) {
             return jsonResponse({ error: 'Failed to load current duo' }, 500);
@@ -102,7 +102,12 @@ Deno.serve(async (req: Request) => {
         let allowSwap = true;
 
         if (!forStandby && locked) {
-            situation = classifySwapSituation(currentPlayer?.sleeper_player_id ?? null, rosterPlayerIds, allPlayers);
+            // The FROZEN ORIGINAL pick's own status determines the
+            // situation - not whoever currently occupies the slot. A
+            // healthy auto-subbed replacement (e.g. Tyler Shough filling
+            // in for an IR'd Jaxon Dart) must not read as
+            // "healthy-locked" just because the REPLACEMENT isn't hurt.
+            situation = classifySwapSituation(currentPlayer?.original_sleeper_player_id ?? currentPlayer?.sleeper_player_id ?? null, rosterPlayerIds, allPlayers);
             const permanentSwapUsed = awardType === 'nextup' ? team.nextup_permanent_swap_used
                 : awardType === 'boom' ? team.boom_permanent_swap_used
                 : team.main_permanent_swap_used;

@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const { data: allDuos, error: duoError } = await supabase
-            .from('duos').select('award_type, player_index, sleeper_player_id, player_name, player_position')
+            .from('duos').select('award_type, player_index, sleeper_player_id, player_name, player_position, original_sleeper_player_id')
             .eq('team_id', teamId);
         if (duoError) {
             return jsonResponse({ success: false, error: 'Failed to load current duo' }, 500);
@@ -97,7 +97,10 @@ Deno.serve(async (req: Request) => {
             }
 
             if (locked) {
-                const situation = classifySwapSituation(currentPlayer.sleeper_player_id, rosterPlayerIds, allPlayers);
+                // Same fix as get-eligible-roster - the FROZEN ORIGINAL
+                // pick's own status decides this, not whoever currently
+                // occupies the slot.
+                const situation = classifySwapSituation(currentPlayer.original_sleeper_player_id ?? currentPlayer.sleeper_player_id, rosterPlayerIds, allPlayers);
                 const permanentSwapUsed = awardType === 'nextup' ? team.nextup_permanent_swap_used
                     : awardType === 'boom' ? team.boom_permanent_swap_used
                     : team.main_permanent_swap_used;
