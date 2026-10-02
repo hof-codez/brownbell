@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { extractEdgeFunctionError } from '../lib/edgeFunctionError';
 import type { Matchup } from './useBonusResults';
 import type { Team } from '../types';
 
@@ -114,7 +115,7 @@ export function usePredictions(teams: Team[], matchupsByWeek: Map<number, Matchu
         setSaving(false);
 
         if (fnError || !data?.success) {
-            return { success: false, error: data?.error || 'Could not save your prediction - try again.' };
+            return { success: false, error: data?.error || await extractEdgeFunctionError(fnError) || 'Could not save your prediction - try again.' };
         }
         setRefetchToken(t => t + 1);
         return { success: true };

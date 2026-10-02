@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { extractEdgeFunctionError } from '../lib/edgeFunctionError';
 import type { MatchupTaunt } from '../types';
 
 export const ALLOWED_TAUNT_EMOJI = [
@@ -85,7 +86,7 @@ export function useTaunts(): UseTauntsResult {
         setSending(false);
 
         if (fnError || !data?.success) {
-            return { success: false, error: data?.error || 'Could not send - try again.' };
+            return { success: false, error: data?.error || await extractEdgeFunctionError(fnError) || 'Could not send - try again.' };
         }
         setRefetchToken(t => t + 1);
         return { success: true };

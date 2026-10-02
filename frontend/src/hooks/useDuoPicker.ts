@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { extractEdgeFunctionError } from '../lib/edgeFunctionError';
 import type { AwardType, EligibleRosterResponse } from '../types';
 
 interface UseDuoPickerResult {
@@ -26,7 +27,7 @@ export function useDuoPicker(teamId: string, deviceToken: string): UseDuoPickerR
         setFetching(false);
 
         if (fnError || data?.error) {
-            setError(data?.error || 'Could not load your roster - try again.');
+            setError(data?.error || await extractEdgeFunctionError(fnError) || 'Could not load your roster - try again.');
             return null;
         }
         return data as EligibleRosterResponse;
@@ -43,7 +44,7 @@ export function useDuoPicker(teamId: string, deviceToken: string): UseDuoPickerR
         setSaving(false);
 
         if (fnError || !data?.success) {
-            const message = data?.error || 'Could not save your pick - try again.';
+            const message = data?.error || await extractEdgeFunctionError(fnError) || 'Could not save your pick - try again.';
             setError(message);
             return { success: false, error: message };
         }

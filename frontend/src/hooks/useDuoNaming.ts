@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { extractEdgeFunctionError } from '../lib/edgeFunctionError';
 import type { AwardType } from '../types';
 
 interface UseDuoNamingResult {
@@ -26,7 +27,7 @@ export function useDuoNaming(teamId: string, deviceToken: string): UseDuoNamingR
         setSuggesting(false);
 
         if (fnError || !data?.success) {
-            setError(data?.error || 'Could not generate suggestions - try again.');
+            setError(data?.error || await extractEdgeFunctionError(fnError) || 'Could not generate suggestions - try again.');
             return null;
         }
         return data.suggestions as string[];
@@ -44,7 +45,7 @@ export function useDuoNaming(teamId: string, deviceToken: string): UseDuoNamingR
         setSaving(false);
 
         if (fnError || !data?.success) {
-            setError(data?.error || 'Could not save - try again.');
+            setError(data?.error || await extractEdgeFunctionError(fnError) || 'Could not save - try again.');
             return false;
         }
         return true;

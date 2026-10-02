@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { extractEdgeFunctionError } from '../lib/edgeFunctionError';
 
 interface BackgroundResult {
     success: boolean;
@@ -25,7 +26,7 @@ export function useTeamBackground(teamId: string, deviceToken: string): UseTeamB
         setSaving(false);
 
         if (fnError || !data?.success) {
-            return { success: false, error: data?.error || 'Could not save - try again.' };
+            return { success: false, error: data?.error || await extractEdgeFunctionError(fnError) || 'Could not save - try again.' };
         }
         return data as BackgroundResult;
     }, []);

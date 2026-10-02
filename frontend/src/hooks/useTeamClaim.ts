@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { extractEdgeFunctionError } from '../lib/edgeFunctionError';
 import { loadCachedClaim, saveCachedClaim, clearCachedClaim } from '../lib/deviceStorage';
 import type { CachedClaim } from '../types';
 
@@ -62,7 +63,7 @@ export function useTeamClaim(): UseTeamClaimResult {
         setClaiming(false);
 
         if (error || !data?.success) {
-            setClaimError(data?.error || 'Something went wrong - try again.');
+            setClaimError(data?.error || await extractEdgeFunctionError(error) || 'Something went wrong - try again.');
             return false;
         }
 

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { extractEdgeFunctionError } from '../lib/edgeFunctionError';
 import type { AwardType, EligibleRosterResponse } from '../types';
 
 interface UseStandbyPickerResult {
@@ -30,7 +31,7 @@ export function useStandbyPicker(teamId: string, deviceToken: string): UseStandb
         setFetching(false);
 
         if (fnError || data?.error) {
-            setError(data?.error || 'Could not load your roster - try again.');
+            setError(data?.error || await extractEdgeFunctionError(fnError) || 'Could not load your roster - try again.');
             return null;
         }
         return data as EligibleRosterResponse;
@@ -47,7 +48,7 @@ export function useStandbyPicker(teamId: string, deviceToken: string): UseStandb
         setSaving(false);
 
         if (fnError || !data?.success) {
-            const message = data?.error || 'Could not save that standby - try again.';
+            const message = data?.error || await extractEdgeFunctionError(fnError) || 'Could not save that standby - try again.';
             setError(message);
             return { success: false, error: message };
         }
