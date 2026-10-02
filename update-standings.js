@@ -2856,8 +2856,17 @@ class BrownBellAutomator {
         // among them for both current-week display and historical scoring.
         const modifiedForSave = [];
         const validSubstitutions = substitutions.filter(sub => {
-            // Fix invalid date ranges
-            if (sub.endWeek && sub.endWeek < sub.startWeek) {
+            // Fix invalid date ranges. Only flag as genuinely corrupt when
+            // more than one week off - end_week exactly one less than
+            // start_week is a legitimate, intentional marker (a row
+            // superseded by another starting the SAME week, so it never
+            // actually took effect for any week at all). logSubstitution
+            // and set-duo both close out the prior open row with
+            // end_week = week - 1, so any second change within one week
+            // writes exactly this. Confirmed as a real bug where this
+            // check reopened those rows on every single run, recreating
+            // duplicate open substitutions for the same slot.
+            if (sub.endWeek && sub.endWeek < sub.startWeek - 1) {
                 console.log(`Fixing invalid date range for ${sub.substituteName}`);
                 sub.endWeek = null;
                 modifiedForSave.push(sub);
