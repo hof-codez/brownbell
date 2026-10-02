@@ -102,52 +102,82 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                 </p>
             </RuleSection>
 
-            <RuleSection title="Injuries - temporary swaps">
+            <RuleSection title="Injuries - short-term (Out or Doubtful)">
                 <p>
-                    If your locked player is ruled out, doubtful, or placed on IR &mdash; but is still on your
-                    roster &mdash; that&rsquo;s a temporary situation. Auto-sub fills the slot immediately with
-                    the best eligible replacement from your roster, so you&rsquo;re never left scoring zero
-                    while you&rsquo;re not paying attention. This is the same for all three awards, including
-                    Season of Boom.
+                    If your locked player is listed <span className="text-chalk">Out or Doubtful</span> but is still
+                    on your roster, that&rsquo;s a short-term situation. They might still end up playing that week,
+                    so the pick itself stays locked &mdash; <span className="text-chalk">Change isn&rsquo;t
+                    available</span>. Instead, the slot is covered in this order:
+                </p>
+                <ul className="ml-4 list-disc space-y-1">
+                    <li><span className="text-chalk">Your standby</span>, if you set one (see Standby substitutes below) &mdash; it steps in once your player is officially ruled Out</li>
+                    <li><span className="text-chalk">Auto-sub</span>, if you didn&rsquo;t set a standby or it&rsquo;s no longer usable &mdash; it fills the slot right away from your roster</li>
+                </ul>
+                <p className="mt-2">
+                    If you&rsquo;ve set a standby and your player is only Doubtful, nothing changes yet &mdash; your
+                    player stays in, and the standby waits in case they&rsquo;re downgraded to Out. Without a
+                    standby, auto-sub covers a Doubtful player too.
                 </p>
                 <p className="mt-2">
-                    You&rsquo;re not stuck with that pick, though &mdash; you can go in any time and swap in
-                    someone else from your roster instead, and there&rsquo;s no limit on how many times this can
-                    happen over the season.
-                </p>
-                <p className="mt-2">
-                    The moment the original player is active again, they&rsquo;re <span className="text-chalk">automatically
-                    restored</span> to their slot &mdash; you don&rsquo;t need to remember to swap them back.
+                    Short-term swaps only ever last the week. An auto-sub steps aside the moment your original
+                    player is healthy again, and at the start of every new week the slot goes back to your
+                    original player no matter who was filling it &mdash; so you always get a fresh look, and a
+                    chance to set a new standby, before anything happens again. Short-term injuries never count
+                    against your permanent-swap budget, no matter how often they happen.
                 </p>
             </RuleSection>
 
-            <RuleSection title="Standby substitutes - for a player scheduled Monday night">
+            <RuleSection title="Injuries - IR or PUP">
                 <p>
-                    Auto-sub&rsquo;s replacement always has to be someone whose own game kicks off at the same
-                    time or later than the player being replaced &mdash; that&rsquo;s what stops anyone from
-                    picking a replacement based on stats that already happened. But when your locked player IS
-                    the week&rsquo;s last game (almost always Monday Night), nothing else that week kicks off
-                    later &mdash; so if that player gets ruled out, there&rsquo;s structurally no one auto-sub
-                    can turn to.
+                    IR and PUP work differently. NFL rules keep those players out for multiple weeks with no
+                    mid-week return, so there&rsquo;s no chance of them surprising everyone by playing. The slot is
+                    covered the same way at first &mdash; your standby if one is set and usable, otherwise
+                    auto-sub &mdash; but here you can also use <span className="text-chalk">Change</span> to pick
+                    the replacement yourself, as long as that award&rsquo;s permanent swap hasn&rsquo;t been used
+                    yet.
                 </p>
                 <p className="mt-2">
-                    A <span className="text-chalk">standby</span> solves this by letting you pre-commit a
-                    replacement in advance, before either game has started. It only ever shows up as an option
-                    on a slot whose current player&rsquo;s game is genuinely the week&rsquo;s last one &mdash;
-                    every other week, auto-sub already has this covered on its own.
+                    There&rsquo;s a limit to how long this stays temporary. Once a replacement has held the slot
+                    for <span className="text-chalk">4 consecutive weeks</span> while your original player is
+                    still on IR or PUP, it becomes permanent: that replacement is your new pick for the rest of
+                    the season, and that award&rsquo;s permanent swap is used up. The slot shows a
+                    &ldquo;Becomes permanent in&hellip;&rdquo; countdown while this is ticking. If that
+                    award&rsquo;s swap is already used, there&rsquo;s no countdown &mdash; the replacement simply
+                    covers until your player returns.
                 </p>
                 <p className="mt-2">
-                    You can set or change your standby any time before{' '}
+                    When your player comes off IR or PUP, an auto-sub steps aside right away. A replacement you
+                    picked yourself hands the slot back at the start of the next week.
+                </p>
+            </RuleSection>
+
+            <RuleSection title="Standby substitutes">
+                <p>
+                    A <span className="text-chalk">standby</span> is your own pre-picked choice for who covers a
+                    slot if its player is ruled out, and it <span className="text-chalk">takes priority over
+                    auto-sub</span>: when one is set and still usable, it&rsquo;s used instead of auto-sub&rsquo;s
+                    pick. You can set one for any locked slot, even while your player is perfectly healthy
+                    &mdash; useful for something like a surprise injury in warmups. A standby covers the week
+                    it was set for.
+                </p>
+                <p className="mt-2">
+                    You can set or change it any time before{' '}
                     <span className="text-chalk">either game has started</span> &mdash; your own player&rsquo;s,
-                    or the standby candidate&rsquo;s. Once either kicks off, the choice locks for that week, the
-                    same no-early-information principle behind the normal kickoff-time rule, just applied ahead
-                    of time instead of in the moment.
+                    or the standby&rsquo;s. Once either kicks off, the choice locks for that week, the same
+                    no-early-information principle behind every other rule here. A player on a bye that week
+                    can&rsquo;t be a standby.
                 </p>
                 <p className="mt-2">
-                    If your Monday Night player ends up ruled out, your standby steps in automatically &mdash;
-                    even though their own game already happened earlier in the week. If your player plays
-                    normally, the standby simply goes unused; it never activates unless it&rsquo;s actually
-                    needed. This works the same way for all three awards, including Season of Boom.
+                    A standby only activates on an official <span className="text-chalk">Out, IR, or PUP</span>{' '}
+                    &mdash; never Doubtful, since a Doubtful player can still play and an activated standby
+                    can&rsquo;t be taken back. Once it steps in, it&rsquo;s used up. It&rsquo;s also re-checked at
+                    that moment: it still has to be on your roster, not injured itself, not already in another
+                    one of your slots, and still a valid pairing with your other player. If any of that has
+                    changed, auto-sub covers instead.
+                </p>
+                <p className="mt-2">
+                    If your player plays normally, the standby simply goes unused. This works the same way for
+                    all three awards, including Season of Boom.
                 </p>
             </RuleSection>
 
@@ -189,11 +219,12 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                     </li>
                 </ul>
                 <p className="mt-2">
-                    Once an award&rsquo;s permanent swap is used, manual control is gone for the rest of the season
-                    for <span className="text-chalk">that award specifically</span> &mdash; not just for future
-                    trades, but for injuries too. Your other two awards are completely unaffected and keep their
-                    own manual control until each independently uses its own swap. A temporary departure
-                    (injury) never counts against this budget, no matter how many times it happens.
+                    An award&rsquo;s permanent swap gets used either by a trade or release, or by an IR/PUP
+                    countdown running out (see above). Once it&rsquo;s used, Change is gone for the rest of the
+                    season for <span className="text-chalk">that award specifically</span> &mdash; not just for
+                    future trades, but during IR/PUP too. Standbys still work. Your other two awards are
+                    completely unaffected and keep their own manual control until each independently uses its own
+                    swap. Short-term injuries (Out or Doubtful) never count against this budget.
                 </p>
             </RuleSection>
 
@@ -205,9 +236,16 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                     every auto-sub the same obvious pick.
                 </p>
                 <p className="mt-2">
-                    While a slot is being filled by auto-sub (not a manual pick), it can reshuffle to a different
-                    top-4 candidate week to week as long as the original player is still out. Once you manually pick
-                    someone yourself, that pick stays &mdash; auto-sub won&rsquo;t override it.
+                    Auto-sub&rsquo;s pick always has to be someone whose own game kicks off at the same time or
+                    later than the player being replaced &mdash; that&rsquo;s what stops anyone from picking a
+                    replacement based on stats that already happened. It also means that when your player is in
+                    the week&rsquo;s last game (usually Monday night), auto-sub often has nobody to turn to. A
+                    standby, set ahead of time, covers exactly that.
+                </p>
+                <p className="mt-2">
+                    For a short-term injury, auto-sub picks fresh each week your player is still out. During
+                    IR/PUP, the same auto-sub pick stays in place &mdash; that&rsquo;s what the countdown tracks.
+                    A replacement you pick yourself is never overridden by auto-sub.
                 </p>
             </RuleSection>
 
@@ -251,10 +289,10 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
 
             <RuleSection title="If a player gets hurt, traded, or released">
                 <p>
-                    Season of Boom follows the exact same rules as Brown Bell and Next Up for both
-                    situations &mdash; see <span className="text-chalk">&ldquo;Injuries - temporary swaps&rdquo;</span>{' '}
-                    and <span className="text-chalk">&ldquo;Trades &amp; releases - permanent swaps&rdquo;</span>{' '}
-                    above. That includes its own independent permanent-swap budget, entirely separate from Brown
+                    Season of Boom follows the exact same rules as Brown Bell and Next Up &mdash; see the
+                    injury, standby, and{' '}
+                    <span className="text-chalk">&ldquo;Trades &amp; releases - permanent swaps&rdquo;</span>{' '}
+                    sections above. That includes its own independent permanent-swap budget, entirely separate from Brown
                     Bell&rsquo;s and Next Up&rsquo;s.
                 </p>
             </RuleSection>
