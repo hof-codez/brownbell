@@ -1,0 +1,11 @@
+{
+    // Edge Functions run on Deno, not Node - without this, VS Code's
+    // built-in TypeScript checks them as Node code and reports false
+    // errors (unknown `Deno` global, unresolved URL/npm: imports, and
+    // implicit `any` everywhere those imports' types would have flowed).
+    // Scoped to supabase/functions only so the Vite frontend keeps using
+    // the normal TypeScript server. Requires the Deno extension
+    // (denoland.vscode-deno) and the Deno CLI.
+    "deno.enablePaths": ["supabase/functions"],
+    "deno.lint": true
+}

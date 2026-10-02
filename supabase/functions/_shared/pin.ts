@@ -5,7 +5,7 @@
 
 const ITERATIONS = 100_000;
 
-async function deriveBits(pin: string, salt: Uint8Array): Promise<Uint8Array> {
+async function deriveBits(pin: string, salt: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
     const enc = new TextEncoder();
     const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
     const bits = await crypto.subtle.deriveBits(
@@ -20,7 +20,7 @@ function bufToHex(buf: Uint8Array): string {
     return Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function hexToBuf(hex: string): Uint8Array {
+function hexToBuf(hex: string): Uint8Array<ArrayBuffer> {
     const bytes = new Uint8Array(hex.length / 2);
     for (let i = 0; i < hex.length; i += 2) {
         bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
