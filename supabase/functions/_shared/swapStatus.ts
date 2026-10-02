@@ -19,9 +19,15 @@
 
 import type { SleeperPlayer } from './sleeper.ts';
 
-export type SwapSituation = 'healthy-locked' | 'temporary' | 'permanent';
+export type SwapSituation = 'healthy-locked' | 'temporary' | 'temporary-long-term' | 'permanent';
 
 const QUALIFYING_INJURY_STATUSES = new Set(['out', 'doubtful', 'ir', 'pup']);
+// IR/PUP specifically - unlike out/doubtful, a player physically on IR
+// or PUP cannot be activated mid-week under NFL rules at all, so
+// there's zero risk of them surprising everyone by playing that same
+// week. That's the actual distinction that matters for whether Change
+// is safe to offer, not just how long the designation happens to last.
+const LONG_TERM_INJURY_STATUSES = new Set(['ir', 'pup']);
 
 export function classifySwapSituation(
     currentPlayerSleeperId: string | null,
@@ -35,6 +41,9 @@ export function classifySwapSituation(
     }
 
     const status = (allPlayers[currentPlayerSleeperId]?.injury_status || '').toLowerCase();
+    if (LONG_TERM_INJURY_STATUSES.has(status)) {
+        return 'temporary-long-term';
+    }
     if (QUALIFYING_INJURY_STATUSES.has(status)) {
         return 'temporary';
     }

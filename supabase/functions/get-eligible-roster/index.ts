@@ -29,7 +29,7 @@ import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
 import { hasTeamGameStarted, fetchWeekSchedule, isEligibleForSubFromSchedule, getMinutesUntilKickoffFromSchedule } from '../_shared/nflSchedule.ts';
 import { getPlayerLockWeek } from '../_shared/playerLockWeek.ts';
 import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS, BOOM_POSITIONS } from '../_shared/eligibility.ts';
-import { classifySwapSituation, checkSwapPermission } from '../_shared/swapStatus.ts';
+import { classifySwapSituation, checkSwapPermission, type SwapSituation } from '../_shared/swapStatus.ts';
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
             }
         }
 
-        let situation: 'healthy-locked' | 'temporary' | 'permanent' | null = null;
+        let situation: SwapSituation | null = null;
         let permissionReason: string | undefined;
         // A standby is preparing a contingency for a currently-healthy
         // player, not changing the current pick right now - the normal

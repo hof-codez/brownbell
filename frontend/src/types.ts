@@ -149,7 +149,7 @@ export interface EligibleCandidate {
   injuryStatus: string | null;
 }
 
-export type SwapSituation = 'healthy-locked' | 'temporary' | 'permanent' | null;
+export type SwapSituation = 'healthy-locked' | 'temporary' | 'temporary-long-term' | 'permanent' | null;
 
 export interface MatchupPrediction {
   week: number;

@@ -136,7 +136,7 @@ export function DuoSlotDisplay({ slot, onEdit, isTemporarySituation, isBye, game
             {typeof slot.ir_pup_weeks_until_permanent === 'number' && (
                 <p
                     className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-yellow-500"
-                    title="This award's one permanent swap is used automatically once the countdown reaches 0 - the current player becomes the new pick going forward, no take-backs."
+                    title="This award's one permanent swap is used automatically once the countdown reaches 0 - the current player becomes the new pick going forward, no take-backs. The original is guaranteed out until then, so Change is available above if you'd rather pick someone else."
                 >
                     Becomes permanent in {slot.ir_pup_weeks_until_permanent} week{slot.ir_pup_weeks_until_permanent === 1 ? '' : 's'}
                 </p>
