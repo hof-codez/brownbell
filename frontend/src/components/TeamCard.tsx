@@ -63,41 +63,33 @@ const QUALIFYING_INJURY_STATUSES = new Set(['out', 'doubtful', 'ir', 'pup']);
 // No kickoff info available yet fails safe toward SHOWING the button,
 // since hiding a genuinely valid Change option is worse UX than briefly
 // showing one the server would still correctly gate if actually clicked.
-function canEditSlot(slot: TeamWithDuos['main'][number], gameInfo: NFLGameInfo | undefined, permanentSwapUsed: boolean): boolean {
+// Standby is now the primary tool for a temporary situation - Change
+// only ever applies pre-lock, or once a slot is genuinely empty (a
+// permanent departure, which the backend clears entirely rather than
+// leaving a locked, non-empty slot behind). A manual swap during an
+// active temporary situation would override the original player even if
+// they end up playing after all, defeating the point of locking a duo
+// in at season start - see the matching, authoritative rejection in
+// _shared/swapStatus.ts's checkSwapPermission.
+function canEditSlot(slot: TeamWithDuos['main'][number], gameInfo: NFLGameInfo | undefined): boolean {
     if (!slot) return true; // empty slot - always settable (renders as "Set", not "Change")
     if (!gameInfo?.kickoff_time) return true;
 
     const isLocked = new Date(gameInfo.kickoff_time) <= new Date();
-    if (!isLocked) return true; // pre-lock - always fully editable
-
-    // The FROZEN ORIGINAL pick's own status decides this, not whoever
-    // currently occupies the slot - falls back to injury_status when
-    // original_injury_status is null (no substitution has ever happened
-    // here, so they're the same player anyway). Confirmed as a real
-    // reported case: a healthy auto-subbed replacement for an IR'd
-    // player made this read "healthy-locked" purely because the
-    // REPLACEMENT wasn't hurt, blocking the owner from swapping out a
-    // pick they didn't ask for during an actively ongoing IR situation.
-    const relevantStatus = (slot.original_injury_status ?? slot.injury_status ?? '').toLowerCase();
-    const isQualifyingInjury = QUALIFYING_INJURY_STATUSES.has(relevantStatus);
-    if (!isQualifyingInjury) return false; // healthy-locked - no eligible event has happened
-    if (permanentSwapUsed) return false; // this award's swap budget is already spent
-
-    return true; // temporary injury situation - still eligible
+    return !isLocked; // pre-lock: fully editable. Post-lock with a real player still present: never editable here anymore.
 }
 
-// True specifically for the "Change now" framing - locked AND a
-// qualifying injury is what's currently covering this slot (standby or
-// auto-sub may already have acted, or will on the next run) - an urgent
-// override of something already in motion, distinct from the plain
-// pre-lock case (just "Change"), which is normal, unhurried editability
-// with nothing yet to override.
-function isUrgentChangeSituation(slot: TeamWithDuos['main'][number], gameInfo: NFLGameInfo | undefined): boolean {
-    if (!slot || !gameInfo?.kickoff_time) return false;
-    const isLocked = new Date(gameInfo.kickoff_time) <= new Date();
-    if (!isLocked) return false;
-    // Same frozen-original rule as canEditSlot above.
-    return QUALIFYING_INJURY_STATUSES.has((slot.original_injury_status ?? slot.injury_status ?? '').toLowerCase());
+// True whenever the FROZEN ORIGINAL pick has a qualifying injury - the
+// situation standby now exists specifically to cover. Used to show a
+// hint pointing toward Standby in place of Change. Deliberately no
+// kickoff check: a standby can only be set BEFORE this week's kickoff,
+// so gating this on kickoff having passed would hide the hint for the
+// whole window where it's actually actionable. DuoSlotDisplay pairs it
+// with onSetStandby, which already handles the kickoff cutoff.
+function isTemporarySituation(slot: TeamWithDuos['main'][number]): boolean {
+    if (!slot) return false;
+    const relevantStatus = (slot.original_injury_status ?? slot.injury_status ?? '').toLowerCase();
+    return QUALIFYING_INJURY_STATUSES.has(relevantStatus);
 }
 
 export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, standbyByKey, byePlayerIds, duoNames, currentWeekScore, getGameInfo, onViewPlayerNews, onNameDuo, onCustomize, onViewHistory, collapsible }: TeamCardProps) {
@@ -107,8 +99,8 @@ export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, standbyByKey,
     // Only passes a real handler when both an edit action exists at all
     // AND this specific slot is currently eligible for one - see
     // canEditSlot above.
-    function getEditHandler(awardType: AwardType, playerIndex: 0 | 1, slot: TeamWithDuos['main'][number], gameInfo: NFLGameInfo | undefined, permanentSwapUsed: boolean) {
-        if (!onEditSlot || !canEditSlot(slot, gameInfo, permanentSwapUsed)) return undefined;
+    function getEditHandler(awardType: AwardType, playerIndex: 0 | 1, slot: TeamWithDuos['main'][number], gameInfo: NFLGameInfo | undefined) {
+        if (!onEditSlot || !canEditSlot(slot, gameInfo)) return undefined;
         return () => onEditSlot(awardType, playerIndex);
     }
 
@@ -235,24 +227,24 @@ export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, standbyByKey,
                         <section aria-labelledby={`main-${team.id}`}>
                             {renderAwardHeader('main', BellIcon, 'Brown Bell', main, team.main_permanent_swap_used)}
                             <div className="space-y-1.5">
-                                <DuoSlotDisplay slot={main[0]} onEdit={getEditHandler('main', 0, main[0], getGameInfo?.(main[0]?.player_team ?? null), team.main_permanent_swap_used)} editLabel={isUrgentChangeSituation(main[0], getGameInfo?.(main[0]?.player_team ?? null)) ? 'Change now' : 'Change'} onSetStandby={getStandbyHandler('main', 0, main[0], getGameInfo?.(main[0]?.player_team ?? null))} currentStandby={getCurrentStandby('main', 0)} isBye={isBye(main[0])} gameInfo={getGameInfo?.(main[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
-                                <DuoSlotDisplay slot={main[1]} onEdit={getEditHandler('main', 1, main[1], getGameInfo?.(main[1]?.player_team ?? null), team.main_permanent_swap_used)} editLabel={isUrgentChangeSituation(main[1], getGameInfo?.(main[1]?.player_team ?? null)) ? 'Change now' : 'Change'} onSetStandby={getStandbyHandler('main', 1, main[1], getGameInfo?.(main[1]?.player_team ?? null))} currentStandby={getCurrentStandby('main', 1)} isBye={isBye(main[1])} gameInfo={getGameInfo?.(main[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={main[0]} onEdit={getEditHandler('main', 0, main[0], getGameInfo?.(main[0]?.player_team ?? null))} isTemporarySituation={isTemporarySituation(main[0])} onSetStandby={getStandbyHandler('main', 0, main[0], getGameInfo?.(main[0]?.player_team ?? null))} currentStandby={getCurrentStandby('main', 0)} isBye={isBye(main[0])} gameInfo={getGameInfo?.(main[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={main[1]} onEdit={getEditHandler('main', 1, main[1], getGameInfo?.(main[1]?.player_team ?? null))} isTemporarySituation={isTemporarySituation(main[1])} onSetStandby={getStandbyHandler('main', 1, main[1], getGameInfo?.(main[1]?.player_team ?? null))} currentStandby={getCurrentStandby('main', 1)} isBye={isBye(main[1])} gameInfo={getGameInfo?.(main[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
                             </div>
                         </section>
 
                         <section aria-labelledby={`nextup-${team.id}`}>
                             {renderAwardHeader('nextup', SproutIcon, 'Next Up Award', nextup, team.nextup_permanent_swap_used)}
                             <div className="space-y-1.5">
-                                <DuoSlotDisplay slot={nextup[0]} onEdit={getEditHandler('nextup', 0, nextup[0], getGameInfo?.(nextup[0]?.player_team ?? null), team.nextup_permanent_swap_used)} editLabel={isUrgentChangeSituation(nextup[0], getGameInfo?.(nextup[0]?.player_team ?? null)) ? 'Change now' : 'Change'} onSetStandby={getStandbyHandler('nextup', 0, nextup[0], getGameInfo?.(nextup[0]?.player_team ?? null))} currentStandby={getCurrentStandby('nextup', 0)} isBye={isBye(nextup[0])} gameInfo={getGameInfo?.(nextup[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
-                                <DuoSlotDisplay slot={nextup[1]} onEdit={getEditHandler('nextup', 1, nextup[1], getGameInfo?.(nextup[1]?.player_team ?? null), team.nextup_permanent_swap_used)} editLabel={isUrgentChangeSituation(nextup[1], getGameInfo?.(nextup[1]?.player_team ?? null)) ? 'Change now' : 'Change'} onSetStandby={getStandbyHandler('nextup', 1, nextup[1], getGameInfo?.(nextup[1]?.player_team ?? null))} currentStandby={getCurrentStandby('nextup', 1)} isBye={isBye(nextup[1])} gameInfo={getGameInfo?.(nextup[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={nextup[0]} onEdit={getEditHandler('nextup', 0, nextup[0], getGameInfo?.(nextup[0]?.player_team ?? null))} isTemporarySituation={isTemporarySituation(nextup[0])} onSetStandby={getStandbyHandler('nextup', 0, nextup[0], getGameInfo?.(nextup[0]?.player_team ?? null))} currentStandby={getCurrentStandby('nextup', 0)} isBye={isBye(nextup[0])} gameInfo={getGameInfo?.(nextup[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={nextup[1]} onEdit={getEditHandler('nextup', 1, nextup[1], getGameInfo?.(nextup[1]?.player_team ?? null))} isTemporarySituation={isTemporarySituation(nextup[1])} onSetStandby={getStandbyHandler('nextup', 1, nextup[1], getGameInfo?.(nextup[1]?.player_team ?? null))} currentStandby={getCurrentStandby('nextup', 1)} isBye={isBye(nextup[1])} gameInfo={getGameInfo?.(nextup[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
                             </div>
                         </section>
 
                         <section aria-labelledby={`boom-${team.id}`}>
                             {renderAwardHeader('boom', BoltIcon, 'Season of Boom', boom, team.boom_permanent_swap_used)}
                             <div className="space-y-1.5">
-                                <DuoSlotDisplay slot={boom[0]} onEdit={getEditHandler('boom', 0, boom[0], getGameInfo?.(boom[0]?.player_team ?? null), team.boom_permanent_swap_used)} editLabel={isUrgentChangeSituation(boom[0], getGameInfo?.(boom[0]?.player_team ?? null)) ? 'Change now' : 'Change'} onSetStandby={getStandbyHandler('boom', 0, boom[0], getGameInfo?.(boom[0]?.player_team ?? null))} currentStandby={getCurrentStandby('boom', 0)} isBye={isBye(boom[0])} gameInfo={getGameInfo?.(boom[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
-                                <DuoSlotDisplay slot={boom[1]} onEdit={getEditHandler('boom', 1, boom[1], getGameInfo?.(boom[1]?.player_team ?? null), team.boom_permanent_swap_used)} editLabel={isUrgentChangeSituation(boom[1], getGameInfo?.(boom[1]?.player_team ?? null)) ? 'Change now' : 'Change'} onSetStandby={getStandbyHandler('boom', 1, boom[1], getGameInfo?.(boom[1]?.player_team ?? null))} currentStandby={getCurrentStandby('boom', 1)} isBye={isBye(boom[1])} gameInfo={getGameInfo?.(boom[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={boom[0]} onEdit={getEditHandler('boom', 0, boom[0], getGameInfo?.(boom[0]?.player_team ?? null))} isTemporarySituation={isTemporarySituation(boom[0])} onSetStandby={getStandbyHandler('boom', 0, boom[0], getGameInfo?.(boom[0]?.player_team ?? null))} currentStandby={getCurrentStandby('boom', 0)} isBye={isBye(boom[0])} gameInfo={getGameInfo?.(boom[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={boom[1]} onEdit={getEditHandler('boom', 1, boom[1], getGameInfo?.(boom[1]?.player_team ?? null))} isTemporarySituation={isTemporarySituation(boom[1])} onSetStandby={getStandbyHandler('boom', 1, boom[1], getGameInfo?.(boom[1]?.player_team ?? null))} currentStandby={getCurrentStandby('boom', 1)} isBye={isBye(boom[1])} gameInfo={getGameInfo?.(boom[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
                             </div>
                         </section>
                     </div>

@@ -60,6 +60,16 @@ export function checkSwapPermission(
         return { allowed: false, reason: 'This slot is locked for the rest of the season.' };
     }
 
+    // Standby is now the primary tool for a temporary situation, not
+    // Change - a manual swap here would otherwise override the original
+    // player even if they end up playing after all, which defeats the
+    // entire point of locking a duo in at season start. Standby only
+    // ever activates if the original is genuinely ruled out, so it's the
+    // only tool offered while that's still uncertain.
+    if (situation === 'temporary') {
+        return { allowed: false, reason: 'This is a temporary situation - set a standby instead to choose who replaces this player if they’re ruled out. Change only applies once a player is off the roster for good.' };
+    }
+
     if (permanentSwapUsed) {
         return { allowed: false, reason: 'This award\u2019s manual swap has already been used this season - auto-sub fills any further gaps for it automatically.' };
     }

@@ -6,11 +6,11 @@ import { INJURY_DOT_COLOR } from '../lib/injuryDotColor';
 interface DuoSlotDisplayProps {
     slot: DuoRow | null;
     onEdit?: () => void;
-    /** Overrides the edit button's label - 'Change now' when a
-     * qualifying injury is what's currently making this editable
-     * post-lock (an urgent override of something already in motion),
-     * distinct from the plain pre-lock case. Defaults to 'Change'. */
-    editLabel?: string;
+    /** True whenever the frozen original pick has a qualifying injury -
+     * standby is the tool for this now, not Change (which TeamCard no
+     * longer offers at all in this situation). Used only to show a hint
+     * pointing toward Standby in its place. */
+    isTemporarySituation?: boolean;
     /** True if this player is on their NFL bye this week - live check, only
      * meaningful for the CURRENT week (not shown for other weeks). */
     isBye?: boolean;
@@ -36,7 +36,7 @@ interface DuoSlotDisplayProps {
     currentStandby?: StandbyInfo;
 }
 
-export function DuoSlotDisplay({ slot, onEdit, editLabel, isBye, gameInfo, onViewPlayerNews, onSetStandby, currentStandby }: DuoSlotDisplayProps) {
+export function DuoSlotDisplay({ slot, onEdit, isTemporarySituation, isBye, gameInfo, onViewPlayerNews, onSetStandby, currentStandby }: DuoSlotDisplayProps) {
     if (!slot) {
         return (
             <div className="flex items-center justify-between rounded border border-dashed border-panel-line px-3 py-2">
@@ -119,7 +119,7 @@ export function DuoSlotDisplay({ slot, onEdit, editLabel, isBye, gameInfo, onVie
                     <span className="font-mono text-xs uppercase tracking-wide text-bell">{slot.player_position}</span>
                     {onEdit && (
                         <button onClick={onEdit} className="font-mono text-xs uppercase tracking-widest text-chalk-dim">
-                            {editLabel || 'Change'}
+                            Change
                         </button>
                     )}
                 </div>
@@ -141,9 +141,9 @@ export function DuoSlotDisplay({ slot, onEdit, editLabel, isBye, gameInfo, onVie
                     Becomes permanent in {slot.ir_pup_weeks_until_permanent} week{slot.ir_pup_weeks_until_permanent === 1 ? '' : 's'}
                 </p>
             )}
-            {onEdit && editLabel === 'Change now' && (onSetStandby || currentStandby) && (
+            {isTemporarySituation && onSetStandby && (
                 <p className="mt-1 font-body text-[10px] italic text-chalk-dim">
-                    Standby only activates if ruled out &mdash; to swap right now, use Change now above.
+                    This player&rsquo;s locked in unless ruled out &mdash; set a standby below to choose who replaces them if that happens.
                 </p>
             )}
             {currentStandby && (
