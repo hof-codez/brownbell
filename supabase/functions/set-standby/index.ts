@@ -2,26 +2,24 @@
 // POST { teamId, deviceToken, awardType, playerIndex, standbySleeperPlayerId } ->
 //   { success, error? }
 //
-// Solves a real, structural gap in the existing auto-sub logic: a
-// replacement's own game must kick off at the same time or later than
-// the player being replaced (a no-sandbagging rule, see
-// update-standings.js's selectAutoReplacement) - which can leave a slot
-// with structurally no eligible auto-sub candidate at all, not just on
-// the week's literal last game. A standby is only offered once
-// _shared/replacementCheck.ts confirms the normal substitution system
-// genuinely has nobody who could cover this slot right now - not as a
-// general-purpose hedge available any time a player is merely
-// questionable.
+// The primary way to cover a locked slot's temporary injury situation -
+// auto-sub (update-standings.js's selectAutoReplacement, a random top-4
+// pick by recent average) is now the SECONDARY fallback, used only when
+// no standby was set, or the one set is no longer eligible, by the time
+// the injury actually needs covering. An owner can pre-commit a standby
+// for ANY locked slot at any time, regardless of whether the current
+// player is currently healthy or flagged - a real, named case this
+// supports directly: an unexpected warmup injury with no official
+// designation at all yet.
 //
-// This lets an owner pre-commit a "standby" for exactly that situation -
-// but only while it's still genuinely blind: BOTH the current player's
-// own game and the proposed standby's own game must not have started
-// yet. Once either has, the choice can no longer be set or changed for
-// that week, for the same no-sandbagging reason the normal rule exists.
+// Still genuinely blind, same no-sandbagging principle the rest of this
+// app enforces everywhere: BOTH the current player's own game and the
+// proposed standby's own game must not have started yet. Once either
+// has, the choice can no longer be set or changed for that week.
 //
 // Deliberately named "standby" everywhere (never "auto-sub" or
-// "substitute" alone) to stay clearly distinct from the existing,
-// unrelated auto-sub feature this covers a gap in. See
+// "substitute" alone) to stay clearly distinct from the existing
+// auto-sub feature it takes priority over. See
 // 033-standby-substitutes.sql for the storage and
 // update-standings.js's processDuoSlots for where this actually
 // activates a saved standby.
@@ -33,7 +31,6 @@ import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
 import { fetchWeekSchedule, getMinutesUntilKickoffFromSchedule } from '../_shared/nflSchedule.ts';
 import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS, BOOM_POSITIONS } from '../_shared/eligibility.ts';
-import { hasEligibleReplacement } from '../_shared/replacementCheck.ts';
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -107,39 +104,10 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'Could not resolve the current player\'s NFL team' }, 400);
         }
 
-        // The actual condition this feature exists for: not "is this
-        // literally the last game of the week" (too narrow - a real
-        // reported case had a Sunday Night player with zero eligible
-        // replacements on the roster, even though Monday Night still
-        // followed that same week), but "does the normal substitution
-        // system have anyone at all who could cover this player right
-        // now." A standby is only offered when that answer is genuinely
-        // no - not as a general-purpose hedge available any time a player
-        // is merely questionable.
-        const excludeSleeperIds = new Set<string>([
-            currentPlayer.sleeper_player_id,
-            ...(otherSlotPlayer?.sleeper_player_id ? [otherSlotPlayer.sleeper_player_id] : []),
-            ...otherAwardPlayerIds
-        ]);
-        const otherSlotInfo = (() => {
-            if (!otherSlotPlayer?.sleeper_player_id) return null;
-            const otherP = allPlayers[otherSlotPlayer.sleeper_player_id];
-            return otherP?.position ? { position: otherP.position, yearsExp: otherP.years_exp || 0 } : null;
-        })();
-
-        const eligibleReplacementExists = hasEligibleReplacement({
-            rosterPlayerIds,
-            allPlayers,
-            excludeSleeperIds,
-            awardType,
-            otherSlotInfo,
-            weekSchedule,
-            currentPlayerTeam: currentP.team ?? null
-        });
-
-        if (eligibleReplacementExists) {
-            return jsonResponse({ success: false, error: 'A standby can only be set when no eligible replacement currently exists on your roster for this slot - a normal substitution already covers this situation.' }, 400);
-        }
+        // No gate on whether a normal substitution would already cover
+        // this - a standby is now the default, priority way to pre-commit
+        // a choice for any locked slot, available any time before both
+        // games start (checked below), regardless of current health.
 
         const currentMinutesUntilKickoff = getMinutesUntilKickoffFromSchedule(weekSchedule, currentP.team);
         if (currentMinutesUntilKickoff === null || currentMinutesUntilKickoff === 'bye' || currentMinutesUntilKickoff <= 0) {

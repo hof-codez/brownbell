@@ -100,9 +100,9 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                             className="rounded bg-panel-line px-1 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-chalk-dim"
                             title={
                                 subLabel === 'Standby'
-                                    ? 'A pre-committed standby stepped in for this slot'
+                                    ? 'A pre-committed standby stepped in for this slot, ahead of auto-sub'
                                     : subLabel === 'Auto-sub'
-                                        ? 'The system automatically subbed this player in'
+                                        ? 'The system automatically subbed this player in - no standby was set in time'
                                         : 'This player was subbed in for the original pick'
                             }
                         >
@@ -156,7 +156,7 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                     <button
                         onClick={onSetStandby}
                         className="mt-1 flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-chalk-dim"
-                        title="No eligible replacement exists on your roster for this player right now - if they're ruled out, this pre-picked standby steps in automatically. Tap to change."
+                        title="This pre-picked standby takes priority over auto-sub if this player is ruled out. Tap to change."
                     >
                         <span className="text-bell">Standby:</span> {currentStandby.playerName} ({currentStandby.playerPosition})
                     </button>
@@ -173,7 +173,7 @@ export function DuoSlotDisplay({ slot, onEdit, isBye, gameInfo, onViewPlayerNews
                 <button
                     onClick={onSetStandby}
                     className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-bell"
-                    title="No eligible replacement exists on your roster for this player right now - if they're ruled out, a pre-picked standby can step in automatically"
+                    title="Pre-pick who steps in if this player is ruled out - takes priority over auto-sub, and works even while they're currently healthy"
                 >
                     Set a Standby &rarr;
                 </button>

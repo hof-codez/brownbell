@@ -2613,75 +2613,78 @@ class BrownBellAutomator {
                 // after, same as Main Award/Next Up) keeps the slot always
                 // showing someone real.
 
-                const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo, 0, row.sleeperPlayerId);
-                if (replacement) {
+                // Standby checked FIRST now - an owner's pre-committed
+                // choice takes priority over a random top-4 auto-sub pick,
+                // matching a real, explicit decision: standby is no longer
+                // a last-resort fallback for a structural scheduling
+                // dead-end, it's the primary way to cover a temporary
+                // injury, with auto-sub as the secondary fallback when no
+                // standby was set (or it's no longer eligible) by kickoff.
+                const standby = await this.dataLayer.getStandbyForSlot(row.teamName, row.awardType, row.playerIndex, week, row.sleeperPlayerId);
+                const standbyPlayer = standby ? this.playersData[standby.standby_sleeper_player_id] : null;
+                // Combo re-validation - a standby settable any time, for
+                // any locked slot, makes a stale combo (valid when set,
+                // invalid by the time it would activate, since the OTHER
+                // slot can change in the meantime) a real risk, not just a
+                // theoretical one.
+                const standbyComboValid = !standby || row.awardType === 'boom' || !otherSlotInfo || !standbyPlayer?.position
+                    ? true
+                    : (row.awardType === 'main'
+                        ? this.validateDuoCombination(otherSlotInfo.position, standbyPlayer.position)
+                        : this.isValidNextUpCombo(otherSlotInfo, { position: standbyPlayer.position, years: standbyPlayer.years_exp || 0 }));
+
+                // Re-validated now, not just trusted from when it was set -
+                // time has passed, and the standby could since have been
+                // traded away, gone on IR themselves, or gotten claimed by
+                // this team's other award/slot in the meantime.
+                const standbyStillEligible = standby
+                    && this.isPlayerOnTeamRoster(row.teamName, standby.standby_sleeper_player_id)
+                    && !excludeIds.includes(standby.standby_sleeper_player_id)
+                    && !['out', 'doubtful', 'ir', 'pup'].includes((standbyPlayer?.injury_status || '').toLowerCase())
+                    && standbyComboValid;
+
+                if (standby && standbyStillEligible) {
+                    // Only a definitive designation activates a standby.
+                    // Doubtful can still change before kickoff, and an
+                    // activated standby is used up and does not revert -
+                    // so hold instead. Falling through to auto-sub here
+                    // would be worse: it would take the slot, and the
+                    // standby (tied to the original occupant) could then
+                    // never fire if they're later ruled Out.
+                    if (!['out', 'ir', 'pup'].includes(status)) continue;
+
                     await this.dataLayer.upsertDuoSlot({
                         teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
-                        playerName: replacement.name, playerPosition: replacement.position,
-                        sleeperPlayerId: replacement.id, source: 'auto'
+                        playerName: standby.standby_player_name, playerPosition: standby.standby_player_position,
+                        sleeperPlayerId: standby.standby_sleeper_player_id, source: 'owner'
                     });
-                    injuryUpdateEntry.injuryStatus = this.playersData[replacement.id]?.injury_status || null;
+                    injuryUpdateEntry.injuryStatus = standbyPlayer?.injury_status || null;
                     await this.dataLayer.logSubstitution({
                         teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
                         originalName: row.playerName, originalPosition: row.playerPosition,
-                        substituteName: replacement.name, substitutePlayerId: replacement.id, substitutePosition: replacement.position,
-                        week, source: 'auto', reason: `Temporary - ${player.first_name} ${player.last_name} is ${status}`
+                        substituteName: standby.standby_player_name, substitutePlayerId: standby.standby_sleeper_player_id, substitutePosition: standby.standby_player_position,
+                        week, source: 'owner', reason: `Standby activated - ${player.first_name} ${player.last_name} is ${status}`
                     });
-                    events.push({ type: 'temporary-fill', teamName: row.teamName, awardType: row.awardType, replacement: replacement.name });
+                    await this.dataLayer.consumeStandby(standby.id);
+                    events.push({ type: 'standby-activated', teamName: row.teamName, awardType: row.awardType, replacement: standby.standby_player_name });
                 } else {
-                    // The normal auto-sub rule (a replacement's own game must
-                    // kick off at the same time or later than the player
-                    // being replaced) structurally can't find anyone once
-                    // the ruled-out player IS the week's Monday Night game -
-                    // nothing else that week kicks off later. Before giving
-                    // up, check whether the owner pre-committed a standby
-                    // for exactly this situation (see
-                    // 033-standby-substitutes.sql) - set in advance, before
-                    // either game started, so it doesn't violate the
-                    // no-sandbagging principle the normal rule exists for.
-                    const standby = await this.dataLayer.getStandbyForSlot(row.teamName, row.awardType, row.playerIndex, week, row.sleeperPlayerId);
-                    // Re-validated now, not just trusted from when it was set -
-                    // time has passed, and the standby could since have been
-                    // traded away, gone on IR themselves, or gotten claimed by
-                    // this team's other award/slot in the meantime.
-                    // Combo re-validation, added alongside widening when a
-                    // standby can be set (no longer just "last game of the
-                    // week") - a standby offered more often makes a stale
-                    // combo (valid when set, invalid by the time it would
-                    // activate, since the OTHER slot can change in the
-                    // meantime) a real risk rather than a theoretical one.
-                    const standbyPlayer = standby ? this.playersData[standby.standby_sleeper_player_id] : null;
-                    const standbyComboValid = !standby || row.awardType === 'boom' || !otherSlotInfo || !standbyPlayer?.position
-                        ? true
-                        : (row.awardType === 'main'
-                            ? this.validateDuoCombination(otherSlotInfo.position, standbyPlayer.position)
-                            : this.isValidNextUpCombo(otherSlotInfo, { position: standbyPlayer.position, years: standbyPlayer.years_exp || 0 }));
-
-                    const standbyStillEligible = standby
-                        && this.isPlayerOnTeamRoster(row.teamName, standby.standby_sleeper_player_id)
-                        && !excludeIds.includes(standby.standby_sleeper_player_id)
-                        && !['out', 'doubtful', 'ir', 'pup'].includes((this.playersData[standby.standby_sleeper_player_id]?.injury_status || '').toLowerCase())
-                        && standbyComboValid
-                        // Only a definitive designation activates a standby.
-                        // Doubtful can still change before kickoff, and an
-                        // activated standby is used up and does not revert.
-                        && ['out', 'ir', 'pup'].includes(status);
-
-                    if (standby && standbyStillEligible) {
+                    // No standby set, or it's no longer eligible - fall
+                    // back to the normal auto-sub pool, same as always.
+                    const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo, 0, row.sleeperPlayerId);
+                    if (replacement) {
                         await this.dataLayer.upsertDuoSlot({
                             teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
-                            playerName: standby.standby_player_name, playerPosition: standby.standby_player_position,
-                            sleeperPlayerId: standby.standby_sleeper_player_id, source: 'owner'
+                            playerName: replacement.name, playerPosition: replacement.position,
+                            sleeperPlayerId: replacement.id, source: 'auto'
                         });
-                        injuryUpdateEntry.injuryStatus = this.playersData[standby.standby_sleeper_player_id]?.injury_status || null;
+                        injuryUpdateEntry.injuryStatus = this.playersData[replacement.id]?.injury_status || null;
                         await this.dataLayer.logSubstitution({
                             teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
                             originalName: row.playerName, originalPosition: row.playerPosition,
-                            substituteName: standby.standby_player_name, substitutePlayerId: standby.standby_sleeper_player_id, substitutePosition: standby.standby_player_position,
-                            week, source: 'owner', reason: `Standby activated - ${player.first_name} ${player.last_name} is ${status}, no normally-eligible replacement existed (Monday Night)`
+                            substituteName: replacement.name, substitutePlayerId: replacement.id, substitutePosition: replacement.position,
+                            week, source: 'auto', reason: `Temporary - ${player.first_name} ${player.last_name} is ${status}`
                         });
-                        await this.dataLayer.consumeStandby(standby.id);
-                        events.push({ type: 'standby-activated', teamName: row.teamName, awardType: row.awardType, replacement: standby.standby_player_name });
+                        events.push({ type: 'temporary-fill', teamName: row.teamName, awardType: row.awardType, replacement: replacement.name });
                     } else {
                         // No eligible replacement anywhere on the roster, and no
                         // usable standby either - leave the injured player in
