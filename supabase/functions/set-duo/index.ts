@@ -178,6 +178,28 @@ Deno.serve(async (req: Request) => {
             }
         }
 
+        // Whether this pick becomes the slot's new frozen original - the
+        // baseline auto-revert compares against to decide "is the real
+        // original healthy again?" Without this, the original stayed
+        // anchored to whoever held the slot at the start of the season
+        // forever: confirmed as a real reported case where a pick made
+        // after a permanent departure (Devin Lloyd replacing a departed
+        // Jack Campbell) could never be reverted back to once a later
+        // temporary sub covered him, since the revert check kept looking
+        // for a player no longer in the league at all.
+        //   - a permanent swap (original off the roster): yes
+        //   - filling an empty slot (resolveVacancy clears the player but
+        //     keeps the row, so the departed player's ID survives as the
+        //     original): yes - this is the path the reported case took
+        //   - a pre-lock change while the occupant IS the original: yes
+        //   - an IR/PUP Change (temporary-long-term): no - the IR'd
+        //     player is still the real original and must stay so
+        const originalIsCurrentOccupant = !!currentPlayer?.sleeper_player_id
+            && currentPlayer.original_sleeper_player_id === currentPlayer.sleeper_player_id;
+        const becomesNewOriginal = isPermanentSwap
+            || !currentPlayer?.sleeper_player_id
+            || (!locked && originalIsCurrentOccupant);
+
         const { error: upsertError } = await supabase.from('duos').upsert({
             team_id: teamId,
             award_type: awardType,
@@ -196,6 +218,7 @@ Deno.serve(async (req: Request) => {
             // when this function was first written and nothing else here
             // ever touches it. See 027-duo-player-departed.sql.
             player_departed: false,
+            ...(becomesNewOriginal ? { original_sleeper_player_id: sleeperPlayerId } : {}),
             source: 'owner'
         }, { onConflict: 'team_id,award_type,player_index' });
 

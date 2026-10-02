@@ -2242,7 +2242,10 @@ class BrownBellAutomator {
         await this.dataLayer.upsertDuoSlot({
             teamName, awardType, playerIndex,
             playerName: bestCandidate.name, playerPosition: bestCandidate.position,
-            sleeperPlayerId: bestCandidate.id, source: 'auto'
+            // Same reasoning as the other permanent-departure auto-fill
+            // above - this pick becomes the new frozen original, not the
+            // player who already left the roster.
+            sleeperPlayerId: bestCandidate.id, originalSleeperPlayerId: bestCandidate.id, source: 'auto'
         });
         // Keeps the later batched injuryStatusUpdates write in sync with
         // what upsertDuoSlot just wrote directly - without this, that
@@ -2719,7 +2722,13 @@ class BrownBellAutomator {
                         await this.dataLayer.upsertDuoSlot({
                             teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
                             playerName: replacement.name, playerPosition: replacement.position,
-                            sleeperPlayerId: replacement.id, source: 'auto'
+                            // A permanent-departure auto-fill becomes the
+                            // NEW frozen original - otherwise auto-revert
+                            // would forever compare against whoever left
+                            // the roster, never this pick, blocking it
+                            // from ever being recognized as healthy again
+                            // after its own future temporary injury.
+                            sleeperPlayerId: replacement.id, originalSleeperPlayerId: replacement.id, source: 'auto'
                         });
                         injuryUpdateEntry.injuryStatus = this.playersData[replacement.id]?.injury_status || null;
 
