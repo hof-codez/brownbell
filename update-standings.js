@@ -3461,7 +3461,7 @@ class BrownBellAutomator {
 
         // Load existing state from Supabase (replaces the old file-based JSON read)
         const cleanedSubstitutionsRaw = await this.dataLayer.loadSubstitutions();
-        const { validSubstitutions: cleanedSubstitutions, modifiedForSave } = this.cleanupSubstitutions(cleanedSubstitutionsRaw, currentWeek);
+        let { validSubstitutions: cleanedSubstitutions, modifiedForSave } = this.cleanupSubstitutions(cleanedSubstitutionsRaw, currentWeek);
         const rosterChanges = await this.dataLayer.loadRosterChanges();
         this.managerChanges = await this.dataLayer.loadManagerChanges();
 
@@ -3482,10 +3482,14 @@ class BrownBellAutomator {
         const existingChangeKeys = new Set(existingWeekChanges.map(changeKey));
         const newlyDetectedChanges = scheduleCheck.changes.filter(c => !existingChangeKeys.has(changeKey(c)));
 
-        // Update scores
-        const existingScoresForFallback = { main: {}, nextup: {}, boom: {} }; // inactive-team historical fallback; see updateAllScores
-        const { scores: allScores, playerIds: allPlayerIds, wasBye: allWasBye, subInfo: allSubInfo } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
-
+        // Slot changes run BEFORE scoring. Scores for the current week
+        // come from whoever holds each slot, so scoring first meant the
+        // run that made a change (an original reclaiming his slot, a
+        // standby or auto-sub stepping in) still saved the old
+        // occupant's points. The Teams tab read the live slot and showed
+        // the new player while Showdown read the saved scores and showed
+        // the old one, until the next run caught up.
+        //
         // Process every duo slot: pre-lock slots are skipped entirely (fully
         // owner-editable), locked slots get the full healthy/temporary/permanent
         // decision tree. This runs the same way regardless of checkpoint type -
@@ -3496,7 +3500,21 @@ class BrownBellAutomator {
         if (shouldRunSubstitutions) {
             slotEvents = await this.processDuoSlots(currentWeek, cleanedSubstitutions);
             console.log(`${checkpointType}: ${slotEvents.length} duo slot change(s) this run`);
+
+            if (slotEvents.length > 0) {
+                // Re-read what those changes just wrote. The substitution
+                // snapshot is replaced as a whole, including its cleanup
+                // list, so nothing from the earlier stale read gets
+                // written back over a close-out made during this run.
+                await this.loadKnownDuos();
+                const refreshedRaw = await this.dataLayer.loadSubstitutions();
+                ({ validSubstitutions: cleanedSubstitutions, modifiedForSave } = this.cleanupSubstitutions(refreshedRaw, currentWeek));
+            }
         }
+
+        // Update scores
+        const existingScoresForFallback = { main: {}, nextup: {}, boom: {} }; // inactive-team historical fallback; see updateAllScores
+        const { scores: allScores, playerIds: allPlayerIds, wasBye: allWasBye, subInfo: allSubInfo } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
 
         // Brown Bell weekly bonus matchups - a separate round-robin schedule,
         // scored off this week's Main Award totals (already computed above).
