@@ -2418,6 +2418,42 @@ class BrownBellAutomator {
 
             const excludeIds = [row.sleeperPlayerId, pairRow?.sleeperPlayerId, ...otherAwardPlayerIds].filter(Boolean);
 
+            // League rule: if the original pick plays, he counts, no
+            // matter who holds the slot or how they got there (owner
+            // pick, standby, auto-sub). Only a player gone for good
+            // (traded or released) is exempt, which the roster check
+            // covers. Sleeper reports points only, so "played" means
+            // non-zero points. An exact 0 can't be told apart from a
+            // scratch, so it keeps the current occupant. Checked before
+            // the this-week-started guard below because the sub's game
+            // can kick off before the original's.
+            if (row.originalSleeperPlayerId
+                && row.sleeperPlayerId !== row.originalSleeperPlayerId
+                && this.isPlayerOnTeamRoster(row.teamName, row.originalSleeperPlayerId)) {
+                const weekPoints = await this.getWeeklyScores(week);
+                const originalPoints = weekPoints[row.originalSleeperPlayerId];
+                if (originalPoints !== undefined && originalPoints !== 0) {
+                    const originalPlayer = this.playersData[row.originalSleeperPlayerId];
+                    const originalName = `${originalPlayer?.first_name || ''} ${originalPlayer?.last_name || ''}`.trim();
+                    await this.dataLayer.upsertDuoSlot({
+                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                        playerName: originalName, playerPosition: originalPlayer?.position || row.playerPosition,
+                        sleeperPlayerId: row.originalSleeperPlayerId, source: 'auto'
+                    });
+                    injuryUpdateEntry.injuryStatus = originalPlayer?.injury_status || null;
+                    injuryUpdateEntry.originalInjuryStatus = null;
+                    injuryUpdateEntry.irPupWeeksUntilPermanent = null;
+                    await this.dataLayer.logSubstitution({
+                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                        originalName: row.playerName, originalPosition: row.playerPosition,
+                        substituteName: originalName, substitutePlayerId: row.originalSleeperPlayerId, substitutePosition: originalPlayer?.position || row.playerPosition,
+                        week, source: 'auto', reason: 'Reverted to original player - original played'
+                    });
+                    events.push({ type: 'original-played-revert', teamName: row.teamName, awardType: row.awardType });
+                    continue;
+                }
+            }
+
             // This week's own lock - distinct from the SEASON-long lock
             // checked above (always against week 1). Even after that
             // season-long lock has passed, nothing below should ever
@@ -2982,7 +3018,7 @@ class BrownBellAutomator {
                                 sub.active === true &&
                                 sub.reason !== 'Owner set pick' &&
                                 sub.reason !== 'Owner changed pick before lock' &&
-                                sub.reason !== 'Reverted to original player - healthy again'
+                                !sub.reason?.startsWith('Reverted to original player')
                             ) || null;
                         } else {
                         // Check if this player was traded
@@ -3067,8 +3103,8 @@ class BrownBellAutomator {
                         // that same week showed "Sub for (not set)" - both
                         // from this same historical-week gap, which the
                         // current-week lookup above already excludes.
-                        const NOT_A_REAL_SUB_REASONS = ['Owner set pick', 'Owner changed pick before lock', 'Reverted to original player - healthy again'];
-                        subInfo[awardType][teamName][week][index] = (activeSub && !NOT_A_REAL_SUB_REASONS.includes(activeSub.reason))
+                        const NOT_A_REAL_SUB_REASONS = ['Owner set pick', 'Owner changed pick before lock'];
+                        subInfo[awardType][teamName][week][index] = (activeSub && !NOT_A_REAL_SUB_REASONS.includes(activeSub.reason) && !activeSub.reason?.startsWith('Reverted to original player'))
                             ? { source: activeSub.source, originalName: activeSub.originalName, reason: activeSub.reason }
                             : null;
 

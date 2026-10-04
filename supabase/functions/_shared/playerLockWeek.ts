@@ -38,6 +38,11 @@ export async function getPlayerLockWeek(
         .eq('award_type', awardType)
         .eq('player_index', playerIndex)
         .eq('substitute_player_id', currentSleeperPlayerId)
+        // A revert row (the new-week reset, or an original reclaiming the
+        // slot) is not a fresh placement. Counting it moved the lock week
+        // to the current week, so a healthy original looked unlocked and
+        // the picker allowed a swap.
+        .not('reason', 'ilike', 'Reverted to original player%')
         .order('start_week', { ascending: false })
         .limit(1)
         .maybeSingle();
