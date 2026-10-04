@@ -1,6 +1,7 @@
 // update-standings.js - GitHub Actions automation script
 const https = require('https');
 const SupabaseDataLayer = require('./supabase-data-layer');
+const { isRealSubstitutionReason } = require('./substitution-reasons');
 const { computeTeamStats, computeWinProbability } = require('./win-probability');
 
 class BrownBellAutomator {
@@ -3016,9 +3017,7 @@ class BrownBellAutomator {
                                 sub.playerIndex === index &&
                                 sub.awardType === awardType &&
                                 sub.active === true &&
-                                sub.reason !== 'Owner set pick' &&
-                                sub.reason !== 'Owner changed pick before lock' &&
-                                !sub.reason?.startsWith('Reverted to original player')
+                                isRealSubstitutionReason(sub.reason)
                             ) || null;
                         } else {
                         // Check if this player was traded
@@ -3103,8 +3102,7 @@ class BrownBellAutomator {
                         // that same week showed "Sub for (not set)" - both
                         // from this same historical-week gap, which the
                         // current-week lookup above already excludes.
-                        const NOT_A_REAL_SUB_REASONS = ['Owner set pick', 'Owner changed pick before lock'];
-                        subInfo[awardType][teamName][week][index] = (activeSub && !NOT_A_REAL_SUB_REASONS.includes(activeSub.reason) && !activeSub.reason?.startsWith('Reverted to original player'))
+                        subInfo[awardType][teamName][week][index] = (activeSub && isRealSubstitutionReason(activeSub.reason))
                             ? { source: activeSub.source, originalName: activeSub.originalName, reason: activeSub.reason }
                             : null;
 

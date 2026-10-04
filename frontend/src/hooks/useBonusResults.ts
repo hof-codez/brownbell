@@ -201,7 +201,18 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
             for (const row of scoreRows) {
                 const key = `${row.week}|${row.team_id}`;
                 const list = playersByWeekAndTeam.get(key) || [];
-                const isSub = !!row.sub_source;
+                // Ignores rows whose reason isn't an actual substitution -
+                // an initial pick, a pre-lock change, or an original
+                // reclaiming his own slot. The automation and the
+                // database both already strip these, so this only
+                // matters if a row reaches the table some other way, but
+                // a badge like "Auto-sub for JSN" on the original pick
+                // himself is exactly what owners notice. Mirrors
+                // substitution-reasons.js at the repo root.
+                const isSub = !!row.sub_source
+                    && row.sub_reason !== 'Owner set pick'
+                    && row.sub_reason !== 'Owner changed pick before lock'
+                    && !row.sub_reason?.startsWith('Reverted to original player');
                 list.push({
                     sleeperPlayerId: row.sleeper_player_id,
                     playerName: row.player_name || 'Unknown player',

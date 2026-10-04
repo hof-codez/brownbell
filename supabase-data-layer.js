@@ -6,6 +6,7 @@
 // is translating that to and from the normalized Supabase tables.
 
 const { createClient } = require('@supabase/supabase-js');
+const { isRealSubstitutionReason } = require('./substitution-reasons');
 
 class SupabaseDataLayer {
     constructor() {
@@ -613,7 +614,13 @@ class SupabaseDataLayer {
                         // week, and why - captured at write time same as
                         // playerName/playerPosition above, so a PLAYED week's row
                         // carries this too. See 034-weekly-scores-sub-info.sql.
-                        const sub = subInfo?.[awardType]?.[teamName]?.[week]?.[index];
+                        // Re-checked here, at the only place the automation
+                        // writes these columns, rather than trusting every
+                        // caller to have filtered already - a revert or an
+                        // initial pick reaching this point would otherwise
+                        // be saved as a Sub badge on Showdown.
+                        const rawSub = subInfo?.[awardType]?.[teamName]?.[week]?.[index];
+                        const sub = rawSub && isRealSubstitutionReason(rawSub.reason) ? rawSub : null;
 
                         rows.push({
                             team_id: teamId,
@@ -916,7 +923,7 @@ class SupabaseDataLayer {
         // whether it had ever actually been subbed.
         return (data || [])
             .filter(row => row.end_week === null || row.end_week === undefined || row.end_week >= week)
-            .filter(row => row.reason !== 'Owner set pick' && row.reason !== 'Owner changed pick before lock' && !row.reason?.startsWith('Reverted to original player'))
+            .filter(row => isRealSubstitutionReason(row.reason))
             .map(row => ({ ...row, teamName: teamNameById[row.team_id] }))
             .filter(row => row.teamName);
     }
