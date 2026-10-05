@@ -29,7 +29,9 @@ export function LeagueTab({ teams, myTeamId, duoNames, initialAward }: LeagueTab
     const { seasonRankings: bonusRankings, matchupsByWeek } = useBonusResults(teams);
     const { blocks: predictionBlocks } = usePredictions(teams.map(t => t.team), matchupsByWeek);
     const [award, setAward] = useState<AwardType>(() => initialAward ?? 'main');
-    const [view, setView] = useState<'rankings' | 'weekly'>('rankings');
+    // Opens on the current week - what owners check most during the
+    // season. WeeklyScoresTable picks the week itself (pickDefaultWeek).
+    const [view, setView] = useState<'rankings' | 'weekly'>('weekly');
 
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading league scores&hellip;</p>;
