@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useBonusResults } from '../hooks/useBonusResults';
 import { useWeeklyRecap } from '../hooks/useWeeklyRecap';
@@ -11,9 +11,34 @@ import { TauntBox } from './TauntBox';
 import { PlayerGameInfo } from './PlayerGameInfo';
 import type { TeamWithDuos, NFLGameInfo } from '../types';
 
-const REVIEWED_KEY_PREFIX = 'brownbell:showdown-reviewed:';
+// The owner's own answer to "ready to move on to next week?" - the only
+// thing that moves Showdown off a week before the season's Wednesday
+// rollover. A new key rather than the old 'brownbell:showdown-reviewed:'
+// one: that was written automatically the moment the owner's own matchup
+// was decided, so honoring those marks would skip a week nobody chose to
+// leave.
+const REVIEWED_KEY_PREFIX = 'brownbell:showdown-moved-on:';
+// "Stay on this week" only holds for the current visit (sessionStorage),
+// so the question comes back the next time the app is opened.
+const STAY_KEY_PREFIX = 'brownbell:showdown-stay:';
 
-// Highest week whose final result this device has already shown this team.
+function readStayChoice(teamId: string, week: number): boolean {
+    try {
+        return window.sessionStorage.getItem(STAY_KEY_PREFIX + teamId) === String(week);
+    } catch {
+        return false;
+    }
+}
+
+function writeStayChoice(teamId: string, week: number) {
+    try {
+        window.sessionStorage.setItem(STAY_KEY_PREFIX + teamId, String(week));
+    } catch {
+        // Storage unavailable: the prompt just shows again on this visit.
+    }
+}
+
+// Highest week this team's owner has chosen, on this device, to move on from.
 function readReviewedThroughWeek(teamId: string | null | undefined): number {
     if (!teamId) return 0;
     try {
@@ -244,7 +269,12 @@ function WeeklyRecapSection({ teams, week }: { teams: TeamWithDuos[]; week: numb
 
 export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoNames, getGameInfo, initialView, initialWeek }: ShowdownTabProps) {
     const { matchupsByWeek, weeksAvailable, seasonRankings, loading, error, getHeadToHead, getUpcomingMatchup, currentWeek } = useBonusResults(teams);
-    const reviewedThroughWeekAtOpen = useMemo(() => readReviewedThroughWeek(myTeamId), [myTeamId]);
+    const [reviewedThroughWeek, setReviewedThroughWeek] = useState(() => readReviewedThroughWeek(myTeamId));
+    const [stayedOnWeek, setStayedOnWeek] = useState<number | null>(null);
+    useEffect(() => {
+        setReviewedThroughWeek(readReviewedThroughWeek(myTeamId));
+        setStayedOnWeek(null);
+    }, [myTeamId]);
     const predictions = usePredictions(teams.map(t => t.team), matchupsByWeek);
     const taunts = useTaunts();
     const [view, setView] = useState<'matchups' | 'season' | 'recap' | 'predictions'>(() => initialView ?? 'matchups');
@@ -281,7 +311,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
     useEffect(() => {
         if (weekWasExplicitlyChosen.current || weeksAvailable.length === 0) return;
         if (myTeamId) {
-            const upcoming = getUpcomingMatchup(myTeamId, reviewedThroughWeekAtOpen);
+            const upcoming = getUpcomingMatchup(myTeamId, reviewedThroughWeek);
             if (upcoming) {
                 setSelectedWeek(upcoming.week);
                 return;
@@ -289,15 +319,7 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
         }
         // No team, or nothing found: default to the current week, not Week 1.
         setSelectedWeek(Math.min(currentWeek, weeksAvailable[weeksAvailable.length - 1]));
-    }, [weeksAvailable, myTeamId, getUpcomingMatchup, reviewedThroughWeekAtOpen, currentWeek]);
-
-    // Once this device has displayed the owner's own final result for a
-    // week, remember it. The next time Showdown opens, it moves on.
-    useEffect(() => {
-        if (loading || view !== 'matchups' || selectedWeek === null || !myTeamId) return;
-        const mine = (matchupsByWeek.get(selectedWeek) ?? []).find(m => m.teamA.teamId === myTeamId || m.teamB.teamId === myTeamId);
-        if (mine?.outcomeFinal) writeReviewedThroughWeek(myTeamId, selectedWeek);
-    }, [loading, view, selectedWeek, myTeamId, matchupsByWeek]);
+    }, [weeksAvailable, myTeamId, getUpcomingMatchup, reviewedThroughWeek, currentWeek]);
 
     if (loading) {
         return <p className="font-body text-sm text-chalk-dim">Loading showdown&hellip;</p>;
@@ -311,7 +333,32 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
         );
     }
 
-    const myUpcoming = myTeamId ? getUpcomingMatchup(myTeamId, reviewedThroughWeekAtOpen) : null;
+    const myUpcoming = myTeamId ? getUpcomingMatchup(myTeamId, reviewedThroughWeek) : null;
+
+    // Showdown never leaves a week on its own before the season's
+    // Wednesday rollover. Once the whole week is final (every matchup
+    // done, bonus tiers settled) the owner is ASKED whether to move on -
+    // previously it advanced automatically as soon as their own result
+    // had been shown, which sent owners to next week while this one was
+    // still being played, and without any say in it.
+    const finishedWeek = myUpcoming?.isFinal ? myUpcoming.week : null;
+    const nextWeek = finishedWeek !== null && weeksAvailable.includes(finishedWeek + 1) ? finishedWeek + 1 : null;
+    const showMoveOnPrompt = !!myTeamId && finishedWeek !== null && nextWeek !== null
+        && stayedOnWeek !== finishedWeek && !readStayChoice(myTeamId, finishedWeek);
+
+    function handleMoveOn() {
+        if (!myTeamId || finishedWeek === null) return;
+        writeReviewedThroughWeek(myTeamId, finishedWeek);
+        // Back to following the auto-pick, which now lands on next week.
+        weekWasExplicitlyChosen.current = false;
+        setReviewedThroughWeek(finishedWeek);
+    }
+
+    function handleStay() {
+        if (!myTeamId || finishedWeek === null) return;
+        writeStayChoice(myTeamId, finishedWeek);
+        setStayedOnWeek(finishedWeek);
+    }
     const myOpponentId = myUpcoming
         ? (myUpcoming.teamA.teamId === myTeamId ? myUpcoming.teamB.teamId : myUpcoming.teamA.teamId)
         : null;
@@ -338,6 +385,25 @@ export function ShowdownTab({ teams, myTeamId, deviceToken, onLearnMore, duoName
                     )}
                 </p>
             </div>
+
+            {showMoveOnPrompt && (
+                <div className="mb-4 rounded-lg border border-bell/50 bg-bell/10 p-4">
+                    <p className="font-body text-sm text-chalk">
+                        Week {finishedWeek} is final. Ready to move on to Week {nextWeek}?
+                    </p>
+                    <p className="mt-1 font-body text-xs text-chalk-dim">
+                        Showdown switches to Week {nextWeek} on its own on Wednesday either way.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <button onClick={handleMoveOn} className="rounded bg-bell px-3 py-1.5 font-mono text-xs font-semibold uppercase tracking-widest text-field">
+                            Go to Week {nextWeek}
+                        </button>
+                        <button onClick={handleStay} className="rounded border border-panel-line px-3 py-1.5 font-mono text-xs font-semibold uppercase tracking-widest text-chalk-dim">
+                            Stay on Week {finishedWeek}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {myUpcoming && myOpponentName && myHeadToHead && (
                 <div className="mb-4 rounded-lg border border-bell/50 bg-bell/10 p-4">

@@ -435,11 +435,16 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
             if (!mine) continue;
 
             // A week is left behind only when the season has moved to the
-            // next week, or this device already showed the owner their
-            // final result for it. Advancing the moment one matchup ended
-            // pushed owners to next week while games were still live.
+            // next week, or the WHOLE week is final and this device has
+            // already shown the owner that result. isFinal, not
+            // outcomeFinal: an owner's own matchup is decided as soon as
+            // their four players finish (often Sunday afternoon), and
+            // advancing on that sent them to next week while other
+            // matchups were still live and their own bonus tier could
+            // still change - confirmed as a real reported issue, several
+            // weeks running.
             const weekHasRolledOver = currentWeek > week;
-            const ownerHasReviewed = mine.outcomeFinal && week <= reviewedThroughWeek;
+            const ownerHasReviewed = mine.isFinal && week <= reviewedThroughWeek;
             if (!weekHasRolledOver && !ownerHasReviewed) return mine;
         }
         return null;
