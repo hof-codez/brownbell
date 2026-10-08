@@ -110,7 +110,22 @@ Deno.serve(async (req: Request) => {
         // games start (checked below), regardless of current health.
 
         const currentMinutesUntilKickoff = getMinutesUntilKickoffFromSchedule(weekSchedule, currentP.team);
-        if (currentMinutesUntilKickoff === null || currentMinutesUntilKickoff === 'bye' || currentMinutesUntilKickoff <= 0) {
+        // Three different situations, each with its own message - they
+        // used to share "game has already started", which was simply
+        // wrong for a bye (confirmed as a real reported case: an owner
+        // tried to set a standby for an LB on bye before any of that
+        // week's games had been played).
+        if (currentMinutesUntilKickoff === null) {
+            return jsonResponse({ success: false, error: 'Could not confirm this player\'s game time - try again in a moment' }, 400);
+        }
+        if (currentMinutesUntilKickoff === 'bye') {
+            // Bye weeks are honored as-is: the slot scores 0 and no
+            // substitute steps in (see Rules - Bye weeks), so there is
+            // nothing for a standby to cover this week.
+            const currentName = `${currentP.first_name || ''} ${currentP.last_name || ''}`.trim() || currentPlayer.player_name;
+            return jsonResponse({ success: false, error: `${currentName} is on a bye this week. Bye weeks are honored as-is - the slot scores 0 and no substitute steps in - so there's nothing for a standby to cover. You can set one again next week.` }, 400);
+        }
+        if (currentMinutesUntilKickoff <= 0) {
             return jsonResponse({ success: false, error: 'Too late to set a standby - this player\'s game has already started' }, 400);
         }
 

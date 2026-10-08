@@ -126,6 +126,9 @@ export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, standbyByKey,
     // already makes above.
     function getStandbyHandler(awardType: AwardType, playerIndex: 0 | 1, slot: TeamWithDuos['main'][number], gameInfo: NFLGameInfo | undefined) {
         if (!onSetStandby || !slot?.sleeper_player_id || slot.player_departed) return undefined;
+        // A bye is honored as-is (slot scores 0, no substitute), so there's
+        // nothing for a standby to cover - set-standby rejects it too.
+        if (isBye(slot)) return undefined;
         if (gameInfo?.kickoff_time && new Date(gameInfo.kickoff_time) <= new Date()) return undefined;
         return () => onSetStandby(awardType, playerIndex, slot.player_name);
     }
