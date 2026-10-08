@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getCurrentWeek } from '../lib/displayWeek';
 import { LIVE_SCORE_POLL_INTERVAL_MS } from '../lib/livePolling';
 import type { TeamWithDuos } from '../types';
 import { getScheduledMatchupsForWeek, REGULAR_SEASON_WEEKS } from '../lib/bonusSchedule';
@@ -398,9 +399,11 @@ export function useBonusResults(teamsWithDuos: TeamWithDuos[]): UseBonusResultsR
             if (!cancelled) {
                 setMatchupsByWeek(byWeek);
                 setSeasonRankings(rankings);
-                // Score rows exist only up to the week the automation is on,
-                // and the same run that writes them updates current_week.
-                setCurrentWeek(Math.max(1, scoreRows.reduce((max, r) => Math.max(max, Number(r.week)), 0)));
+                // The later of the newest week with score rows and the
+                // calendar week (Wednesday noon ET) - so Showdown's own
+                // rollover happens at the same moment as the rest of the
+                // app, not whenever the automation first writes rows.
+                setCurrentWeek(Math.max(getCurrentWeek(), scoreRows.reduce((max, r) => Math.max(max, Number(r.week)), 0)));
                 setLoading(false);
             }
         }

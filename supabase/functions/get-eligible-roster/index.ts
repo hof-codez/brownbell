@@ -30,6 +30,7 @@ import { hasTeamGameStarted, fetchWeekSchedule, isEligibleForSubFromSchedule, ge
 import { getPlayerLockWeek } from '../_shared/playerLockWeek.ts';
 import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS, BOOM_POSITIONS } from '../_shared/eligibility.ts';
 import { classifySwapSituation, checkSwapPermission, type SwapSituation } from '../_shared/swapStatus.ts';
+import { getEffectiveWeek } from '../_shared/currentWeek.ts';
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -55,6 +56,12 @@ Deno.serve(async (req: Request) => {
         if (seasonError || !season) {
             return jsonResponse({ error: 'Season not found' }, 404);
         }
+
+        // Wednesday-noon-ET calendar week, or the stored week if later - so
+        // this function switches weeks at the same moment the app does,
+        // without waiting on the automation's week-roll run. See
+        // _shared/currentWeek.ts.
+        const currentWeek = getEffectiveWeek(season.current_week);
 
         const { data: allDuos, error: duoError } = await supabase
             .from('duos').select('award_type, player_index, player_name, player_position, sleeper_player_id, original_sleeper_player_id')
@@ -133,7 +140,7 @@ Deno.serve(async (req: Request) => {
         // Wed/Thu/Sun/Mon within the same week. Fetched whenever a swap is
         // allowed at all, not only once the slot is locked.
         const weekSchedule = allowSwap
-            ? await fetchWeekSchedule(season.current_week, String(season.year))
+            ? await fetchWeekSchedule(currentWeek, String(season.year))
             : null;
 
         // Every roster player is returned - not filtered down to only the

@@ -28,6 +28,7 @@ import { hasTeamGameStarted, getMinutesUntilKickoff } from '../_shared/nflSchedu
 import { getPlayerLockWeek } from '../_shared/playerLockWeek.ts';
 import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS, BOOM_POSITIONS } from '../_shared/eligibility.ts';
 import { classifySwapSituation, checkSwapPermission } from '../_shared/swapStatus.ts';
+import { getEffectiveWeek } from '../_shared/currentWeek.ts';
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -63,6 +64,12 @@ Deno.serve(async (req: Request) => {
         if (seasonError || !season) {
             return jsonResponse({ success: false, error: 'Season not found' }, 404);
         }
+
+        // Wednesday-noon-ET calendar week, or the stored week if later - so
+        // this function switches weeks at the same moment the app does,
+        // without waiting on the automation's week-roll run. See
+        // _shared/currentWeek.ts.
+        const currentWeek = getEffectiveWeek(season.current_week);
 
         const { data: allDuos, error: duoError } = await supabase
             .from('duos').select('award_type, player_index, sleeper_player_id, player_name, player_position, original_sleeper_player_id')
@@ -155,7 +162,7 @@ Deno.serve(async (req: Request) => {
         // Wed/Thu/Sun/Mon within the same week). Checked on every pick,
         // for every award type, regardless of `locked`.
         if (newPlayer.team) {
-            const minutesUntilKickoff = await getMinutesUntilKickoff(newPlayer.team, season.current_week, String(season.year));
+            const minutesUntilKickoff = await getMinutesUntilKickoff(newPlayer.team, currentWeek, String(season.year));
             if (minutesUntilKickoff !== 'bye' && (minutesUntilKickoff === null || minutesUntilKickoff <= 1)) {
                 return jsonResponse({
                     success: false,
@@ -242,7 +249,7 @@ Deno.serve(async (req: Request) => {
 
         const { error: closeOutError } = await supabase
             .from('substitutions')
-            .update({ end_week: Math.max(0, season.current_week - 1), active: false })
+            .update({ end_week: Math.max(0, currentWeek - 1), active: false })
             .eq('team_id', teamId)
             .eq('award_type', awardType)
             .eq('player_index', playerIndex)
@@ -264,7 +271,7 @@ Deno.serve(async (req: Request) => {
             substitute_name: `${newPlayer.first_name || ''} ${newPlayer.last_name || ''}`.trim(),
             substitute_player_id: sleeperPlayerId,
             substitute_position: newPlayer.position,
-            start_week: season.current_week,
+            start_week: currentWeek,
             end_week: null,
             active: true,
             source: 'owner',

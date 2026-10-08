@@ -7,7 +7,7 @@ import { useStandbyStatus } from './hooks/useStandbyStatus';
 import { useLockCountdown } from './hooks/useLockCountdown';
 import { useLeagueScores } from './hooks/useLeagueScores';
 import { useNFLSchedule } from './hooks/useNFLSchedule';
-import { pickDefaultWeek } from './lib/displayWeek';
+import { pickDefaultWeek, getCurrentWeek } from './lib/displayWeek';
 import { useCurrentWeekByeStatus } from './hooks/useCurrentWeekByeStatus';
 import { useDuoNames, duoNameKey } from './hooks/useDuoNames';
 import { useDuoNaming } from './hooks/useDuoNaming';
@@ -64,11 +64,15 @@ export default function App() {
       if (w.week === displayWeek) currentWeekScores.set(w.teamId, w.points);
     }
   }
-  // "Next game" info shown next to each player's name on Teams cards and
-  // in the replacement picker - reuses the exact same displayWeek as
-  // currentWeekScores above, so both always agree on which week is
-  // "current" rather than risking two independent notions of it.
-  const { getGameInfo } = useNFLSchedule(displayWeek);
+  // The week the whole app treats as current - flips at Wednesday noon ET,
+  // the same moment the Edge Functions do (see lib/displayWeek.ts). Game
+  // times, byes and standby status all follow it, so the standby button
+  // opens up the instant the week changes. Previously these followed
+  // displayWeek above, which waits for the new week's scores to exist and
+  // flipped hours after the header, leaving the button keyed to last
+  // week's already-played kickoffs in between.
+  const currentWeek = season ? getCurrentWeek(season.current_week) : null;
+  const { getGameInfo } = useNFLSchedule(currentWeek);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [editingSlot, setEditingSlot] = useState<{ awardType: AwardType; playerIndex: 0 | 1 } | null>(null);
   // Separate from editingSlot above - this is for pre-committing a
@@ -148,7 +152,7 @@ export default function App() {
   // teamId/deviceToken, and there's nothing to edit without one.
   const picker = useDuoPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
   const standbyPicker = useStandbyPicker(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
-  const { standbyByKey, refetch: refetchStandbyStatus } = useStandbyStatus(claimedTeam?.teamId ?? null, displayWeek);
+  const { standbyByKey, refetch: refetchStandbyStatus } = useStandbyStatus(claimedTeam?.teamId ?? null, currentWeek);
   const naming = useDuoNaming(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
   const background = useTeamBackground(claimedTeam?.teamId ?? '', claimedTeam?.deviceToken ?? '');
 

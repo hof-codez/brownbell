@@ -21,13 +21,16 @@ on:
     # (Sleeper sends theirs at 12 PM ET Tuesdays) so there's always
     # something ready to share on the same reliable schedule.
     - cron: '0 19 * * 2'
-    # Wednesday at 7 AM AZ (2 PM UTC) - rolls the season to the new week.
-    # The calendar week flips at 00:00 UTC Wednesday, and nothing else runs
-    # before Thursday afternoon. Routed through watchdog.js's retry loop
+    # Wednesday at 16:00 UTC - rolls the season to the new week. The
+    # league's week changes at Wednesday 12:00 PM Eastern: that's 16:00 UTC
+    # during daylight time and 17:00 UTC in standard time, and the 90-minute
+    # retry loop below covers both. The app and Edge Functions already switch
+    # at noon ET from the calendar on their own - this run just writes
+    # seasons.current_week and the new week's rows to match. Routed through watchdog.js's retry loop
     # (WEEK_ROLL_MODE, see the job step below) rather than a single
     # one-shot run, since a delayed or dropped trigger here has no
     # backstop until Thursday.
-    - cron: '0 14 * * 3'
+    - cron: '0 16 * * 3'
     # Thursday at 2:30 PM AZ (9:30 PM UTC) - pre-TNF injury checkpoint
     - cron: '30 14 * * 4'
     # Saturday at 4 AM AZ (11 AM UTC) - international game prep
@@ -193,7 +196,7 @@ jobs:
             export WATCHDOG_DURATION_MINUTES=340
             node watchdog.js
             ;;
-          "0 14 * * 3")
+          "0 16 * * 3")
             # Retries every 15 min for 90 min in case this specific
             # trigger is delayed or dropped - see watchdog.js's
             # WEEK_ROLL_MODE comment for why a live-game gate is skipped.

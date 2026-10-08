@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Season } from '../types';
+import { getCurrentWeek } from '../lib/displayWeek';
 
 /**
  * Sleeper player IDs on bye THIS week. Backed by weekly_scores' was_bye flag,
@@ -21,7 +22,7 @@ export function useCurrentWeekByeStatus(season: Season | null): Set<string> {
             const { data, error } = await supabase
                 .from('weekly_scores')
                 .select('sleeper_player_id, was_bye')
-                .eq('week', season!.current_week)
+                .eq('week', getCurrentWeek(season!.current_week))
                 .eq('was_bye', true);
 
             if (cancelled || error || !data) return;

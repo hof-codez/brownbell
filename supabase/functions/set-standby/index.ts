@@ -31,6 +31,7 @@ import { createAdminClient } from '../_shared/supabaseAdmin.ts';
 import { fetchAllPlayers, fetchRosterPlayerIds } from '../_shared/sleeper.ts';
 import { fetchWeekSchedule, getMinutesUntilKickoffFromSchedule } from '../_shared/nflSchedule.ts';
 import { isValidMainCombo, isValidNextUpCombo, isNextUpEligibleExperience, MAIN_POSITIONS, NEXTUP_POSITIONS, BOOM_POSITIONS } from '../_shared/eligibility.ts';
+import { getEffectiveWeek } from '../_shared/currentWeek.ts';
 
 Deno.serve(async (req: Request) => {
     const preflight = handleCorsPreflightRequest(req);
@@ -67,6 +68,12 @@ Deno.serve(async (req: Request) => {
             return jsonResponse({ success: false, error: 'Season not found' }, 404);
         }
 
+        // Wednesday-noon-ET calendar week, or the stored week if later - so
+        // this function switches weeks at the same moment the app does,
+        // without waiting on the automation's week-roll run. See
+        // _shared/currentWeek.ts.
+        const currentWeek = getEffectiveWeek(season.current_week);
+
         const { data: allDuos, error: duoError } = await supabase
             .from('duos').select('award_type, player_index, sleeper_player_id, player_name, player_position')
             .eq('team_id', teamId);
@@ -92,7 +99,7 @@ Deno.serve(async (req: Request) => {
         const [allPlayers, rosterPlayerIds, weekSchedule] = await Promise.all([
             fetchAllPlayers(),
             fetchRosterPlayerIds(season.sleeper_league_id, team.sleeper_roster_id),
-            fetchWeekSchedule(season.current_week, String(season.year))
+            fetchWeekSchedule(currentWeek, String(season.year))
         ]);
 
         if (!weekSchedule) {
@@ -192,7 +199,7 @@ Deno.serve(async (req: Request) => {
             team_id: teamId,
             award_type: awardType,
             player_index: playerIndex,
-            week: season.current_week,
+            week: currentWeek,
             standby_sleeper_player_id: standbySleeperPlayerId,
             standby_player_name: `${standbyPlayer.first_name || ''} ${standbyPlayer.last_name || ''}`.trim(),
             standby_player_position: standbyPlayer.position,

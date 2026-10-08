@@ -929,23 +929,26 @@ class BrownBellAutomator {
     }
 
     async getCurrentWeek() {
-        // NFL 2026 season starts Wednesday, September 9, 2026.
-        // NOTE: this date needs updating every season - it's only used as a fallback
-        // when Sleeper's own league.leg isn't yet reporting a valid week (e.g. before
-        // the season has started), so an out-of-date value here mostly just affects
-        // preseason runs, not in-season accuracy.
-        const seasonStart = new Date('2026-09-09T00:00:00Z');
-        const now = new Date();
-
-        // Calculate days since season start
-        const daysSinceStart = Math.floor((now.getTime() - seasonStart.getTime()) / (24 * 60 * 60 * 1000));
-
-        // Each NFL week starts on Thursday and runs 7 days
-        // Week transitions happen every Thursday
-        let calculatedWeek = Math.floor(daysSinceStart / 7) + 1;
-
-        // Cap between 1 and 18 (NFL regular season)
-        calculatedWeek = Math.max(1, Math.min(18, calculatedWeek));
+        // The league's one week boundary: Wednesday at 12:00 PM Eastern
+        // (daylight saving handled). Same calculation as the frontend's
+        // lib/displayWeek.ts and supabase/functions/_shared/currentWeek.ts -
+        // keep all three in sync.
+        // NOTE: update this date every season - the Wednesday the season opens.
+        const SEASON_START_ET = { year: 2026, month: 9, day: 9 };
+        const DAY_MS = 24 * 60 * 60 * 1000;
+        const parts = {};
+        for (const p of new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York',
+            year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23'
+        }).formatToParts(new Date())) {
+            parts[p.type] = p.value;
+        }
+        const etDate = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+        const startDate = Date.UTC(SEASON_START_ET.year, SEASON_START_ET.month - 1, SEASON_START_ET.day);
+        // Days since the season opened, counted noon-to-noon Eastern.
+        let daysSinceStart = Math.round((etDate - startDate) / DAY_MS);
+        if (Number(parts.hour) < 12) daysSinceStart -= 1;
+        const calculatedWeek = Math.max(1, Math.min(18, Math.floor(daysSinceStart / 7) + 1));
 
         // Sleeper's own live league.leg is usually the more precise source
         // of truth, but it only advances whenever Sleeper's own internal
@@ -962,9 +965,15 @@ class BrownBellAutomator {
         // weeks, schedule quirks the calendar formula alone can't know
         // about) - neither signal should ever be allowed to pull the week
         // backward or get stuck behind the other.
+        //
+        // Sleeper's week is now logged only, not used. Its own bump lands
+        // whenever Sleeper gets to it (often Tuesday), which moved the
+        // header to the new week a day early while everything else waited
+        // for Wednesday - the league's week changes at Wednesday noon ET,
+        // full stop, so the calendar is the single source of truth.
         const sleeperWeek = this.leagueData?.league?.leg;
         const sleeperWeekValid = sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18;
-        const resolvedWeek = sleeperWeekValid ? Math.max(sleeperWeek, calculatedWeek) : calculatedWeek;
+        const resolvedWeek = calculatedWeek;
 
         console.log(`Using week: ${resolvedWeek} (Sleeper week: ${sleeperWeekValid ? sleeperWeek : 'n/a'}, calculated week: ${calculatedWeek}, days since start: ${daysSinceStart})`);
         return resolvedWeek;
@@ -3430,6 +3439,15 @@ class BrownBellAutomator {
 
         console.log(`Current week: ${currentWeek}, Checkpoint: ${checkpointType || 'ROUTINE_UPDATE'}`);
 
+        // Saved the moment it's known, not at the end of the run - the
+        // header reads this, and a full run (news fetching, scoring) can
+        // take many minutes. Also before the LIVE_CHECK skip below, so
+        // even a skipped run rolls the week.
+        if (currentWeek !== storedWeek) {
+            await this.dataLayer.setCurrentWeek(currentWeek);
+            console.log(`📅 Rolled season from week ${storedWeek} to week ${currentWeek}`);
+        }
+
         // LIVE_CHECK fires every 15 min across a wide, generous window (see
         // update-standings.yml) - wide enough to safely cover any kickoff
         // time across the season, which means it also wakes up during real
@@ -3455,6 +3473,17 @@ class BrownBellAutomator {
                 };
             }
             console.log('LIVE_CHECK: at least one game is in progress - proceeding with a real update');
+        }
+
+        // Next week's schedule, saved ahead of time. The frontend reads
+        // kickoff times and byes from nfl_schedule, and the week now
+        // switches at Wednesday noon ET on the dot - without this, the new
+        // week's rows only existed once a run had happened IN that week,
+        // so for a while after the switch there were no game times (and
+        // no bye detection) for anyone. Best effort, same as the
+        // current week's fetch.
+        if (currentWeek < 18) {
+            await this.fetchNFLSchedule(currentWeek + 1);
         }
 
         // Load existing state from Supabase (replaces the old file-based JSON read)
@@ -3639,10 +3668,6 @@ class BrownBellAutomator {
         } else {
             console.warn('⚠️ Skipping schedule snapshot/change save - schedule fetch returned no data this run');
         }
-        if (currentWeek !== storedWeek) {
-            await this.dataLayer.setCurrentWeek(currentWeek);
-        }
-
         const summary = {
             version: '3.0',
             timestamp: new Date().toISOString(),

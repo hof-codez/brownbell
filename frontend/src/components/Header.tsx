@@ -1,4 +1,5 @@
 import type { Season } from '../types';
+import { getCurrentWeek } from '../lib/displayWeek';
 
 export function Header({ season }: { season: Season | null }) {
   return (
@@ -10,7 +11,7 @@ export function Header({ season }: { season: Season | null }) {
         </h1>
         {season && (
           <p className="mt-2 font-body text-sm text-chalk-dim">
-            {season.year} season &middot; Week {season.current_week}
+            {season.year} season &middot; Week {getCurrentWeek(season.current_week)}
           </p>
         )}
       </div>
