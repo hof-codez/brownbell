@@ -1,114 +1,34 @@
 // update-standings.js - GitHub Actions automation script
-const fs = require('fs');
 const https = require('https');
+const SupabaseDataLayer = require('./supabase-data-layer');
 
 class BrownBellAutomator {
     constructor(leagueId) {
         this.leagueId = leagueId;
         this.playersData = null;
         this.leagueData = null;
+        this.cachedSchedule = {};
+        this.dataLayer = new SupabaseDataLayer();
+
+        // Populated from Supabase via loadKnownDuos() before any run - no hardcoded
+        // team/player data lives in this file. See supabase-data-layer.js.
+        this.knownDuos = { main: {}, nextup: {}, boom: {} };
+        this.inactiveTeams = {};
+        this.managerChanges = {};
 
         // Exclusion list: prevent auto-substitutions for specific scenarios
-        this.substitutionExclusions = [
-           
-        ];
-
-        // Known duos from your tracker
-        this.knownDuos = {
-            main: {
-                'Un14wfulBandit': [
-                    { name: 'Josh Allen', position: 'QB' },
-                    { name: 'Derrick Henry', position: 'RB' }
-                ],
-                'Chief1025': [
-                    { name: 'Justin Herbert', position: 'QB' },
-                    { name: 'Josh Jacobs', position: 'RB' }
-                ],
-                'HofDimez': [
-                    { name: 'Christian McCaffrey', position: 'RB' },
-                    { name: 'Justin Jefferson', position: 'WR' }
-                ],
-                'fsmrubix': [
-                    { name: 'Jayden Daniels', position: 'QB' },
-                    { name: 'CeeDee Lamb', position: 'WR' }
-                ],
-                'KnowItAllJankyJew': [
-                    { name: 'Jordan Love', position: 'QB' },
-                    { name: 'Hollywood Brown', position: 'WR' }
-                ],
-                'FelixR08': [
-                    { name: 'Lamar Jackson', position: 'QB' },
-                    { name: 'Tony Pollard', position: 'RB' }
-                ],
-                '713Born501Raised': [
-                    { name: 'Patrick Mahomes', position: 'QB' },
-                    { name: 'Josh Downs', position: 'WR' }
-                ],
-                'Justin274447': [
-                    { name: 'Jalen Hurts', position: 'QB' },
-                    { name: 'Ja\'Marr Chase', position: 'WR' }
-                ],
-                'Kenyatta93': [
-                    { name: 'Joe Burrow', position: 'QB' },
-                    { name: 'Saquon Barkley', position: 'RB' }
-                ],
-                'tigollbiddiez': [
-                    { name: 'C.J. Stroud', position: 'QB' },
-                    { name: 'Jahmyr Gibbs', position: 'RB' }
-                ],
-                'Ch3r0k33zY': [
-                    { name: 'Jared Goff', position: 'QB' },
-                    { name: 'Mike Evans', position: 'WR' }
-                ],
-                'FLYB33ZY': [
-                    { name: 'Dak Prescott', position: 'QB' },
-                    { name: 'Terry McLaurin', position: 'WR' }
-                ]
-            },
-            nextup: {
-                'fsmrubix': [
-                    { name: 'Jaxson Dart', position: 'QB', experience: 'rookie' },
-                    { name: 'Malik Nabers', position: 'WR', experience: 'second_year' }
-                ],
-                '713Born501Raised': [
-                    { name: 'Jayden Higgins', position: 'WR', experience: 'rookie' },
-                    { name: 'Bo Nix', position: 'QB', experience: 'second_year' }
-                ],
-                'Ch3r0k33zY': [
-                    { name: 'Tetairoa McMillan', position: 'WR', experience: 'rookie' },
-                    { name: 'Bucky Irving', position: 'RB', experience: 'second_year' }
-                ],
-                'KnowItAllJankyJew': [
-                    { name: 'Quinshon Judkins', position: 'RB', experience: 'rookie' },
-                    { name: 'Jalen Coker', position: 'WR', experience: 'second_year' }
-                ],
-                'HofDimez': [
-                    { name: 'Emeka Egbuka', position: 'WR', experience: 'rookie' },
-                    { name: 'J.J. McCarthy', position: 'QB', experience: 'second_year' }
-                ],
-                'Un14wfulBandit': [
-                    { name: 'Ashton Jeanty', position: 'RB', experience: 'rookie' },
-                    { name: 'Brian Thomas', position: 'WR', experience: 'second_year' }
-                ],
-                'Kenyatta93': [
-                    { name: 'Kaleb Johnson', position: 'RB', experience: 'rookie' },
-                    { name: 'DeVaughn Vele', position: 'WR', experience: 'second_year' }  // Note the capital V
-                ],
-                'FelixR08': [
-                    { name: 'Elic Ayomanor', position: 'WR', experience: 'rookie' },
-                    { name: 'Rome Odunze', position: 'WR', experience: 'second_year' }
-                ],
-                'FLYB33ZY': [
-                    { name: 'Tory Horton', position: 'WR', experience: 'rookie' },
-                    { name: 'Trey Benson', position: 'RB', experience: 'second_year' }
-                ]
-            }
-        };
+        this.substitutionExclusions = [];
     }
 
     async fetchJson(url) {
         return new Promise((resolve, reject) => {
-            https.get(url, (res) => {
+            const options = {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; BrownBellAutomation/2.0; +https://github.com/hof-codez/brownbell)',
+                    'Accept': 'application/json'
+                }
+            };
+            https.get(url, options, (res) => {
                 let data = '';
                 res.on('data', chunk => data += chunk);
                 res.on('end', () => {
@@ -120,6 +40,856 @@ class BrownBellAutomator {
                 });
             }).on('error', reject);
         });
+    }
+
+    // Same shape as fetchJson but returns the raw response body unparsed -
+    // used for RotoWire's RSS feed (XML, not JSON).
+    async fetchText(url) {
+        return new Promise((resolve, reject) => {
+            const options = {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; BrownBellAutomation/2.0; +https://github.com/hof-codez/brownbell)',
+                    'Accept': 'application/xml'
+                }
+            };
+            https.get(url, options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => resolve(data));
+            }).on('error', reject);
+        });
+    }
+
+    // ESPN uses a couple of team abbreviations that differ from the ones used elsewhere in
+    // this file (knownDuos, roster/player data, etc). Normalize here.
+    static ESPN_ABBR_FIX = { WSH: 'WAS' };
+
+    // Full 32-team list, in the same abbreviation convention used elsewhere in this file.
+    // Used to detect byes explicitly, since ESPN's scoreboard simply omits a bye team
+    // rather than listing them - a team missing from `events` is otherwise
+    // indistinguishable from "the fetch failed."
+    static ALL_NFL_TEAMS = [
+        'ARI', 'ATL', 'BAL', 'BUF', 'CAR', 'CHI', 'CIN', 'CLE', 'DAL', 'DEN', 'DET', 'GB',
+        'HOU', 'IND', 'JAX', 'KC', 'LV', 'LAC', 'LAR', 'MIA', 'MIN', 'NE', 'NO', 'NYG',
+        'NYJ', 'PHI', 'PIT', 'SF', 'SEA', 'TB', 'TEN', 'WAS'
+    ];
+
+    async fetchNFLSchedule(week) {
+        console.log(`Fetching NFL schedule for Week ${week}...`);
+
+        try {
+            const season = process.env.NFL_SEASON_YEAR || '2026';
+            // ESPN's public scoreboard endpoint - structured JSON, kept live in sync with
+            // actual broadcast schedule (flex moves, weather reschedules, etc), unlike the
+            // old approach of regex-scraping the NFL.com operations page HTML, which was
+            // fragile and hardcoded to a single season's page.
+            const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&year=${season}`;
+            const data = await this.fetchJson(url);
+
+            const weekSchedule = this.parseEspnSchedule(data);
+
+            // Cache it for this run only (a fresh process runs on every checkpoint, so this
+            // never goes stale across checkpoints - each run re-fetches live).
+            this.cachedSchedule = this.cachedSchedule || {};
+            this.cachedSchedule[week] = weekSchedule;
+
+            console.log(`Successfully fetched schedule for Week ${week} - ${Object.keys(weekSchedule).length} teams`);
+
+            // Persist to Supabase so the frontend can show "next game" info
+            // for each player without ever calling ESPN directly - best
+            // effort, logs its own errors internally rather than throwing,
+            // so a save hiccup here never blocks the actual scoring run.
+            await this.dataLayer.saveNFLSchedule(week, weekSchedule);
+
+            return weekSchedule;
+
+        } catch (error) {
+            console.warn(`Failed to fetch NFL schedule: ${error.message}`);
+            console.log('Falling back to manual schedule data');
+            return null;
+        }
+    }
+
+    parseEspnSchedule(espnData) {
+        const schedule = {};
+        const events = (espnData && espnData.events) || [];
+        const teamsWithGames = new Set();
+
+        for (const event of events) {
+            const competition = event.competitions && event.competitions[0];
+            if (!competition) continue;
+
+            const gameDate = new Date(event.date); // ESPN returns ISO 8601 UTC already
+            if (isNaN(gameDate.getTime())) continue;
+
+            const competitors = competition.competitors || [];
+            const teams = competitors
+                .map(c => {
+                    let abbr = c.team && c.team.abbreviation;
+                    if (abbr && BrownBellAutomator.ESPN_ABBR_FIX[abbr]) {
+                        abbr = BrownBellAutomator.ESPN_ABBR_FIX[abbr];
+                    }
+                    return abbr;
+                })
+                .filter(Boolean);
+
+            if (teams.length !== 2) continue;
+
+            const [team1, team2] = teams;
+            const statusState = competition.status?.type?.state; // 'pre' | 'in' | 'post'
+            const statusDetail = competition.status?.type?.shortDetail;
+
+            // Venue country tells us if this is an international game (London, Berlin,
+            // Sao Paulo, Madrid, etc) - live-derived instead of a hand-maintained list.
+            const venue = competition.venue;
+            const venueCountry = venue?.address?.country;
+            const isInternational = !!venueCountry && !['USA', 'US', 'United States'].includes(venueCountry);
+            const venueInfo = venue ? {
+                name: venue.fullName,
+                city: venue.address?.city,
+                country: venueCountry || 'USA'
+            } : null;
+
+            const gameInfo = { date: gameDate, opponent: null, status: statusState, statusDetail, international: isInternational, venue: venueInfo };
+
+            schedule[team1] = { ...gameInfo, opponent: team2 };
+            schedule[team2] = { ...gameInfo, opponent: team1 };
+            teamsWithGames.add(team1);
+            teamsWithGames.add(team2);
+        }
+
+        // Any team not found in this week's events is on bye - mark it explicitly rather
+        // than leaving it absent, which hasPlayerGameStarted() would otherwise mistake for
+        // a failed fetch and fall back to a much cruder heuristic.
+        for (const team of BrownBellAutomator.ALL_NFL_TEAMS) {
+            if (!teamsWithGames.has(team)) {
+                schedule[team] = { date: null, opponent: null, status: 'bye', statusDetail: 'BYE', international: false, venue: null };
+            }
+        }
+
+        return schedule;
+    }
+
+    // RotoWire's free public RSS feed - the same underlying source Sleeper,
+    // ESPN, and NFL.com themselves use for their own player-news features
+    // (confirmed via RotoWire's own syndication page and their news team's
+    // public statement that their feed is "synced on Sleeper, ESPN, Yahoo
+    // and more"). Their own terms permit third-party display of this feed
+    // provided a link back to RotoWire.com is included - see
+    // ROTOWIRE_ATTRIBUTION_FOOTER below, always stored and shown alongside
+    // the snippet, never stripped.
+    static ROTOWIRE_NFL_NEWS_URL = 'https://www.rotowire.com/rss/news.php?sport=NFL';
+
+    // Verified directly against a real fetch of RotoWire's depth chart
+    // team selector - every slug below was seen in the actual page, not
+    // guessed. Maps this app's Sleeper-style team abbreviations to
+    // RotoWire's own slug for their per-team depth chart URL.
+    static ROTOWIRE_TEAM_SLUGS = {
+        ARI: 'arizona-cardinals-depth-chart-ari', ATL: 'atlanta-falcons-depth-chart-atl',
+        BAL: 'baltimore-ravens-depth-chart-bal', BUF: 'buffalo-bills-depth-chart-buf',
+        CAR: 'carolina-panthers-depth-chart-car', CHI: 'chicago-bears-depth-chart-chi',
+        CIN: 'cincinnati-bengals-depth-chart-cin', CLE: 'cleveland-browns-depth-chart-cle',
+        DAL: 'dallas-cowboys-depth-chart-dal', DEN: 'denver-broncos-depth-chart-den',
+        DET: 'detroit-lions-depth-chart-det', GB: 'green-bay-packers-depth-chart-gb',
+        HOU: 'houston-texans-depth-chart-hou', IND: 'indianapolis-colts-depth-chart-ind',
+        JAX: 'jacksonville-jaguars-depth-chart-jax', KC: 'kansas-city-chiefs-depth-chart-kc',
+        LAC: 'los-angeles-chargers-depth-chart-lac', LAR: 'los-angeles-rams-depth-chart-lar',
+        LV: 'las-vegas-raiders-depth-chart-lv', MIA: 'miami-dolphins-depth-chart-mia',
+        MIN: 'minnesota-vikings-depth-chart-min', NE: 'new-england-patriots-depth-chart-ne',
+        NO: 'new-orleans-saints-depth-chart-no', NYG: 'new-york-giants-depth-chart-nyg',
+        NYJ: 'new-york-jets-depth-chart-nyj', PHI: 'philadelphia-eagles-depth-chart-phi',
+        PIT: 'pittsburgh-steelers-depth-chart-pit', SEA: 'seattle-seahawks-depth-chart-sea',
+        SF: 'san-francisco-49ers-depth-chart-sf', TB: 'tampa-bay-buccaneers-depth-chart-tb',
+        TEN: 'tennessee-titans-depth-chart-ten', WAS: 'washington-commanders-depth-chart-was'
+    };
+
+    // Discovers RotoWire URLs directly from each relevant NFL team's own
+    // depth chart page, rather than waiting for a player to randomly
+    // appear in the shared feed's tiny 5-item window - confirmed directly
+    // that most players could otherwise go weeks without ever being
+    // discovered that way. Only covers offensive skill positions
+    // (QB/RB/WR/TE) - confirmed directly that RotoWire paywalls every
+    // defensive position, even on this per-team page, so this does
+    // nothing for Season of Boom's IDP players. Those still rely on the
+    // shared-feed discovery path in fetchAndSavePlayerNews alone.
+    async fetchAndSaveDepthChartLinks() {
+        const relevantTeams = new Set();
+        for (const awardType of ['main', 'nextup']) {
+            for (const duo of Object.values(this.knownDuos[awardType] || {})) {
+                for (const player of duo) {
+                    const team = player?.sleeperId ? this.playersData[player.sleeperId]?.team : null;
+                    if (team && BrownBellAutomator.ROTOWIRE_TEAM_SLUGS[team]) relevantTeams.add(team);
+                }
+            }
+        }
+
+        if (relevantTeams.size === 0) return;
+        console.log(`Discovering RotoWire player links from ${relevantTeams.size} team depth chart(s)...`);
+
+        const nameToSleeperPlayerId = this.buildNormalizedNameIndex();
+        let totalDiscovered = 0;
+
+        for (const team of relevantTeams) {
+            const slug = BrownBellAutomator.ROTOWIRE_TEAM_SLUGS[team];
+            try {
+                const html = await this.fetchText(`https://www.rotowire.com/football/nfl-depth-charts/${slug}`);
+                const links = this.parseRotowireDepthChartLinks(html, nameToSleeperPlayerId);
+                if (links.length > 0) {
+                    await this.dataLayer.saveRotowirePlayerLinks(links);
+                    totalDiscovered += links.length;
+                }
+            } catch (error) {
+                console.warn(`Failed to fetch/parse depth chart for ${team}: ${error.message}`);
+            }
+        }
+        console.log(`Discovered ${totalDiscovered} RotoWire player link(s) from depth charts this run`);
+    }
+
+    // Extracts every [Player Name](rotowire-url) link from a team's depth
+    // chart page and matches each to a Sleeper player by name. Anchored on
+    // the "/football/player/" URL segment specifically, since that's the
+    // one part of the link structure guaranteed to only ever point at an
+    // actual player profile (as opposed to nav links, team links, etc.
+    // elsewhere on the same page).
+    parseRotowireDepthChartLinks(html, nameToSleeperPlayerId) {
+        const linkPattern = /<a[^>]+href="(https:\/\/www\.rotowire\.com\/football\/player\/[^"]+)"[^>]*>([^<]+)<\/a>/g;
+        const results = [];
+        const seenIds = new Set();
+
+        for (const match of html.matchAll(linkPattern)) {
+            const url = match[1];
+            const name = this.decodeXmlEntities(match[2]).trim();
+            const sleeperPlayerId = nameToSleeperPlayerId.get(this.normalizePlayerName(name));
+            if (!sleeperPlayerId || seenIds.has(sleeperPlayerId)) continue;
+            seenIds.add(sleeperPlayerId);
+            results.push({ sleeperPlayerId, rotowireUrl: url });
+        }
+
+        return results;
+    }
+
+    async fetchAndSavePlayerNews() {
+        console.log('Fetching player news from RotoWire...');
+        try {
+            const xml = await this.fetchText(BrownBellAutomator.ROTOWIRE_NFL_NEWS_URL);
+            const items = this.parseRotowireFeed(xml);
+            console.log(`Fetched ${items.length} player news item(s) from RotoWire`);
+
+            const nameToSleeperPlayerId = this.buildNormalizedNameIndex();
+            let matched = 0;
+            for (const item of items) {
+                const sleeperPlayerId = nameToSleeperPlayerId.get(this.normalizePlayerName(item.playerName)) || null;
+                if (sleeperPlayerId) matched++;
+                item.sleeperPlayerId = sleeperPlayerId;
+            }
+            console.log(`Matched ${matched}/${items.length} news item(s) to a roster-able Sleeper player`);
+
+            await this.dataLayer.savePlayerNews(items);
+
+            // Every matched item's sourceUrl IS that player's RotoWire
+            // profile page - opportunistically learn it here so
+            // fetchAndSaveProfileNews can later fetch that page directly
+            // for a much deeper history than this shared feed's small
+            // rolling window ever shows. Never un-learned once discovered.
+            await this.dataLayer.saveRotowirePlayerLinks(
+                items.filter(i => i.sleeperPlayerId).map(i => ({ sleeperPlayerId: i.sleeperPlayerId, rotowireUrl: i.sourceUrl }))
+            );
+        } catch (error) {
+            console.warn(`Failed to fetch/save player news: ${error.message}`);
+        }
+    }
+
+    // Lowercase, trim, collapse whitespace, drop periods (e.g. "D.J." ->
+    // "dj") and a trailing generational suffix - enough to reconcile
+    // RotoWire's name formatting against Sleeper's without being so
+    // aggressive (e.g. stripping hyphens or apostrophes) that it risks
+    // merging two actually-different names together.
+    normalizePlayerName(name) {
+        return name
+            .toLowerCase()
+            .replace(/\./g, '')
+            .replace(/\s+(jr|sr|ii|iii|iv|v)$/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    // Built fresh each fetch rather than cached across runs - playersData
+    // itself is already reloaded every run, and this index is only ever
+    // used once per fetch (a handful of news items), so there's no
+    // meaningful cost to rebuilding it rather than tracking invalidation.
+    buildNormalizedNameIndex() {
+        const index = new Map();
+        for (const [sleeperPlayerId, player] of Object.entries(this.playersData || {})) {
+            if (!player.first_name && !player.last_name) continue;
+            const fullName = `${player.first_name || ''} ${player.last_name || ''}`.trim();
+            index.set(this.normalizePlayerName(fullName), sleeperPlayerId);
+        }
+        return index;
+    }
+
+    // Keyword list scoped to distinctive betting-industry terms rather
+    // than generic words like "picks" or "line" that legitimate fantasy
+    // content also uses ("waiver wire pickups", "starting lineup") -
+    // false positives there would silently drop real player news. Checked
+    // against headline (and source name, since some outlets are
+    // betting-specific by nature) before saving any item, across all
+    // three news paths - RotoWire's own factual blurbs would essentially
+    // never match this, but applying it uniformly is cheap and keeps
+    // behavior consistent rather than only filtering the one source most
+    // likely to need it.
+    static BETTING_KEYWORDS = [
+        'sportsbook', 'draftkings', 'fanduel', 'betmgm', 'caesars sportsbook',
+        'prizepicks', 'prop bet', 'props bet', 'best bets', ' odds ', ' odds.',
+        'moneyline', 'point spread', 'parlay', 'underdog fantasy', 'bovada',
+        'over/under', 'against the spread', ' ats ', 'betting', ' wager',
+        'kalshi', 'polymarket', 'promo code'
+    ];
+
+    isSportsBettingContent(headline, sourceName) {
+        const text = `${headline} ${sourceName || ''}`.toLowerCase();
+        return BrownBellAutomator.BETTING_KEYWORDS.some(keyword => text.includes(keyword));
+    }
+
+    // Fetches a specific player's own RotoWire profile page for a much
+    // deeper news history than the shared feed's small rolling window
+    // ever shows (confirmed directly: a profile page had 6+ dated entries
+    // spanning months, while the shared feed only ever holds ~5 items for
+    // the entire NFL at once). Only covers players we've already learned
+    // a RotoWire URL for via fetchAndSavePlayerNews - a player who's never
+    // appeared in the shared feed yet has no known URL to fetch.
+    //
+    // This scrapes an HTML page rather than a clean feed, anchored on the
+    // most distinctive, stable-looking text pattern available (a
+    // "Month D, YYYY" date immediately preceding each news paragraph) -
+    // inherently more fragile than RSS parsing, since RotoWire could
+    // change their page layout without notice. Logs exactly what it
+    // finds per player so a layout change or a parsing miss is visible in
+    // the run log immediately, not silent.
+    // Per-player Google News search, covering ALL positions (including
+    // defense/IDP - the one gap neither RotoWire path can close, since
+    // their depth charts paywall every defensive position and the shared
+    // feed only ever surfaces ~5 players league-wide). Every result is
+    // guaranteed relevant by construction (it's a search FOR this exact
+    // player), so unlike a shared feed this needs no name-matching at
+    // all - the tradeoff is headline + source only, no factual snippet,
+    // since these results span many independent outlets this app has no
+    // individual permission to quote from (unlike RotoWire's own
+    // page, licensed for exactly this kind of display).
+    //
+    // This is an unofficial, undocumented Google endpoint - unlike
+    // RotoWire's real documented feed, Google could change or restrict it
+    // without notice. Logs a per-player count either way so a change in
+    // behavior is immediately visible in the run log, not silent.
+    // Re-validates every already-saved player_news row against the
+    // CURRENT filter rules (isSportsBettingContent, and - for Google
+    // News-sourced items specifically - the last-name-in-headline check).
+    // Filter rules can be added or tightened after items were already
+    // saved under looser rules (exactly what happened here: 6223+ items
+    // were saved in one run before the betting/title filters existed),
+    // and without this, that old output sits in the table forever - new
+    // filters only ever affect saves from that point forward, never
+    // retroactively clean up what came before them. Deletes only rows
+    // that fail a check whose inputs are still verifiable (a Google item
+    // with no resolvable player/last name is left alone rather than
+    // guessed at).
+    async pruneDisqualifiedNews() {
+        const rows = await this.dataLayer.loadAllPlayerNewsForPruning();
+        if (rows.length === 0) return;
+
+        const disqualifiedIds = [];
+        for (const row of rows) {
+            if (this.isSportsBettingContent(row.headline, row.source_name)) {
+                disqualifiedIds.push(row.id);
+                continue;
+            }
+
+            // The last-name-in-headline requirement only ever applied to
+            // Google-sourced items ("google-" prefix) - RotoWire items
+            // guarantee the name is in the title/snippet by construction.
+            if (row.rotowire_guid && row.rotowire_guid.startsWith('google-')) {
+                const lastName = row.sleeper_player_id ? this.playersData[row.sleeper_player_id]?.last_name : null;
+                if (lastName && !row.headline.toLowerCase().includes(lastName.toLowerCase())) {
+                    disqualifiedIds.push(row.id);
+                }
+            }
+        }
+
+        let actuallyDeleted = 0;
+        if (disqualifiedIds.length > 0) {
+            actuallyDeleted = (await this.dataLayer.deletePlayerNewsByIds(disqualifiedIds)) || 0;
+        }
+        console.log(`Pruned ${actuallyDeleted}/${rows.length} previously-saved news item(s) that no longer pass current filters` +
+            (actuallyDeleted !== disqualifiedIds.length ? ` (identified ${disqualifiedIds.length}, but ${disqualifiedIds.length - actuallyDeleted} failed to delete - see errors above)` : ''));
+    }
+
+    async fetchAndSaveGoogleNews() {
+        const sleeperPlayerIds = new Set();
+        for (const awardType of ['main', 'nextup', 'boom']) {
+            for (const duo of Object.values(this.knownDuos[awardType] || {})) {
+                for (const player of duo) {
+                    if (player?.sleeperId) sleeperPlayerIds.add(player.sleeperId);
+                }
+            }
+        }
+
+        if (sleeperPlayerIds.size === 0) return;
+        console.log(`Fetching Google News for ${sleeperPlayerIds.size} current duo player(s)...`);
+
+        let totalSaved = 0;
+        for (const sleeperPlayerId of sleeperPlayerIds) {
+            const player = this.playersData[sleeperPlayerId];
+            if (!player?.first_name || !player?.last_name) continue;
+
+            const fullName = `${player.first_name} ${player.last_name}`;
+            const query = encodeURIComponent(`"${fullName}" NFL`);
+            const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
+
+            try {
+                const xml = await this.fetchText(url);
+                const items = this.parseGoogleNewsFeed(xml, sleeperPlayerId, fullName, player.last_name);
+                // Cap at the most recent 20 - the UI only ever displays
+                // the 15 most recent per player (see PlayerNewsModal), so
+                // saving Google's full result set (which can run into the
+                // hundreds per popular player) was pure waste. This is
+                // also what made a single run blow past 6000 saved items
+                // and, combined with pruneDisqualifiedNews' now-fixed
+                // 1000-row pagination bug, left most of the table
+                // permanently unreachable by the retroactive filter check.
+                const cappedItems = items
+                    .slice()
+                    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+                    .slice(0, 20);
+                if (cappedItems.length > 0) {
+                    await this.dataLayer.savePlayerNews(cappedItems);
+                    totalSaved += cappedItems.length;
+                }
+            } catch (error) {
+                console.warn(`Failed to fetch/parse Google News for ${fullName}: ${error.message}`);
+            }
+
+            // A short, polite delay between requests - this is ~24-40
+            // separate requests per run (one per player) rather than one
+            // shared feed fetch, so this isn't optional the way it might
+            // be for a single request.
+            await new Promise(resolve => setTimeout(resolve, 400));
+        }
+        console.log(`Saved ${totalSaved} Google News item(s) across all queried players`);
+    }
+
+    // Parses Google News' standard RSS 2.0 search results. Each item's
+    // <title> has " - Source Name" appended by Google - stripped using
+    // the <source> tag's own text (rather than a guessed separator
+    // position) so the stored headline never accidentally includes a
+    // trailing source name that happened to itself contain a dash.
+    parseGoogleNewsFeed(xml, sleeperPlayerId, playerName, lastName) {
+        const items = [];
+        const itemBlocks = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+
+        for (const block of itemBlocks) {
+            const rawTitle = this.decodeXmlEntities(this.extractXmlTag(block, 'title') || '');
+            const link = this.extractXmlTag(block, 'link');
+            const pubDateStr = this.extractXmlTag(block, 'pubDate');
+            const guidMatch = block.match(/<guid[^>]*>([\s\S]*?)<\/guid>/);
+            const guid = guidMatch ? guidMatch[1].trim() : null;
+            const sourceMatch = block.match(/<source[^>]*>([\s\S]*?)<\/source>/);
+            const sourceName = sourceMatch ? this.decodeXmlEntities(sourceMatch[1].trim()) : null;
+
+            if (!rawTitle || !link || !guid) continue;
+
+            const headline = sourceName && rawTitle.endsWith(` - ${sourceName}`)
+                ? rawTitle.slice(0, -(sourceName.length + 3))
+                : rawTitle;
+
+            const publishedAt = pubDateStr ? new Date(pubDateStr) : new Date();
+            if (isNaN(publishedAt.getTime())) continue;
+
+            if (this.isSportsBettingContent(headline, sourceName)) continue;
+
+            // Requires the player's own last name in the actual headline,
+            // not just somewhere the search query matched - a search for
+            // "Christian McCaffrey NFL" can surface roundup articles like
+            // "49ers Injury Report: McCaffrey, Kittle, Purdy Update
+            // Statuses" that mention him but aren't specifically about
+            // him. Last name only (not full name) since headlines
+            // overwhelmingly use just the surname ("McCaffrey Traded",
+            // not "Christian McCaffrey Traded").
+            if (lastName && !headline.toLowerCase().includes(lastName.toLowerCase())) continue;
+
+            items.push({
+                rotowireGuid: `google-${sleeperPlayerId}-${guid}`,
+                sleeperPlayerId,
+                playerName,
+                headline,
+                snippet: '', // Deliberately no factual blurb - see fetchAndSaveGoogleNews
+                sourceName,
+                sourceUrl: link,
+                publishedAt
+            });
+        }
+
+        return items;
+    }
+
+    async fetchAndSaveProfileNews() {
+        const sleeperPlayerIds = new Set();
+        for (const awardType of ['main', 'nextup', 'boom']) {
+            for (const duo of Object.values(this.knownDuos[awardType] || {})) {
+                for (const player of duo) {
+                    if (player?.sleeperId) sleeperPlayerIds.add(player.sleeperId);
+                }
+            }
+        }
+
+        if (sleeperPlayerIds.size === 0) return;
+
+        const links = await this.dataLayer.getRotowirePlayerLinks([...sleeperPlayerIds]);
+        console.log(`Profile news: ${links.length}/${sleeperPlayerIds.size} current duo player(s) have a known RotoWire URL`);
+
+        for (const { sleeperPlayerId, rotowireUrl } of links) {
+            const player = this.playersData[sleeperPlayerId];
+            const lastName = player?.last_name;
+            if (!lastName) continue;
+
+            try {
+                const html = await this.fetchText(rotowireUrl);
+                const items = this.parseRotowireProfilePage(html, sleeperPlayerId, lastName, rotowireUrl);
+                console.log(`Profile news for ${player.first_name} ${lastName}: found ${items.length} entr${items.length === 1 ? 'y' : 'ies'}`);
+                await this.dataLayer.savePlayerNews(items);
+            } catch (error) {
+                console.warn(`Failed to fetch/parse profile page for ${player.first_name} ${lastName}: ${error.message}`);
+            }
+        }
+    }
+
+    // Best-effort parser for one player's RotoWire profile page HTML.
+    // Anchors on a "Month D, YYYY" date immediately preceding each news
+    // entry's paragraph - the most distinctive, least layout-dependent
+    // pattern available without visibility into RotoWire's actual page
+    // markup. Filters out anything that doesn't actually mention the
+    // player's own last name, since the page also contains unrelated
+    // dated content (other articles, rankings) that could otherwise
+    // produce false matches.
+    parseRotowireProfilePage(html, sleeperPlayerId, lastName, rotowireUrl) {
+        // Collapse tags to spaces (preserving word boundaries) rather than
+        // deleting them outright, then decode entities - a lightweight
+        // stand-in for real HTML parsing, adequate for locating text
+        // patterns even though it discards all structural information.
+        const text = this.decodeXmlEntities(html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+
+        const datePattern = /([A-Z][a-z]+ \d{1,2}, \d{4})/g;
+        const matches = [...text.matchAll(datePattern)];
+        const items = [];
+        const seen = new Set();
+
+        for (let i = 0; i < matches.length; i++) {
+            const dateStr = matches[i][1];
+            const startIdx = matches[i].index + dateStr.length;
+            const endIdx = i + 1 < matches.length ? matches[i + 1].index : Math.min(text.length, startIdx + 600);
+            const segment = text.slice(startIdx, endIdx).trim();
+
+            // Only the portion up to the first "ANALYSIS" marker (or a
+            // reasonable cap) is the actual factual snippet - everything
+            // after is RotoWire's separate (often paywalled) commentary.
+            const analysisIdx = segment.search(/ANALYSIS/);
+            const snippet = (analysisIdx === -1 ? segment.slice(0, 400) : segment.slice(0, analysisIdx)).trim();
+
+            if (snippet.length < 15 || snippet.length > 500) continue;
+            if (!snippet.toLowerCase().includes(lastName.toLowerCase())) continue; // not actually about this player - reject
+
+            const publishedAt = new Date(dateStr);
+            if (isNaN(publishedAt.getTime())) continue;
+
+            // Synthesized dedup key - the profile page doesn't expose
+            // RotoWire's own numeric item guid the way the shared feed
+            // does, so identity here is (player + date + a slice of the
+            // snippet) instead. Stable across repeated fetches of the
+            // same unchanged entry; a genuinely new entry on the same day
+            // would need different snippet text to be a real second event.
+            const dedupKey = `${sleeperPlayerId}|${dateStr}|${snippet.slice(0, 40)}`;
+            if (seen.has(dedupKey)) continue;
+            seen.add(dedupKey);
+
+            if (this.isSportsBettingContent(snippet, null)) continue;
+
+            items.push({
+                rotowireGuid: `profile-${sleeperPlayerId}-${Buffer.from(dedupKey).toString('base64').slice(0, 24)}`,
+                sleeperPlayerId,
+                playerName: `${this.playersData[sleeperPlayerId]?.first_name || ''} ${lastName}`.trim(),
+                headline: snippet.slice(0, 80),
+                snippet,
+                sourceUrl: rotowireUrl,
+                publishedAt
+            });
+        }
+
+        return items;
+    }
+
+
+    // Decodes the small set of XML/HTML entities actually needed here - not a
+    // general HTML entity decoder, just enough for names/text that can
+    // appear in this specific feed (e.g. an apostrophe in a player's name,
+    // an ampersand in a team name).
+    decodeXmlEntities(text) {
+        return text
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, "'")
+            .replace(/&#0*39;/g, "'");
+    }
+
+    extractXmlTag(block, tag) {
+        const match = block.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+        if (!match) return null;
+        // Strip a CDATA wrapper if present - this specific feed doesn't use
+        // one (confirmed against a real fetch), but handling it costs
+        // nothing and protects against RotoWire adding one later.
+        const inner = match[1].replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, '$1');
+        return this.decodeXmlEntities(inner.trim());
+    }
+
+    // Parses RotoWire's specific, simple RSS structure into structured
+    // rows. A custom parser rather than a general XML library dependency -
+    // matches this project's existing pattern (see parseEspnSchedule) of
+    // writing a small parser for one specific, verified external shape
+    // rather than depending on something built to handle arbitrary XML.
+    parseRotowireFeed(xml) {
+        const items = [];
+        const itemBlocks = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+
+        for (const block of itemBlocks) {
+            const guid = this.extractXmlTag(block, 'guid');
+            const rawTitle = this.extractXmlTag(block, 'title');
+            const link = this.extractXmlTag(block, 'link');
+            const rawDescription = this.extractXmlTag(block, 'description');
+            const pubDate = this.extractXmlTag(block, 'pubDate');
+
+            if (!guid || !rawTitle || !link || !rawDescription || !pubDate) continue;
+
+            // Title format is always "Player Name: Headline" - confirmed
+            // against a real fetch. Only the first colon is the separator;
+            // a headline that itself contains a colon must not be split
+            // again.
+            const colonIndex = rawTitle.indexOf(':');
+            if (colonIndex === -1) continue; // not a player-news item in the expected shape - skip rather than guess
+            const playerName = rawTitle.slice(0, colonIndex).trim();
+            const headline = rawTitle.slice(colonIndex + 1).trim();
+
+            // Strip RotoWire's own "Visit RotoWire.com..." footer, keeping
+            // just the factual snippet - the footer is re-added as a
+            // required attribution link in the UI itself, not duplicated
+            // into the stored text.
+            const snippet = rawDescription
+                .replace(/\s*Visit RotoWire\.com for more analysis on this update\.\s*$/i, '')
+                .trim();
+
+            const publishedAt = new Date(pubDate);
+            if (isNaN(publishedAt.getTime())) continue;
+
+            if (this.isSportsBettingContent(headline, null)) continue;
+
+            items.push({
+                rotowireGuid: guid,
+                playerName,
+                headline,
+                snippet,
+                sourceUrl: link,
+                publishedAt
+            });
+        }
+
+        return items;
+    }
+
+    async isPlayerOnBye(playerId, week) {
+        const player = this.playersData[playerId];
+        if (!player || !player.team) return false;
+
+        // Live schedule data (same source hasPlayerGameStarted uses) instead of a
+        // hand-maintained per-season bye table - see parseEspnSchedule's explicit
+        // bye-marking for any team missing from that week's events.
+        if (!this.cachedSchedule || !this.cachedSchedule[week]) {
+            await this.fetchNFLSchedule(week);
+        }
+
+        const teamGame = this.cachedSchedule?.[week]?.[player.team];
+        const onBye = !!teamGame && teamGame.date === null;
+
+        if (onBye) {
+            console.log(`${player.first_name} ${player.last_name} (${player.team}) is on bye week ${week}`);
+        }
+
+        return onBye;
+    }
+
+    async hasPlayerGameStarted(playerId, week) {
+        const player = this.playersData[playerId];
+        if (!player || !player.team) return false;
+
+        const now = new Date();
+        const nflTeam = player.team;
+
+        // Try to get cached schedule first
+        if (!this.cachedSchedule || !this.cachedSchedule[week]) {
+            await this.fetchNFLSchedule(week);
+        }
+
+        // Use fetched schedule if available
+        const weekSchedule = this.cachedSchedule?.[week];
+
+        if (weekSchedule && weekSchedule[nflTeam]) {
+            const teamGame = weekSchedule[nflTeam];
+
+            // If team is on bye
+            if (teamGame.date === null) {
+                return false;
+            }
+
+            // Check if game has started
+            const gameHasStarted = now >= teamGame.date;
+
+            if (gameHasStarted) {
+                console.log(`${nflTeam} game started: ${teamGame.date.toISOString()}`);
+            }
+
+            return gameHasStarted;
+        }
+
+        // Fallback: Conservative approach if schedule fetch failed
+        console.log(`No schedule data for ${nflTeam} Week ${week}, using fallback`);
+        const dayOfWeek = now.getDay();
+        return (dayOfWeek === 1 || dayOfWeek === 2); // Mon/Tue = week over
+    }
+
+    // Returns minutes until this player's NFL team's game kicks off
+    // (negative if already started), the string 'bye' if their team is
+    // confirmed on bye this week, or null if schedule data genuinely
+    // couldn't be determined (fetch failed, player unresolvable). These
+    // three cases are kept distinct on purpose - a confirmed bye should
+    // NOT be treated as "ineligible" by the kickoff-timing rule below (a
+    // bye player hasn't played, there's nothing to protect against), but
+    // genuinely unknown schedule data should be conservative and block a
+    // pick rather than assume it's safe.
+    // Raw, fixed kickoff timestamp for this player's team this week - null
+    // if unknown, 'bye' if confirmed no game. Unlike getMinutesUntilKickoff
+    // (which recomputes relative to "now" at the exact moment of each
+    // call), this returns the actual Date object, so comparing two
+    // players' kickoffs directly is stable regardless of when each call
+    // happens - critical for the same-time-or-later replacement rule,
+    // where two players on the same NFL team share the literal same
+    // kickoff and must never be treated as different due to a few
+    // milliseconds of timing noise between two separate "minutes from
+    // now" calls.
+    async getKickoffDate(playerId, week) {
+        const player = this.playersData[playerId];
+        if (!player || !player.team) return null;
+
+        if (!this.cachedSchedule || !this.cachedSchedule[week]) {
+            await this.fetchNFLSchedule(week);
+        }
+
+        const teamGame = this.cachedSchedule?.[week]?.[player.team];
+        if (!teamGame) return null;
+        if (teamGame.date === null) return 'bye';
+
+        return teamGame.date;
+    }
+
+    async getMinutesUntilKickoff(playerId, week) {
+        const kickoffDate = await this.getKickoffDate(playerId, week);
+        if (kickoffDate === null || kickoffDate === 'bye') return kickoffDate;
+
+        const now = new Date();
+        return (kickoffDate.getTime() - now.getTime()) / 60000;
+    }
+
+    // Universal kickoff-timing eligibility rule: a candidate can only be
+    // subbed in - by an owner OR by auto-sub - if their own game hasn't
+    // started (with `bufferMinutes` as a safety margin before the exact
+    // kickoff moment). This prevents anyone from picking a replacement
+    // based on stats that have already happened or are already live.
+    // Currently scoped to Season of Boom only - Main Award and Next Up
+    // retrofit is separate, deliberately deferred work.
+    async isEligibleForSub(playerId, week, bufferMinutes) {
+        const minutesUntilKickoff = await this.getMinutesUntilKickoff(playerId, week);
+        if (minutesUntilKickoff === 'bye') return true; // confirmed bye - not excluded by this rule specifically
+        if (minutesUntilKickoff === null) return false; // genuinely unknown - be conservative
+        return minutesUntilKickoff > bufferMinutes;
+    }
+
+    // Weekly check: compares this week's live schedule against the snapshot taken earlier
+    // in the week and flags any game whose kickoff time moved - flex scheduling, weather
+    // reschedule, etc. This is purely for visibility - hasPlayerGameStarted() already
+    // fetches the live schedule fresh on every checkpoint, so locking behavior is correct
+    // regardless. This just surfaces the change so it doesn't have to be noticed by
+    // digging through Action logs.
+    async checkForScheduleChanges(week, previousSnapshot) {
+        const currentSchedule = await this.fetchNFLSchedule(week);
+        if (!currentSchedule) {
+            return { snapshot: previousSnapshot || null, changes: [] };
+        }
+
+        const changes = [];
+
+        if (previousSnapshot) {
+            for (const [team, currentGame] of Object.entries(currentSchedule)) {
+                const previousGame = previousSnapshot[team];
+                if (!previousGame) continue; // team wasn't in the prior snapshot (bye -> game, etc)
+
+                const prevDate = previousGame.date ? new Date(previousGame.date) : null;
+                const currDate = currentGame.date;
+
+                // Bye -> scheduled, or scheduled -> bye
+                if (!prevDate && currDate) {
+                    changes.push({ team, opponent: currentGame.opponent, type: 'ADDED_FROM_BYE', newTime: currDate.toISOString() });
+                    continue;
+                }
+                if (prevDate && !currDate) {
+                    changes.push({ team, opponent: previousGame.opponent, type: 'MOVED_TO_BYE', previousTime: prevDate.toISOString() });
+                    continue;
+                }
+                if (!prevDate || !currDate) continue;
+
+                const diffMinutes = Math.abs(currDate.getTime() - prevDate.getTime()) / 60000;
+                if (diffMinutes >= 15) { // ignore trivial rounding, catch real flex/reschedule moves
+                    changes.push({
+                        team,
+                        opponent: currentGame.opponent,
+                        type: 'TIME_CHANGED',
+                        previousTime: prevDate.toISOString(),
+                        newTime: currDate.toISOString(),
+                        diffMinutes: Math.round(diffMinutes)
+                    });
+                }
+            }
+
+            if (changes.length > 0) {
+                console.warn(`SCHEDULE CHANGE DETECTED for Week ${week}:`);
+                changes.forEach(c => {
+                    if (c.type === 'TIME_CHANGED') {
+                        console.warn(`   ${c.team} vs ${c.opponent}: ${c.previousTime} -> ${c.newTime} (moved ${c.diffMinutes} min)`);
+                    } else {
+                        console.warn(`   ${c.team}: ${c.type}`);
+                    }
+                });
+            } else {
+                console.log(`No schedule changes detected for Week ${week} since last snapshot`);
+            }
+        }
+
+        // Store as plain serializable objects (Date -> ISO string) for the JSON snapshot
+        const serializedSnapshot = {};
+        for (const [team, game] of Object.entries(currentSchedule)) {
+            serializedSnapshot[team] = {
+                date: game.date ? game.date.toISOString() : null,
+                opponent: game.opponent,
+                status: game.status
+            };
+        }
+
+        return { snapshot: serializedSnapshot, changes };
     }
 
     async initializeLeagueData() {
@@ -140,13 +910,29 @@ class BrownBellAutomator {
 
         this.leagueData = { league, rosters, users, userMap };
         this.playersData = players;
+        // Shared reference so upsertDuoSlot (in the data layer) can resolve
+        // each player's current NFL team on its own, rather than every one
+        // of its several call sites needing to compute and pass it
+        // separately - one less thing to get inconsistent across them.
+        this.dataLayer.playersData = players;
+
+        // Catches up any duos rows written before player_team existed -
+        // see backfillPlayerTeams for why this can't rely on normal
+        // upsertDuoSlot calls alone. Best-effort; logs its own errors
+        // rather than throwing, so a hiccup here never blocks the actual
+        // scoring run.
+        await this.dataLayer.backfillPlayerTeams();
 
         console.log(`Connected to league: ${league.name}`);
     }
 
     async getCurrentWeek() {
-        // NFL 2025 season starts Thursday, September 4, 2025
-        const seasonStart = new Date('2025-09-04T00:00:00Z'); // Thursday of Week 1
+        // NFL 2026 season starts Wednesday, September 9, 2026.
+        // NOTE: this date needs updating every season - it's only used as a fallback
+        // when Sleeper's own league.leg isn't yet reporting a valid week (e.g. before
+        // the season has started), so an out-of-date value here mostly just affects
+        // preseason runs, not in-season accuracy.
+        const seasonStart = new Date('2026-09-09T00:00:00Z');
         const now = new Date();
 
         // Calculate days since season start
@@ -159,7 +945,8 @@ class BrownBellAutomator {
         // Cap between 1 and 18 (NFL regular season)
         calculatedWeek = Math.max(1, Math.min(18, calculatedWeek));
 
-        // Use Sleeper's league.leg if available and reasonable, otherwise use calculation
+        // Prefer Sleeper's own live league.leg when it's reporting a real in-season
+        // value - it's the actual source of truth, not a date calculation.
         const sleeperWeek = this.leagueData?.league?.leg;
         if (sleeperWeek && sleeperWeek >= 1 && sleeperWeek <= 18) {
             console.log(`Using Sleeper week: ${sleeperWeek}, Calculated week: ${calculatedWeek}`);
@@ -194,10 +981,23 @@ class BrownBellAutomator {
         }
     }
 
-    findPlayerInRoster(originalPlayer, roster) {
-        if (!roster.players) return null;
+    findPlayerInRoster(originalPlayer, roster, allowTradedPlayers = false) {
+        // Prefer the reliable Sleeper ID directly over fuzzy name matching,
+        // whenever the duo entry actually has one - true for any pick made
+        // through the picker. The fuzzy matching below (including the
+        // global, entire-player-pool search when allowTradedPlayers is set)
+        // exists only for the rare legacy case where a row somehow lacks an
+        // ID - it should never be the first resort when a reliable one is
+        // already sitting right there, since name matching can genuinely
+        // pick the wrong person (shared last names, suffixes, etc).
+        if (originalPlayer.sleeperId && this.playersData[originalPlayer.sleeperId]) {
+            return originalPlayer.sleeperId;
+        }
 
-        return roster.players.find(playerId => {
+        if (!roster || !roster.players) return null;
+
+        // FIRST: Try to find player on current roster (normal case)
+        const playerId = roster.players.find(playerId => {
             const player = this.playersData[playerId];
             if (!player) return false;
 
@@ -233,10 +1033,59 @@ class BrownBellAutomator {
 
             return false;
         });
+
+        // If found on current roster, return it
+        if (playerId) {
+            return playerId;
+        }
+
+        // SECOND: If allowTradedPlayers is true and not found on roster,
+        // search ALL players globally (for historical/traded players)
+        if (allowTradedPlayers) {
+            const tradedPlayerId = Object.keys(this.playersData).find(id => {
+                const player = this.playersData[id];
+                if (!player) return false;
+
+                const playerFullName = `${player.first_name || ''} ${player.last_name || ''}`.trim().toLowerCase();
+                const originalName = originalPlayer.name.toLowerCase();
+
+                // Use same matching logic
+                if (playerFullName === originalName) return true;
+
+                const nameVariations = [
+                    originalName,
+                    originalName.replace('devaughn', 'devaughn'),
+                    originalName.replace('vele', 'vele')
+                ];
+
+                if (nameVariations.some(variation => playerFullName === variation)) return true;
+
+                const playerParts = playerFullName.split(' ');
+                const originalParts = originalName.split(' ');
+
+                if (playerParts.length >= 2 && originalParts.length >= 2) {
+                    const playerLastName = playerParts[playerParts.length - 1];
+                    const originalLastName = originalParts[originalParts.length - 1];
+                    const playerFirstName = playerParts[0];
+                    const originalFirstName = originalParts[0];
+
+                    return playerLastName === originalLastName &&
+                        (playerFirstName.startsWith(originalFirstName.charAt(0)) ||
+                            originalFirstName.startsWith(playerFirstName.charAt(0)));
+                }
+
+                return false;
+            });
+
+            return tradedPlayerId || null;
+        }
+
+        // Not found and not allowing traded players
+        return null;
     }
 
     async detectInjuries(week) {
-        console.log('Detecting player injuries...');
+        console.log('🔍 Detecting player injuries...');
 
         const weekScores = await this.getWeeklyScores(week);
         const injuries = { main: {}, nextup: {} };
@@ -253,18 +1102,26 @@ class BrownBellAutomator {
 
                 const teamInjuries = [];
 
-                originalDuo.forEach((originalPlayer, index) => {
+                // CHANGED: forEach → for loop to allow await
+                for (let index = 0; index < originalDuo.length; index++) {
+                    const originalPlayer = originalDuo[index];
                     const playerId = this.findPlayerInRoster(originalPlayer, roster);
 
                     if (playerId) {
                         const player = this.playersData[playerId];
-                        const playerScore = weekScores[playerId] || 0;
 
-                        // CRITICAL RULE: If player has scored points this week, they started and cannot be substituted
-                        if (playerScore > 0) {
-                            console.log(`${originalPlayer.name} scored ${playerScore} points - CANNOT substitute (started the game)`);
-                            return; // Skip this player - they started the game
+                        const playerScore = weekScores[playerId] || 0;
+                        const gameStarted = await this.hasPlayerGameStarted(playerId, week);
+
+                        console.log(`📊 ${originalPlayer.name} (${teamName}): Score=${playerScore}, Status=${player.injury_status || 'none'}, Game Started=${gameStarted}`);
+
+                        // CRITICAL RULE: Only lock if player scored points OR their game has started
+                        if (playerScore > 0 || gameStarted) {
+                            console.log(`✅ ${originalPlayer.name} ${gameStarted ? 'game started' : 'scored points'} (${playerScore} pts) - CANNOT substitute`);
+                            continue; // CHANGED: return → continue (to skip to next player)
                         }
+
+                        // ... rest of existing injury detection logic
 
                         let injuryStatus = 'healthy';
 
@@ -289,7 +1146,7 @@ class BrownBellAutomator {
                             });
                         }
                     }
-                });
+                }
 
                 if (teamInjuries.length > 0) {
                     injuries[awardType][teamName] = teamInjuries;
@@ -300,46 +1157,111 @@ class BrownBellAutomator {
         return injuries;
     }
 
+    async detectSubstituteInjuries(week, existingSubstitutions) {
+        console.log('🔍 Checking if active substitutes are injured or dropped from roster...');
+        console.log('🔍 Detecting substitute injuries for Week', week);
+        console.log('📊 Checking', existingSubstitutions.length, 'existing substitutions');
 
+        const weekScores = await this.getWeeklyScores(week);
+        const injuredSubs = [];
 
-    async runAutomationCheckpoint(checkpointType) {
-        console.log(`Running ${checkpointType} injury checkpoint...`);
-
-        const currentWeek = await this.getCurrentWeek();
-        let existingData = { substitutions: [] };
-
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
+        for (const sub of existingSubstitutions) {
+            // Only check substitutions active for this week
+            if (sub.startWeek > week || (sub.endWeek && sub.endWeek < week)) {
+                continue;
             }
-        } catch (error) {
-            console.log('No existing data found');
+
+            // IMPORTANT: Include manual trade subs in bye week detection
+            console.log(`Checking sub: ${sub.substituteName} for ${sub.teamName} (${sub.awardType}) - Week ${sub.startWeek}-${sub.endWeek || 'Indefinite'}, Manual Trade: ${sub.isManualSubForTrade === true}`);
+
+            // Skip "no replacement available" markers (they have null substitutes)
+            if (!sub.substituteName || !sub.substitutePlayerId) {
+                continue;
+            }
+
+            // Skip duplicates - only process each unique team/player/award combo once
+            const alreadyProcessed = injuredSubs.some(existing =>
+                existing.teamName === sub.teamName &&
+                existing.playerIndex === sub.playerIndex &&
+                existing.awardType === sub.awardType
+            );
+
+            if (alreadyProcessed) {
+                continue;
+            }
+
+            const awardLabel = sub.awardType === 'main' ? 'Main Award' : 'Next Up Award';
+            const playerId = sub.substitutePlayerId;
+            const player = this.playersData[playerId];
+
+            if (!player) {
+                console.log(`⚠️ Player data not found for ${sub.substituteName} (${sub.teamName} - ${awardLabel})`);
+                continue;
+            }
+
+            // CHECK 1: Verify substitute is still on roster
+            const roster = this.leagueData.rosters.find(r =>
+                this.leagueData.userMap[r.owner_id] === sub.teamName
+            );
+
+            if (roster && !roster.players.includes(playerId)) {
+                console.log(`🚨 SUBSTITUTE DROPPED FROM ROSTER: ${sub.substituteName} for ${sub.teamName} (${awardLabel})`);
+                injuredSubs.push(sub);
+                continue;
+            }
+
+            // CHECK 2: If substitute's game has started, they are locked in
+            const gameStarted = await this.hasPlayerGameStarted(playerId, week);
+            const playerScore = weekScores[playerId] || 0;
+
+            if (playerScore > 0 || gameStarted) {
+                console.log(`✅ Substitute ${sub.substituteName} ${gameStarted ? 'game started' : 'scored points'} (${playerScore} pts) - locked in (${sub.teamName} - ${awardLabel})`);
+                continue;
+            }
+
+            // CHECK 3: Check injury status
+            let isInjured = false;
+            if (player.injury_status) {
+                const status = player.injury_status.toLowerCase();
+                if (['out', 'doubtful', 'ir', 'pup'].includes(status)) {
+                    isInjured = true;
+                    console.log(`🚨 SUBSTITUTE INJURED: ${sub.substituteName} (${status}) for ${sub.teamName} (${awardLabel})`);
+                }
+            }
+
+            // CHECK 4: Check if on bye
+            if (await this.isPlayerOnBye(playerId, week)) {
+                isInjured = true;
+                console.log(`🚨 SUBSTITUTE ON BYE: ${sub.substituteName} for ${sub.teamName} (${awardLabel})`);
+            }
+
+            if (isInjured) {
+                injuredSubs.push(sub);
+            }
         }
 
-        const cleanedSubstitutions = this.cleanupSubstitutions(existingData.substitutions, currentWeek);
-        const newSubstitutions = await this.generateWeeklySubstitutions(currentWeek, cleanedSubstitutions);
-
-        if (newSubstitutions.length > 0) {
-            console.log(`${checkpointType}: Generated ${newSubstitutions.length} new substitutions`);
-
-            // Update the data file with new substitutions
-            const updatedData = await this.generateCompleteData();
-            require('fs').writeFileSync('brown-bell-data.json', JSON.stringify(updatedData, null, 2));
-
-            return newSubstitutions;
+        // Summary log 1
+        if (injuredSubs.length > 0) {
+            const mainCount = injuredSubs.filter(s => s.awardType === 'main').length;
+            const nextUpCount = injuredSubs.filter(s => s.awardType === 'nextup').length;
+            console.log(`📋 SUBSTITUTE REPLACEMENT SUMMARY: ${mainCount} Main Award, ${nextUpCount} Next Up Award subs need replacement`);
         } else {
-            console.log(`${checkpointType}: No new substitutions needed`);
-            return [];
+            console.log(`✅ All active substitutes are healthy and on roster`);
         }
+
+        return injuredSubs;
     }
 
+    // Main Award only - Next Up validation lives entirely in isValidNextUpCombo()
+    // now (years of experience + position, checked in findSubstitute and the
+    // weekly scoring loop). This function is never called for Next Up.
     validateDuoCombination(healthyPlayerPosition, substitutePosition) {
-        const validCombos = ['QB+RB', 'QB+WR', 'RB+WR'];
+        const validCombos = ['QB+RB', 'QB+TE', 'QB+WR', 'RB+TE', 'RB+WR', 'TE+WR'];
         const newCombo = [healthyPlayerPosition, substitutePosition].sort().join('+');
         const isValid = validCombos.includes(newCombo);
 
         if (!isValid) {
-            console.warn(`Invalid duo combination: ${healthyPlayerPosition} + ${substitutePosition}`);
+            console.warn(`Invalid Main Award duo combination: ${healthyPlayerPosition} + ${substitutePosition}`);
         }
 
         return isValid;
@@ -360,7 +1282,7 @@ class BrownBellAutomator {
             For injured: ${injuredPlayer.name} (${injuredPlayer.position})
             Healthy partner: ${healthyPlayer.name} (${healthyPlayer.position})
             Would create: ${healthyPlayer.position}+${substitute.position} (INVALID)
-            Valid combos: QB+RB, QB+WR, RB+WR`);
+            Valid combos: QB+RB, QB+TE, QB+WR, RB+TE, RB+WR, TE+WR`);
             return false;
         }
 
@@ -384,40 +1306,75 @@ class BrownBellAutomator {
     }
 
     async findSubstitute(teamName, injuredPlayer, week, awardType) {
+        console.log(`\n🔍 FIND SUBSTITUTE CALLED:`);
+        console.log(`   Team: ${teamName}`);
+        console.log(`   Injured: ${injuredPlayer.originalPlayer.name}`);
+        console.log(`   Week: ${week}`);
+        console.log(`   Award: ${awardType}`);
+
         const roster = this.leagueData.rosters.find(r =>
             this.leagueData.userMap[r.owner_id] === teamName
         );
 
-        if (!roster) return null;
+        if (!roster) {
+            console.log(`❌ No roster found for ${teamName}`);
+            return null;
+        }
+
+        console.log(`✅ Roster found, ${roster.players.length} players to evaluate`);
 
         const originalDuo = this.knownDuos[awardType][teamName];
-        if (!originalDuo || !roster.players) return null;
+        if (!originalDuo || !roster.players) {
+            console.log(`❌ No original duo or roster players`);
+            return null;
+        }
 
         const eligibleSubs = [];
 
-        // For Next Up Award, determine what experience level is needed
-        let requiredExperience = null;
+        // For Next Up Award, determine what a substitute must NOT match
+        let excludeYears = null;
+        let excludePosition = null;
         if (awardType === 'nextup') {
             const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
             const healthyPlayer = originalDuo[healthyPlayerIndex];
-            const healthyExperience = healthyPlayer.experience === 'second_year' ? 'sophomore' : healthyPlayer.experience;
+            const healthyExperience = this.resolveNextUpExperience(healthyPlayer, roster);
 
-            // Determine required experience to maintain rookie+sophomore rule
-            if (healthyExperience === 'rookie') {
-                requiredExperience = 'sophomore';
-            } else if (healthyExperience === 'sophomore') {
-                requiredExperience = 'rookie';
+            // Rule (2026): both players must be 0-3 yrs experience, and differ in
+            // BOTH years of experience and position from each other.
+            if (healthyExperience) {
+                excludeYears = healthyExperience.years;
+                excludePosition = healthyExperience.position;
             }
 
-            console.log(`Next Up substitution: Healthy player is ${healthyExperience}, need ${requiredExperience} substitute`);
+            console.log(`Next Up substitution: Healthy player is ${excludeYears ?? '?'} yrs / ${excludePosition ?? '?'} - substitute must differ in both`);
         }
 
         for (const playerId of roster.players) {
             const player = this.playersData[playerId];
-            if (!player || !['QB', 'RB', 'WR'].includes(player.position)) continue;
+
+            // Position eligibility depends on award type
+            const validPositions = awardType === 'nextup'
+                ? ['QB', 'RB', 'WR', 'TE', 'K']  // Next Up: All positions
+                : ['QB', 'RB', 'WR', 'TE'];       // Main Award: no kickers, any other position pairs (except same-position)
+
+            // DEBUG: Log every player being considered
+            if (player && validPositions.includes(player.position)) {
+                console.log(`Evaluating: ${player.first_name} ${player.last_name} (${playerId})`);
+            }
+
+            if (!player || !validPositions.includes(player.position)) continue;
 
             // Skip if this is the injured player
             if (playerId === injuredPlayer.playerId) continue;
+
+            // Skip if injured (including PUP)
+            if (player.injury_status) {
+                const status = player.injury_status.toLowerCase();
+                if (['out', 'doubtful', 'ir', 'pup'].includes(status)) {
+                    console.log(`Skipping ${player.first_name} ${player.last_name} - injured (${status})`);
+                    continue;
+                }
+            }
 
             // Skip if this player is in the Next Up duo (for Main Award)
             if (awardType === 'main' && this.isPlayerInNextUpDuo(playerId, teamName)) {
@@ -425,8 +1382,21 @@ class BrownBellAutomator {
                 continue;
             }
 
-            // Skip if injured
-            if (player.injury_status && ['out', 'doubtful', 'ir'].includes(player.injury_status.toLowerCase())) {
+            // Skip if substitute is on bye this week
+            if (await this.isPlayerOnBye(playerId, week)) {
+                console.log(`Skipping ${player.first_name} ${player.last_name} - on bye week ${week}`);
+                continue;
+            }
+
+            // CORRECTED: Check if THIS CANDIDATE (not the injured player) already played
+            const currentWeekScores = await this.getWeeklyScores(week);
+
+            // Check if player has played (scored points OR game has started)
+            const candidateScore = currentWeekScores[playerId] || 0;
+            const gameStarted = await this.hasPlayerGameStarted(playerId, week);
+
+            if (candidateScore > 0 || gameStarted) {
+                console.log(`Skipping ${player.first_name} ${player.last_name} - ${gameStarted ? 'game started' : 'scored points'} (${candidateScore} pts)`);
                 continue;
             }
 
@@ -437,44 +1407,29 @@ class BrownBellAutomator {
                 yearsExp: player.years_exp || 0
             };
 
-            // Next Up Award smart eligibility
             // Next Up Award smart eligibility - CHECK THIS FIRST
             if (awardType === 'nextup') {
                 const yearsExp = substitute.yearsExp || 0;
 
-                // Hard filter: Must be 0 or 1 years experience
-                if (yearsExp > 1) {
-                    continue; // Skip veterans immediately
-                }
-
-                const playerExperience = yearsExp === 0 ? 'rookie' : 'sophomore';
-
-                // Determine required experience level
-                const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
-                const healthyPlayer = originalDuo[healthyPlayerIndex];
-                const healthyExperience = healthyPlayer.experience === 'second_year' ? 'sophomore' : healthyPlayer.experience;
-
-                let requiredExperience = null;
-                if (healthyExperience === 'rookie') {
-                    requiredExperience = 'sophomore';
-                } else if (healthyExperience === 'sophomore') {
-                    requiredExperience = 'rookie';
-                }
-
-                // Only include players that match the required experience level
-                if (requiredExperience && playerExperience !== requiredExperience) {
-                    console.log(`Skipping ${substitute.name} (${playerExperience}, ${yearsExp} years) - need ${requiredExperience} to pair with ${healthyPlayer.name}`);
+                // Hard filter: 4+ years experience is never Next Up eligible
+                if (!this.isNextUpEligibleExperience(yearsExp)) {
                     continue;
                 }
 
-                console.log(`${substitute.name} is eligible: ${playerExperience} (${yearsExp} years) pairs with ${healthyPlayer.name} (${healthyExperience})`);
-
-                // ADD THIS NEW SECTION HERE
-                // NEXT UP SPECIFIC POSITION RULE: No QB+QB combinations allowed
-                if (substitute.position === 'QB' && healthyPlayer.position === 'QB') {
-                    console.log(`Skipping ${substitute.name} (QB) - cannot have QB+QB duo in Next Up Award`);
+                // Must differ from the healthy player in BOTH years of experience
+                // and position (2026 rule) - this also covers what used to be a
+                // separate "no QB+QB" carve-out, since same-position is excluded
+                // generally now, not just for quarterbacks.
+                if (excludeYears !== null && yearsExp === excludeYears) {
+                    console.log(`Skipping ${substitute.name} (${yearsExp} years) - same experience year as ${originalDuo[injuredPlayer.index === 0 ? 1 : 0].name}`);
                     continue;
                 }
+                if (excludePosition !== null && substitute.position === excludePosition) {
+                    console.log(`Skipping ${substitute.name} (${substitute.position}) - same position as ${originalDuo[injuredPlayer.index === 0 ? 1 : 0].name}`);
+                    continue;
+                }
+
+                console.log(`${substitute.name} is eligible: ${yearsExp} years, ${substitute.position}`);
             }
 
             // Validate substitution for Main Award only
@@ -482,21 +1437,20 @@ class BrownBellAutomator {
                 continue;
             }
 
-            // Validate substitution (for Main Award)
-            if (awardType === 'main' && !this.validateSubstitution(teamName, originalDuo, injuredPlayer.index, substitute, awardType)) {
-                continue;
-            }
-
-            // Calculate 3-week total score
+            // Calculate average score over the last 3 weeks (or fewer, early season) -
+            // an average, not a total, so a player with only 1-2 weeks of data isn't
+            // penalized relative to one with a full 3-week window.
             let totalScore = 0;
+            let weeksCounted = 0;
             for (let w = Math.max(1, week - 2); w <= week; w++) {
                 const weekScores = await this.getWeeklyScores(w);
                 if (weekScores[playerId] !== undefined) {
                     totalScore += weekScores[playerId];
+                    weeksCounted++;
                 }
             }
 
-            substitute.score = totalScore;
+            substitute.score = weeksCounted > 0 ? totalScore / weeksCounted : 0;
             eligibleSubs.push(substitute);
         }
 
@@ -504,23 +1458,629 @@ class BrownBellAutomator {
             if (awardType === 'nextup') {
                 const healthyPlayerIndex = injuredPlayer.index === 0 ? 1 : 0;
                 const healthyPlayer = originalDuo[healthyPlayerIndex];
-                const healthyExperience = healthyPlayer.experience === 'second_year' ? 'sophomore' : healthyPlayer.experience;
-                const needed = healthyExperience === 'rookie' ? 'sophomore' : 'rookie';
-                console.log(`❌ NO ELIGIBLE SUBSTITUTES: Need ${needed} player to pair with ${healthyPlayer.name} (${healthyExperience}). No valid candidates available on roster.`);
+                const healthyExperience = this.resolveNextUpExperience(healthyPlayer, roster);
+                const needed = healthyExperience
+                    ? `0-3 yrs experience, not ${healthyExperience.years} yrs, not ${healthyExperience.position}`
+                    : '0-3 yrs experience, differing years and position from the healthy player';
+                console.log(`❌ NO ELIGIBLE SUBSTITUTES: Need ${needed} to pair with ${healthyPlayer.name}. No valid candidates available on roster.`);
             }
             return null;
         }
 
-        // Sort by total score and randomly select from top 5
+        // Sort by average score (descending - best first)
         eligibleSubs.sort((a, b) => b.score - a.score);
-        const topPerformers = eligibleSubs.slice(0, Math.min(5, eligibleSubs.length));
-        const randomIndex = Math.floor(Math.random() * topPerformers.length);
-        const selectedSub = topPerformers[randomIndex];
 
-        const experienceNote = awardType === 'nextup' ? ` (${selectedSub.yearsExp <= 0 ? 'rookie' : 'sophomore'})` : '';
-        console.log(`Selected ${selectedSub.name}${experienceNote} (${selectedSub.score.toFixed(1)} pts over 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
+        // Auto-sub selection (both awards, same rule): take the top 4 by recent
+        // scoring average, pick uniformly at random among them (25% each, not
+        // weighted toward the best) - competitive without being predictable, and
+        // never risks landing on a player who never puts up points at all.
+        const topPerformers = eligibleSubs.slice(0, Math.min(4, eligibleSubs.length));
+        const selectedIndex = Math.floor(Math.random() * topPerformers.length);
+        const selectedSub = topPerformers[selectedIndex];
+        const rankText = ['1st', '2nd', '3rd', '4th'][selectedIndex];
+        const experienceNote = awardType === 'nextup' ? ` (${selectedSub.yearsExp} yrs, ${selectedSub.position})` : '';
+
+        console.log(`Selected ${selectedSub.name}${experienceNote} (${rankText} best: ${selectedSub.score.toFixed(1)} avg pts/wk over last 3 weeks) from top ${topPerformers.length} available for ${teamName}`);
 
         return selectedSub;
+    }
+
+    // True if this specific Sleeper player is on this team's LIVE roster right now.
+    isPlayerOnTeamRoster(teamName, sleeperPlayerId) {
+        const roster = this.leagueData.rosters.find(r => this.leagueData.userMap[r.owner_id] === teamName);
+        return !!roster && !!sleeperPlayerId && roster.players.includes(sleeperPlayerId);
+    }
+
+    // Flat-model replacement selection: same top-4, flat-random-by-3-week-average
+    // logic already verified for the old model (see findSubstitute), adapted to
+    // take direct team/award/exclusion inputs instead of the old injuredPlayer/
+    // originalDuo shapes duos no longer needs.
+    async selectAutoReplacement(teamName, awardType, week, excludeSleeperIds, otherSlotInfo, kickoffBufferMinutes = 0, originalPlayerSleeperId = null) {
+        const roster = this.leagueData.rosters.find(r => this.leagueData.userMap[r.owner_id] === teamName);
+        if (!roster) {
+            console.warn(`No roster found for ${teamName} - cannot select a replacement`);
+            return null;
+        }
+
+        const validPositions = awardType === 'nextup'
+            ? ['QB', 'RB', 'WR', 'TE', 'K']
+            : awardType === 'boom'
+                // Includes both Sleeper's broad IDP categories AND granular
+                // NFL position labels - confirmed inconsistent across
+                // players via a real support report (Danielle Hunter still
+                // tagged "DE" rather than the broad "DL"). See the matching
+                // comment on BOOM_POSITIONS in the Edge Functions' shared
+                // eligibility.ts - keep both lists in sync.
+                ? ['DL', 'LB', 'DB', 'DE', 'DT', 'NT', 'ILB', 'OLB', 'MLB', 'CB', 'S', 'FS', 'SS']
+                : ['QB', 'RB', 'WR', 'TE'];
+
+        // League rule: a replacement's own game must kick off at the same
+        // time or later than the starter they're replacing's game -
+        // otherwise you could swap in someone from an earlier game slot
+        // and effectively already know how they did by the time the
+        // starter's own game gets underway. Only enforced when both
+        // kickoff times are actually known - if either is unresolvable
+        // (unknown schedule data, or the original is on a bye with no
+        // game to compare against), this specific check is skipped rather
+        // than blocking every candidate outright, so an incomplete
+        // schedule fetch can't take down auto-sub entirely. Compares the
+        // raw, fixed kickoff Date objects directly (not "minutes from
+        // now") - two players on the same NFL team share the literal same
+        // kickoff, and comparing time-of-call-dependent values could flip
+        // the result between two calls microseconds apart for what is
+        // actually an identical timestamp.
+        let originalKickoffDate = null;
+        if (originalPlayerSleeperId) {
+            const value = await this.getKickoffDate(originalPlayerSleeperId, week);
+            if (value instanceof Date) originalKickoffDate = value;
+        }
+
+        const eligibleCandidates = [];
+
+        for (const playerId of roster.players) {
+            if (excludeSleeperIds.includes(playerId)) continue;
+
+            const player = this.playersData[playerId];
+            if (!player || !validPositions.includes(player.position)) continue;
+
+            if (player.injury_status) {
+                const status = player.injury_status.toLowerCase();
+                if (['out', 'doubtful', 'ir', 'pup'].includes(status)) continue;
+            }
+
+            if (await this.isPlayerOnBye(playerId, week)) continue;
+
+            // Can't add someone whose own game for this week has already
+            // started. Season of Boom uses the buffered version of this
+            // check (see isEligibleForSub) so auto-sub can trigger BEFORE
+            // the exact kickoff moment, with a configurable safety margin.
+            // Main Award/Next Up still use the original exact-kickoff
+            // check unchanged - that retrofit is separate, deliberately
+            // deferred work, not part of this change.
+            if (awardType === 'boom') {
+                if (!(await this.isEligibleForSub(playerId, week, kickoffBufferMinutes))) continue;
+            } else {
+                if (await this.hasPlayerGameStarted(playerId, week)) continue;
+            }
+
+            if (originalKickoffDate !== null) {
+                const candidateKickoffDate = await this.getKickoffDate(playerId, week);
+                if (candidateKickoffDate instanceof Date && candidateKickoffDate.getTime() < originalKickoffDate.getTime()) {
+                    // Candidate's game starts strictly EARLIER than the
+                    // original's - not allowed. Equal timestamps (same
+                    // game, or two different games at the exact same
+                    // slot) correctly pass through here.
+                    continue;
+                }
+            }
+
+            if (awardType === 'nextup' && !this.isNextUpEligibleExperience(player.years_exp || 0)) continue;
+
+            // Season of Boom has no combo constraint at all - any 2 IDPs
+            // freely, regardless of position overlap.
+            if (otherSlotInfo && awardType !== 'boom') {
+                const candidateInfo = { position: player.position, years: player.years_exp || 0 };
+                const valid = awardType === 'main'
+                    ? this.validateDuoCombination(otherSlotInfo.position, candidateInfo.position)
+                    : this.isValidNextUpCombo(otherSlotInfo, candidateInfo);
+                if (!valid) continue;
+            }
+
+            let totalScore = 0;
+            let weeksCounted = 0;
+            for (let w = Math.max(1, week - 2); w <= week; w++) {
+                const weekScores = await this.getWeeklyScores(w);
+                if (weekScores[playerId] !== undefined) {
+                    totalScore += weekScores[playerId];
+                    weeksCounted++;
+                }
+            }
+
+            eligibleCandidates.push({
+                id: playerId,
+                name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
+                position: player.position,
+                yearsExp: player.years_exp || 0,
+                score: weeksCounted > 0 ? totalScore / weeksCounted : 0
+            });
+        }
+
+        if (eligibleCandidates.length === 0) {
+            console.warn(`No eligible replacement found for ${teamName}/${awardType}`);
+            return null;
+        }
+
+        eligibleCandidates.sort((a, b) => b.score - a.score);
+        const topPerformers = eligibleCandidates.slice(0, Math.min(4, eligibleCandidates.length));
+        const selectedIndex = Math.floor(Math.random() * topPerformers.length);
+        const selected = topPerformers[selectedIndex];
+
+        console.log(`Auto-selected ${selected.name} (${selected.score.toFixed(1)} avg pts/wk) for ${teamName}/${awardType} from top ${topPerformers.length}`);
+        return selected;
+    }
+
+    // Bonus values, tier 1 (best-scoring winner that week) through tier 6
+    // (worst-scoring winner). Ranges 3-15, with a deliberate gap at the top
+    // (6 points between 1st and 2nd) so a standout week is clearly rewarded,
+    // then a smoother taper down to the floor.
+    static BONUS_TIERS = [15, 9, 7, 5, 4, 3];
+
+    // Bonus matchups are a regular-season-only mechanic - the league's regular
+    // season runs 14 weeks before playoffs begin. No matchups are generated
+    // for week 15+.
+    static REGULAR_SEASON_WEEKS = 14;
+
+    // Standard round-robin "circle method": fixes one team, rotates the rest
+    // around it across N-1 rounds. Every team plays every other team exactly
+    // once per full cycle. This schedule is entirely separate from the real
+    // Sleeper league's own matchups - built specifically for this bonus game.
+    generateRoundRobinSchedule(teamNames) {
+        const teams = [...teamNames];
+        if (teams.length % 2 !== 0) teams.push(null); // odd team count - one bye per round
+        const n = teams.length;
+        if (n < 2) return [];
+
+        const rounds = [];
+        const fixed = teams[0];
+        let rotating = teams.slice(1);
+
+        for (let r = 0; r < n - 1; r++) {
+            const roundPairs = [];
+            const current = [fixed, ...rotating];
+            for (let i = 0; i < n / 2; i++) {
+                const a = current[i];
+                const b = current[n - 1 - i];
+                if (a !== null && b !== null) roundPairs.push([a, b]);
+            }
+            rounds.push(roundPairs);
+            rotating.unshift(rotating.pop());
+        }
+        return rounds;
+    }
+
+    // Which 6 matchups are live for a given week. Sorted by roster_id (a
+    // stable numeric ID within the league), not display_name - so a mid-season
+    // team rename can never reshuffle the schedule. Cycles back to round 1
+    // after a full round-robin (11 weeks for 12 teams) if the regular season
+    // runs longer than that - but never generates matchups past the regular
+    // season's final week (see REGULAR_SEASON_WEEKS). This is a regular-season
+    // mechanic; it doesn't carry into playoffs.
+    getBrownBellMatchupsForWeek(week) {
+        if (week > BrownBellAutomator.REGULAR_SEASON_WEEKS) return [];
+
+        const sortedTeamNames = [...(this.leagueData?.rosters || [])]
+            .sort((a, b) => a.roster_id - b.roster_id)
+            .map(r => this.leagueData.userMap[r.owner_id])
+            .filter(Boolean);
+
+        const schedule = this.generateRoundRobinSchedule(sortedTeamNames);
+        if (schedule.length === 0) return [];
+
+        const roundIndex = (week - 1) % schedule.length;
+        return schedule[roundIndex];
+    }
+
+    // Given this week's matchups and each team's Main Award total for the
+    // week, ranks the 6 winning (or tied) scores into tiers 1-6 and assigns
+    // bonus points. A tie means both teams "win" their matchup and split that
+    // tier's bonus evenly - never a coin flip, never zero for either side.
+    computeBrownBellBonuses(matchups, weekTotalsByTeam) {
+        const outcomes = matchups.map(([teamA, teamB]) => {
+            const scoreA = weekTotalsByTeam[teamA] ?? 0;
+            const scoreB = weekTotalsByTeam[teamB] ?? 0;
+            if (scoreA > scoreB) return { teamA, teamB, winners: [teamA], score: scoreA, tied: false };
+            if (scoreB > scoreA) return { teamA, teamB, winners: [teamB], score: scoreB, tied: false };
+            return { teamA, teamB, winners: [teamA, teamB], score: scoreA, tied: true };
+        });
+
+        const ranked = [...outcomes].sort((x, y) => y.score - x.score);
+        const resultsByTeam = {};
+
+        ranked.forEach((outcome, i) => {
+            const tier = i + 1;
+            const tierBonus = BrownBellAutomator.BONUS_TIERS[i];
+
+            for (const team of [outcome.teamA, outcome.teamB]) {
+                const opponent = team === outcome.teamA ? outcome.teamB : outcome.teamA;
+                const teamScore = weekTotalsByTeam[team] ?? 0;
+                const opponentScore = weekTotalsByTeam[opponent] ?? 0;
+                const isWinner = outcome.winners.includes(team);
+
+                resultsByTeam[team] = {
+                    opponent,
+                    teamScore,
+                    opponentScore,
+                    outcome: outcome.tied ? 'tie' : (isWinner ? 'win' : 'loss'),
+                    tier: isWinner ? tier : null,
+                    bonusPoints: !isWinner ? 0 : (outcome.tied ? tierBonus / 2 : tierBonus)
+                };
+            }
+        });
+
+        return resultsByTeam;
+    }
+
+    // The core decision engine for the duos-as-source-of-truth model. For every
+    // duo slot: skip if not locked yet (pre-lock is fully owner-editable, the
+    // automation stays out of it entirely). Once locked, freeze the original
+    // player one time. Then classify: still rostered + healthy -> do nothing;
+    // still rostered + genuinely injured -> temporary (unconditional, unlimited,
+    // auto-reverts to the frozen original once they're healthy again); not on
+    // the roster at all -> permanent (trade/release), gated by the team's
+    // per-award permanent-swap budget. A temporary situation always
+    // auto-fills immediately, for all three awards - a slot left blank
+    // while waiting would show as empty on the Showdown tab's weekly
+    // matchup and prediction poll, misleading anyone trying to vote that
+    // week. A permanent departure instead clears the slot and gives the
+    // owner a real window to pick their own replacement, with auto-sub as a
+    // safety net that only kicks in once the best remaining candidate's own
+    // kickoff is imminent (see isEligibleForSub's buffer) - originally
+    // Season of Boom-only, now the universal pattern for all three awards.
+    // resolveVacancy is shared between the initial detection (in
+    // processDuoSlots below) and the periodic re-check of an already-vacant
+    // slot (checkPendingVacancy) - both need the identical decision, just
+    // with different wording depending on what caused the vacancy.
+    async resolveVacancy(teamName, awardType, playerIndex, excludeIds, otherSlotInfo, originalPlayerSleeperId, currentPlayerName, currentPlayerPosition, reasonWhenWaiting, reasonWhenAutoFilled, reasonWhenNoneAvailable, eventTypeWaiting, eventTypeAutoFilled, week) {
+        const bestCandidate = await this.selectAutoReplacement(teamName, awardType, week, excludeIds, otherSlotInfo, 0, originalPlayerSleeperId);
+
+        if (!bestCandidate) {
+            await this.dataLayer.logSubstitution({
+                teamName, awardType, playerIndex,
+                originalName: currentPlayerName, originalPosition: currentPlayerPosition,
+                substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                week, source: 'auto', reason: reasonWhenNoneAvailable, noReplacementAvailable: true
+            });
+            return { type: 'no-replacement', teamName, awardType };
+        }
+
+        // 15-minute buffer: the automation's own safety margin before it
+        // steps in, wider than the owner's tighter 1-minute manual window
+        // (enforced separately, in set-duo) since this only checks
+        // periodically rather than continuously.
+        const stillHasTime = await this.isEligibleForSub(bestCandidate.id, week, 15);
+
+        if (stillHasTime) {
+            // Clear but PRESERVE the row (sleeper_player_id: null, not a
+            // deleted row) so original_sleeper_player_id survives for the
+            // revert check and this same vacancy can be re-evaluated on a
+            // later run without losing track of who was originally here.
+            await this.dataLayer.upsertDuoSlot({
+                teamName, awardType, playerIndex,
+                playerName: null, playerPosition: null, sleeperPlayerId: null, source: 'auto'
+            });
+            await this.dataLayer.logSubstitution({
+                teamName, awardType, playerIndex,
+                originalName: currentPlayerName, originalPosition: currentPlayerPosition,
+                substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                week, source: 'auto', reason: reasonWhenWaiting
+            });
+            return { type: eventTypeWaiting, teamName, awardType };
+        }
+
+        await this.dataLayer.upsertDuoSlot({
+            teamName, awardType, playerIndex,
+            playerName: bestCandidate.name, playerPosition: bestCandidate.position,
+            sleeperPlayerId: bestCandidate.id, source: 'auto'
+        });
+        await this.dataLayer.logSubstitution({
+            teamName, awardType, playerIndex,
+            originalName: currentPlayerName, originalPosition: currentPlayerPosition,
+            substituteName: bestCandidate.name, substitutePlayerId: bestCandidate.id, substitutePosition: bestCandidate.position,
+            week, source: 'auto', reason: reasonWhenAutoFilled
+        });
+        return { type: eventTypeAutoFilled, teamName, awardType, replacement: bestCandidate.name };
+    }
+
+    // Periodic re-check for ANY award's slot that's ALREADY empty (from a
+    // prior run's clear-and-wait decision above). A slot that's simply
+    // never been set at all (no frozen original) is untouched by this - the
+    // owner just hasn't made their initial pick yet, nothing pending to
+    // resolve.
+    async checkPendingVacancy(row, week, byTeamAward) {
+        if (!row.originalSleeperPlayerId) return null;
+
+        const originalPlayer = this.playersData[row.originalSleeperPlayerId];
+        const originalOnRoster = this.isPlayerOnTeamRoster(row.teamName, row.originalSleeperPlayerId);
+        const originalStatus = (originalPlayer?.injury_status || '').toLowerCase();
+        const originalHealthy = originalOnRoster && !['out', 'doubtful', 'ir', 'pup'].includes(originalStatus);
+
+        // A genuinely permanent departure can never pass originalOnRoster
+        // (they're gone from this team's roster for good), so this revert
+        // path is naturally safe for temporary vacancies only - no separate
+        // "was this temporary or permanent" tracking needed.
+        if (originalHealthy) {
+            const originalName = `${originalPlayer.first_name || ''} ${originalPlayer.last_name || ''}`.trim();
+            await this.dataLayer.upsertDuoSlot({
+                teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                playerName: originalName, playerPosition: originalPlayer.position,
+                sleeperPlayerId: row.originalSleeperPlayerId, source: 'auto'
+            });
+            await this.dataLayer.logSubstitution({
+                teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                originalName: '(pending vacancy)', originalPosition: '-',
+                substituteName: originalName, substitutePlayerId: row.originalSleeperPlayerId, substitutePosition: originalPlayer.position,
+                week, source: 'auto', reason: 'Reverted to original player - healthy again'
+            });
+            return { type: 'reverted', teamName: row.teamName, awardType: row.awardType };
+        }
+
+        const pairRow = byTeamAward[`${row.teamName}|${row.awardType}`]?.[row.playerIndex === 0 ? 1 : 0];
+        const otherSlotInfo = pairRow?.sleeperPlayerId
+            ? {
+                position: this.playersData[pairRow.sleeperPlayerId]?.position || pairRow.playerPosition,
+                years: this.playersData[pairRow.sleeperPlayerId]?.years_exp || 0
+            }
+            : null;
+
+        // Cross-award exclusivity - a player already used in this team's
+        // OTHER award (main<->nextup only; boom's IDP positions never
+        // overlap with either) can never be picked here either.
+        const otherAwardType = row.awardType === 'main' ? 'nextup' : row.awardType === 'nextup' ? 'main' : null;
+        const otherAwardRows = otherAwardType ? (byTeamAward[`${row.teamName}|${otherAwardType}`] || {}) : {};
+        const otherAwardPlayerIds = [otherAwardRows[0]?.sleeperPlayerId, otherAwardRows[1]?.sleeperPlayerId].filter(Boolean);
+
+        const excludeIds = [pairRow?.sleeperPlayerId, ...otherAwardPlayerIds].filter(Boolean);
+
+        return this.resolveVacancy(
+            row.teamName, row.awardType, row.playerIndex, excludeIds, otherSlotInfo, row.originalSleeperPlayerId, '(pending vacancy)', '-',
+            'Still awaiting owner pick - plenty of time before kickoff',
+            'Auto-sub - kickoff approaching, no owner pick made',
+            'No eligible replacement currently available - still waiting',
+            'permanent-cleared-for-owner', 'permanent-auto-fill', week
+        );
+    }
+
+    // Each award's permanent-swap budget is independent (see
+    // 022-per-award-permanent-swaps.sql) - a departure in one award has no
+    // effect on the other two's budgets.
+    async processDuoSlots(week) {
+        const duoRows = await this.dataLayer.loadDuoRows();
+        const events = [];
+        // Captured for EVERY row with a resolved player, locked or not - this
+        // is purely a display field for the Teams tab's injury dots, separate
+        // from the lock/substitution decisions below.
+        const injuryStatusUpdates = [];
+        // Pre-lock only - a locked row's departure is actively resolved
+        // (cleared/auto-filled) by the logic below instead, never just
+        // flagged. See 027-duo-player-departed.sql.
+        const departedFlagUpdates = [];
+
+        const byTeamAward = {};
+        for (const row of duoRows) {
+            const key = `${row.teamName}|${row.awardType}`;
+            byTeamAward[key] = byTeamAward[key] || {};
+            byTeamAward[key][row.playerIndex] = row;
+        }
+
+        for (const row of duoRows) {
+            if (!row.sleeperPlayerId) {
+                const event = await this.checkPendingVacancy(row, week, byTeamAward);
+                if (event) events.push(event);
+                continue;
+            }
+
+            const player = this.playersData[row.sleeperPlayerId];
+            if (!player) {
+                console.warn(`Could not resolve player ${row.sleeperPlayerId} for ${row.teamName}/${row.awardType}`);
+                continue;
+            }
+
+            injuryStatusUpdates.push({ rowId: row.rowId, injuryStatus: player.injury_status || null });
+
+            // Locks are for the SEASON - always checked against week 1, matching
+            // the Edge Functions (get-eligible-roster/set-duo) exactly.
+            const locked = await this.hasPlayerGameStarted(row.sleeperPlayerId, 1);
+            if (!locked) {
+                // Pre-lock slots are otherwise left alone below (fully
+                // owner-editable) - but the display shouldn't keep showing
+                // a player who has already left this roster (e.g. a
+                // fantasy trade before their game locks) with nothing
+                // indicating so. This is read-only awareness, not a
+                // substitution - the owner still has to actually change
+                // their own pick; this just makes it obvious they need to.
+                const stillOnRoster = this.isPlayerOnTeamRoster(row.teamName, row.sleeperPlayerId);
+                if (!!row.playerDeparted !== !stillOnRoster) {
+                    departedFlagUpdates.push({ rowId: row.rowId, departed: !stillOnRoster });
+                }
+                continue;
+            }
+
+            // Once locked, departure is actively resolved (cleared/auto-filled)
+            // by the logic below rather than just flagged - clear any stale
+            // flag left over from when this row was still pre-lock.
+            if (row.playerDeparted) {
+                departedFlagUpdates.push({ rowId: row.rowId, departed: false });
+            }
+
+            if (!row.originalSleeperPlayerId) {
+                await this.dataLayer.freezeOriginalPlayer(row.rowId, row.sleeperPlayerId);
+                row.originalSleeperPlayerId = row.sleeperPlayerId;
+            }
+
+            const pairRow = byTeamAward[`${row.teamName}|${row.awardType}`]?.[row.playerIndex === 0 ? 1 : 0];
+            const otherSlotInfo = pairRow?.sleeperPlayerId
+                ? {
+                    position: this.playersData[pairRow.sleeperPlayerId]?.position || pairRow.playerPosition,
+                    years: this.playersData[pairRow.sleeperPlayerId]?.years_exp || 0
+                }
+                : null;
+
+            // Cross-award exclusivity - a player already used in this team's
+            // OTHER award can never be auto-filled into this one too.
+            const otherAwardType = row.awardType === 'main' ? 'nextup' : 'main';
+            const otherAwardRows = byTeamAward[`${row.teamName}|${otherAwardType}`] || {};
+            const otherAwardPlayerIds = [otherAwardRows[0]?.sleeperPlayerId, otherAwardRows[1]?.sleeperPlayerId].filter(Boolean);
+
+            const excludeIds = [row.sleeperPlayerId, pairRow?.sleeperPlayerId, ...otherAwardPlayerIds].filter(Boolean);
+
+            const onRoster = this.isPlayerOnTeamRoster(row.teamName, row.sleeperPlayerId);
+
+            if (onRoster) {
+                // Auto-revert check FIRST, whenever we're currently covering with
+                // someone other than the frozen original - regardless of whether
+                // that stand-in is themselves fine right now. A working stand-in
+                // must never block restoring the true original once they're back.
+                if (row.sleeperPlayerId !== row.originalSleeperPlayerId) {
+                    const originalPlayer = this.playersData[row.originalSleeperPlayerId];
+                    const originalOnRoster = this.isPlayerOnTeamRoster(row.teamName, row.originalSleeperPlayerId);
+                    const originalStatus = (originalPlayer?.injury_status || '').toLowerCase();
+                    const originalHealthy = originalOnRoster && !['out', 'doubtful', 'ir', 'pup'].includes(originalStatus);
+
+                    if (originalHealthy) {
+                        const originalName = `${originalPlayer.first_name || ''} ${originalPlayer.last_name || ''}`.trim();
+                        await this.dataLayer.upsertDuoSlot({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            playerName: originalName, playerPosition: originalPlayer.position,
+                            sleeperPlayerId: row.originalSleeperPlayerId, source: 'auto'
+                        });
+                        await this.dataLayer.logSubstitution({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            originalName: row.playerName, originalPosition: row.playerPosition,
+                            substituteName: originalName, substitutePlayerId: row.originalSleeperPlayerId, substitutePosition: originalPlayer.position,
+                            week, source: 'auto', reason: 'Reverted to original player - healthy again'
+                        });
+                        events.push({ type: 'reverted', teamName: row.teamName, awardType: row.awardType });
+                        continue;
+                    }
+                }
+
+                // Current occupant (whoever it is - original or a stand-in) still
+                // needs to genuinely be out to warrant any further action.
+                const status = (player.injury_status || '').toLowerCase();
+                const qualifyingInjury = ['out', 'doubtful', 'ir', 'pup'].includes(status);
+                if (!qualifyingInjury) continue;
+
+                // Note: Season of Boom previously had its own clear-and-wait
+                // branch here (owner window, auto-fill near kickoff), same
+                // as its permanent-departure handling still does below. That
+                // was removed for temporary/injury situations specifically:
+                // leaving a slot blank while the owner decides means the
+                // Showdown tab's weekly bonus matchup and prediction poll
+                // would show an empty slot rather than a real player,
+                // misleading anyone trying to vote on that matchup that
+                // week. Immediate auto-fill (with unlimited manual override
+                // after, same as Main Award/Next Up) keeps the slot always
+                // showing someone real.
+
+                const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo, 0, row.sleeperPlayerId);
+                if (replacement) {
+                    await this.dataLayer.upsertDuoSlot({
+                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                        playerName: replacement.name, playerPosition: replacement.position,
+                        sleeperPlayerId: replacement.id, source: 'auto'
+                    });
+                    await this.dataLayer.logSubstitution({
+                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                        originalName: row.playerName, originalPosition: row.playerPosition,
+                        substituteName: replacement.name, substitutePlayerId: replacement.id, substitutePosition: replacement.position,
+                        week, source: 'auto', reason: `Temporary - ${player.first_name} ${player.last_name} is ${status}`
+                    });
+                    events.push({ type: 'temporary-fill', teamName: row.teamName, awardType: row.awardType, replacement: replacement.name });
+                } else {
+                    // No eligible replacement anywhere on the roster - leave the
+                    // injured player in place (they're still legitimately theirs,
+                    // just out this week) but log it so the owner isn't left
+                    // guessing why nothing changed.
+                    await this.dataLayer.logSubstitution({
+                        teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                        originalName: row.playerName, originalPosition: row.playerPosition,
+                        substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                        week, source: 'auto',
+                        reason: `No eligible replacement found - ${player.first_name} ${player.last_name} is ${status}, left in slot`,
+                        noReplacementAvailable: true
+                    });
+                    events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
+                }
+
+            } else {
+                // PERMANENT - not on roster at all (traded or released)
+                const swapState = this.dataLayer.getTeamSwapState(row.teamName, row.awardType);
+
+                if (swapState.permanentSwapUsed) {
+                    // This award's one permanent swap is already used - auto-fill
+                    // immediately. Independent of the other two awards' state.
+                    const replacement = await this.selectAutoReplacement(row.teamName, row.awardType, week, excludeIds, otherSlotInfo, 0, row.sleeperPlayerId);
+                    if (replacement) {
+                        await this.dataLayer.upsertDuoSlot({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            playerName: replacement.name, playerPosition: replacement.position,
+                            sleeperPlayerId: replacement.id, source: 'auto'
+                        });
+
+                        await this.dataLayer.logSubstitution({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            originalName: row.playerName, originalPosition: row.playerPosition,
+                            substituteName: replacement.name, substitutePlayerId: replacement.id, substitutePosition: replacement.position,
+                            week, source: 'auto',
+                            reason: 'Permanent departure - this award\'s manual swap is already used up this season, auto-filled'
+                        });
+                        events.push({ type: 'permanent-auto-fill', teamName: row.teamName, awardType: row.awardType });
+                    } else {
+                        // No eligible replacement anywhere on the roster. Leaving the
+                        // slot pointing at a player who's no longer even on this
+                        // team would be actively misleading - clear it instead, same
+                        // as the "1st departure" case below, so it honestly reads as
+                        // empty rather than showing a phantom player.
+                        await this.dataLayer.clearDuoSlot(row.teamName, row.awardType, row.playerIndex);
+                        await this.dataLayer.logSubstitution({
+                            teamName: row.teamName, awardType: row.awardType, playerIndex: row.playerIndex,
+                            originalName: row.playerName, originalPosition: row.playerPosition,
+                            substituteName: null, substitutePlayerId: null, substitutePosition: null,
+                            week, source: 'auto',
+                            reason: 'No eligible replacement found - slot cleared, awaiting owner pick',
+                            noReplacementAvailable: true
+                        });
+                        events.push({ type: 'no-replacement', teamName: row.teamName, awardType: row.awardType });
+                    }
+                } else {
+                    // This award's one permanent departure of the season -
+                    // same owner-window-then-auto-fallback pattern for every
+                    // award now (originally Season of Boom-only).
+                    const event = await this.resolveVacancy(
+                        row.teamName, row.awardType, row.playerIndex, excludeIds, otherSlotInfo, row.sleeperPlayerId, row.playerName, row.playerPosition,
+                        'Permanent departure - cleared (this award\'s one permanent swap of the season) - pick a replacement or auto-sub kicks in near kickoff',
+                        'Permanent departure - auto-subbed (kickoff approaching, no owner pick made) - this award\'s permanent swap for the season',
+                        'Permanent departure - no eligible replacement currently available - still waiting (this award\'s permanent swap of the season)',
+                        'permanent-cleared-for-owner', 'permanent-auto-fill', week
+                    );
+                    events.push(event);
+                    // Uses up this award's one permanent swap - independent of
+                    // the other two awards' own budgets for the same team.
+                    // Only actually consumed once a real vacancy was created
+                    // (not on a 'no-replacement' outcome, where nothing about
+                    // this award's roster situation changed enough to warrant
+                    // spending the one swap on it).
+                    if (event.type !== 'no-replacement') {
+                        await this.dataLayer.updateTeamSwapState(row.teamName, row.awardType, true);
+                    }
+                }
+            }
+        }
+
+        await this.dataLayer.updateDuoInjuryStatuses(injuryStatusUpdates);
+        await this.dataLayer.updateDuoDepartedFlags(departedFlagUpdates);
+
+        return events;
     }
 
     hasActiveSubstitution(teamName, playerIndex, week, awardType, existingSubstitutions) {
@@ -533,324 +2093,112 @@ class BrownBellAutomator {
         );
     }
 
-    async generateWeeklySubstitutions(week, existingSubstitutions) {
-        console.log(`Generating weekly substitutions for week ${week}...`);
-
-        const injuries = await this.detectInjuries(week);
-        const weeklySubstitutions = [];
-
-        for (const awardType of ['main', 'nextup']) {
-            for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
-                for (const injury of teamInjuries) {
-                    // Check exclusion list first
-                    const isExcluded = this.substitutionExclusions.some(excl =>
-                        excl.teamName === teamName &&
-                        excl.awardType === awardType &&
-                        excl.playerIndex === injury.index
-                    );
-
-                    if (isExcluded) {
-                        console.log(`Substitution excluded: ${teamName} ${awardType} player ${injury.index} - no eligible substitutes`);
-                        continue;
-                    }
-
-                    // Check if we already have an active substitution for this exact scenario
-                    const hasActiveSub = this.hasActiveSubstitution(
-                        teamName, injury.index, week, awardType, existingSubstitutions
-                    );
-
-                    if (hasActiveSub) {
-                        console.log(`Substitution already exists: ${teamName} ${awardType} player ${injury.index} week ${week}`);
-                        continue; // Skip - already have a sub for this player this week
-                    }
-
-                    // Only create new substitution if none exists
-                    const substitute = await this.findSubstitute(teamName, injury, week, awardType);
-
-                    if (substitute) {
-                        weeklySubstitutions.push({
-                            teamName,
-                            playerIndex: injury.index,
-                            awardType,
-                            originalName: injury.originalPlayer.name,
-                            originalPosition: injury.originalPlayer.position,
-                            substituteName: substitute.name,
-                            substitutePlayerId: substitute.id,
-                            substitutePosition: substitute.position,
-                            startWeek: week,
-                            endWeek: awardType === 'main' ? week : null,
-                            active: true,
-                            autoGenerated: true,
-                            reason: `Injury Checkpoint (3) - ${injury.status}`
-                        });
-
-                        console.log(`New auto-sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name} (Week ${week})`);
-                    } else {
-                        console.log(`No suitable substitute found: ${teamName} ${awardType} for ${injury.originalPlayer.name}`);
-                    }
-                }
-            }
-        }
-
-        return weeklySubstitutions;
-    }
-
+    // Recovered from the original implementation - filters/fixes the raw
+    // substitutions list loaded each run. Still relied on by updateAllScores'
+    // legacy historical-scoring path (getPlayerExperienceForWeek, active-sub
+    // lookups for past weeks) - not yet migrated to the flat duos model, see
+    // the known gap noted elsewhere. Pure filtering + a minor date-range
+    // fixup, no other side effects.
     cleanupSubstitutions(substitutions, currentWeek) {
-        // Remove invalid substitutions and resolve conflicts
         const validSubstitutions = substitutions.filter(sub => {
             // Fix invalid date ranges
             if (sub.endWeek && sub.endWeek < sub.startWeek) {
+                console.log(`Fixing invalid date range for ${sub.substituteName}`);
                 sub.endWeek = null;
             }
 
             // Remove future substitutions
             if (sub.startWeek > currentWeek) {
+                console.log(`Removing future substitution: ${sub.substituteName} (starts Week ${sub.startWeek})`);
                 return false;
             }
 
             return true;
         });
 
-        // Group overlapping substitutions and keep the most recent
-        const grouped = {};
-        validSubstitutions.forEach(sub => {
-            const key = `${sub.teamName}_${sub.playerIndex}_${sub.awardType}`;
-            if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(sub);
-        });
-
-        const cleaned = [];
-        Object.values(grouped).forEach(group => {
-            // Sort by start week descending
-            group.sort((a, b) => b.startWeek - a.startWeek);
-
-            // For each week, only keep one active substitution
-            const weeklyActive = {};
-            group.forEach(sub => {
-                for (let week = sub.startWeek; week <= (sub.endWeek || currentWeek); week++) {
-                    if (!weeklyActive[week] || weeklyActive[week].startWeek < sub.startWeek) {
-                        weeklyActive[week] = sub;
-                    }
-                }
-            });
-
-            // Add unique substitutions
-            const unique = [...new Set(Object.values(weeklyActive))];
-            cleaned.push(...unique);
-        });
-
-        return cleaned;
+        console.log(`Validated ${validSubstitutions.length} substitutions (removed ${substitutions.length - validSubstitutions.length})`);
+        return validSubstitutions;
     }
 
-    isPlayerInNextUpDuo(playerId, teamName) {
-        const nextUpDuo = this.knownDuos.nextup[teamName];
-        if (!nextUpDuo) {
-            console.log(`No Next Up duo found for team: ${teamName}`);
-            return false;
-        }
-
-        const roster = this.leagueData.rosters.find(r =>
-            this.leagueData.userMap[r.owner_id] === teamName
-        );
-        if (!roster) {
-            console.log(`No roster found for team: ${teamName}`);
-            return false;
-        }
-
-        console.log(`Checking if player ${playerId} is in Next Up duo for ${teamName}`);
-        console.log(`Next Up duo: ${nextUpDuo.map(p => p.name).join(', ')}`);
-
-        // Check if this player is in the Next Up duo
-        const isInDuo = nextUpDuo.some(nextUpPlayer => {
-            const nextUpPlayerId = this.findPlayerInRoster(nextUpPlayer, roster);
-            console.log(`  Checking ${nextUpPlayer.name}: Sleeper ID ${nextUpPlayerId} vs ${playerId}`);
-            return nextUpPlayerId === playerId;
-        });
-
-        console.log(`Player ${playerId} in Next Up duo: ${isInDuo}`);
-        return isInDuo;
-    }
-
-    async checkGameTimeInjuries() {
-        console.log('Checking for last-minute injury updates...');
-
-        // Get current time info
-        const now = new Date();
-        const currentWeek = await this.getCurrentWeek();
-
-        // For now, we'll do a general pre-game check
-        // Future enhancement: integrate with NFL schedule API for specific game times
-
-        const injuries = await this.detectInjuries(currentWeek);
-        const newSubstitutions = [];
-
-        // Load existing substitutions
-        let existingSubstitutions = [];
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                const existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
-                existingSubstitutions = existingData.substitutions || [];
-            }
-        } catch (error) {
-            console.log('No existing substitutions found');
-        }
-
-        for (const awardType of ['main', 'nextup']) {
-            for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
-                for (const injury of teamInjuries) {
-                    // Check if we already have a substitution for this week
-                    const hasActiveSub = this.hasActiveSubstitution(
-                        teamName, injury.index, currentWeek, awardType, existingSubstitutions
-                    );
-
-                    if (!hasActiveSub && ['out', 'doubtful', 'season_ending'].includes(injury.status)) {
-                        const substitute = await this.findSubstitute(teamName, injury, currentWeek, awardType);
-
-                        if (substitute) {
-                            newSubstitutions.push({
-                                teamName,
-                                playerIndex: injury.index,
-                                awardType,
-                                originalName: injury.originalPlayer.name,
-                                originalPosition: injury.originalPlayer.position,
-                                substituteName: substitute.name,
-                                substitutePlayerId: substitute.id,
-                                substitutePosition: substitute.position,
-                                startWeek: currentWeek,
-                                endWeek: awardType === 'main' ? currentWeek : null,
-                                active: true,
-                                autoGenerated: true,
-                                reason: `Injury Checkpoint (2) - ${injury.status}`
-                            });
-
-                            console.log(`Pre-game sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name}`);
-                        }
-                    }
-                }
-            }
-        }
-
-        return newSubstitutions;
-    }
-
-    async checkInternationalGameInjuries() {
-        console.log('Checking for international game injury updates...');
-
-        const now = new Date();
-        const currentWeek = await this.getCurrentWeek();
-
-        // International game weeks for 2025 (you'll need to update these annually)
-        const internationalWeeks = {
-            1: ['Chiefs', 'Chargers'], // Brazil - Friday night
-            4: ['Steelers', 'Vikings'], // Dublin - Sunday 9:30 AM ET
-            5: ['Vikings', 'Browns'], // London - Sunday 9:30 AM ET  
-            6: ['Broncos', 'Jets'], // London - Sunday 9:30 AM ET
-            7: ['Rams', 'Jaguars'], // London - Sunday 9:30 AM ET
-            10: ['Falcons', 'Colts'], // Berlin - Sunday 9:30 AM ET
-            11: ['Dolphins', 'Commanders'] // Madrid - Sunday 9:30 AM ET
-        };
-
-        // Check if current week has international games
-        const teamsInInternationalGames = internationalWeeks[currentWeek] || [];
-
-        if (teamsInInternationalGames.length === 0) {
-            console.log(`No international games in Week ${currentWeek}`);
-            return [];
-        }
-
-        console.log(`International games this week: ${teamsInInternationalGames.join(' vs ')}`);
-
-        // Enhanced injury detection for international game teams
-        const injuries = await this.detectInjuries(currentWeek);
-        const newSubstitutions = [];
-
-        // Load existing substitutions
-        let existingSubstitutions = [];
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                const existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
-                existingSubstitutions = existingData.substitutions || [];
-            }
-        } catch (error) {
-            console.log('No existing substitutions found');
-        }
-
-        for (const awardType of ['main', 'nextup']) {
-            for (const [teamName, teamInjuries] of Object.entries(injuries[awardType])) {
-                for (const injury of teamInjuries) {
-                    // Check if we already have a substitution for this week
-                    const hasActiveSub = this.hasActiveSubstitution(
-                        teamName, injury.index, currentWeek, awardType, existingSubstitutions
-                    );
-
-                    if (!hasActiveSub && ['out', 'doubtful', 'season_ending'].includes(injury.status)) {
-                        const substitute = await this.findSubstitute(teamName, injury, currentWeek, awardType);
-
-                        if (substitute) {
-                            newSubstitutions.push({
-                                teamName,
-                                playerIndex: injury.index,
-                                awardType,
-                                originalName: injury.originalPlayer.name,
-                                originalPosition: injury.originalPlayer.position,
-                                substituteName: substitute.name,
-                                substitutePlayerId: substitute.id,
-                                substitutePosition: substitute.position,
-                                startWeek: currentWeek,
-                                endWeek: awardType === 'main' ? currentWeek : null,
-                                active: true,
-                                autoGenerated: true,
-                                reason: `Injury Checkpoint (1) - ${injury.status}`
-                            });
-
-                            console.log(`International game sub: ${teamName} ${awardType} - ${substitute.name} for ${injury.originalPlayer.name}`);
-                        }
-                    }
-                }
-            }
-        }
-
-        return newSubstitutions;
-    }
-
-    async updateAllScores() {
+    async updateAllScores(existingSubstitutions, rosterChanges, existingScores) {
         console.log('Updating all weekly scores...');
 
         const currentWeek = await this.getCurrentWeek();
-        const scores = { main: {}, nextup: {} };
+        const scores = { main: {}, nextup: {}, boom: {} };
+        const playerIds = { main: {}, nextup: {}, boom: {} };
+        const wasBye = { main: {}, nextup: {}, boom: {} }; // captured alongside scores - who was on bye, per week, for the historical badge
 
-        // Load existing substitutions
-        let existingSubstitutions = [];
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                const existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
-                existingSubstitutions = existingData.substitutions || [];
-            }
-        } catch (error) {
-            console.log('No existing substitutions found');
-        }
+        existingSubstitutions = existingSubstitutions || [];
+        rosterChanges = rosterChanges || [];
+        // Fallback source for inactive teams' historical weeks only - see PRIORITY 3 below.
+        existingScores = existingScores || { main: {}, nextup: {}, boom: {} };
 
         // Process each award type
-        for (const awardType of ['main', 'nextup']) {
-            const duos = this.knownDuos[awardType];
+        for (const awardType of ['main', 'nextup', 'boom']) {
+            const duos = this.knownDuos[awardType] || {};
 
             for (const [teamName, originalDuo] of Object.entries(duos)) {
                 scores[awardType][teamName] = {};
+                playerIds[awardType][teamName] = {};
+                wasBye[awardType][teamName] = {};
 
                 const roster = this.leagueData.rosters.find(r =>
                     this.leagueData.userMap[r.owner_id] === teamName
                 );
 
-                if (!roster) continue;
+                const inactiveTeam = this.inactiveTeams[teamName];
+                const teamLastWeek = inactiveTeam ? inactiveTeam.lastActiveWeek : currentWeek;
 
-                // Get scores for each week up to current
-                for (let week = 1; week <= currentWeek; week++) {
+                if (inactiveTeam) {
+                    console.log(`⚠️ Team ${teamName} is inactive after Week ${inactiveTeam.lastActiveWeek} - ${inactiveTeam.reason}`);
+                }
+
+                if (!roster) {
+                    console.warn(`⚠️ No roster found for ${teamName} - using historical data only`);
+                    // For inactive teams, still process historical scores
+                    if (!inactiveTeam) {
+                        continue; // Skip if no roster and not a known inactive team
+                    }
+                }
+
+                // Get scores for each week up to current OR last active week
+                for (let week = 1; week <= Math.min(currentWeek, teamLastWeek); week++) {
                     const weekScores = await this.getWeeklyScores(week);
                     scores[awardType][teamName][week] = {};
+                    playerIds[awardType][teamName][week] = {};
+                    wasBye[awardType][teamName][week] = {};
 
-                    originalDuo.forEach((originalPlayer, index) => {
+                    for (let index = 0; index < originalDuo.length; index++) {
+                        const originalPlayer = originalDuo[index];
+                        let playerId;
+                        // Only meaningful for past-week reconstruction and the log
+                        // lines below - left null on the current-week fast path.
+                        let activeSub = null;
+
+                        if (week === currentWeek) {
+                            // Current week: duos is the live source of truth, loaded
+                            // fresh at the top of this run - no ambiguity, so read it
+                            // directly rather than reconstructing "who was playing"
+                            // via the substitutions log (which exists for genuinely
+                            // historical weeks, not to second-guess right now).
+                            playerId = originalPlayer.sleeperId || null;
+                            if (playerId) {
+                                console.log(`Week ${week} (current): ${originalPlayer.name} (${playerId}) for ${teamName}, from live duos`);
+                            }
+                        } else {
+                        // Check if this player was traded
+                        const tradeInfo = rosterChanges.find(rc =>
+                            rc.teamName === teamName &&
+                            rc.playerIndex === index &&
+                            rc.awardType === awardType
+                        );
+
                         // Check for active substitution in this week
-                        const activeSub = existingSubstitutions.find(sub =>
+                        // PRIORITY ORDER:
+                        // 1. Temporary bye replacements (isTemporaryByeReplacement: true)
+                        // 2. Other temporary subs (has endWeek)
+                        // 3. Permanent subs (endWeek: null)
+                        const activeSubstitutions = existingSubstitutions.filter(sub =>
                             sub.teamName === teamName &&
                             sub.playerIndex === index &&
                             sub.awardType === awardType &&
@@ -858,54 +2206,91 @@ class BrownBellAutomator {
                             (!sub.endWeek || sub.endWeek >= week)
                         );
 
-                        let playerId;
-                        if (activeSub) {
-                            // Use substitute's Sleeper ID
-                            playerId = activeSub.substitutePlayerId;
-                            console.log(`Week ${week}: Using substitute ${activeSub.substituteName} (${playerId}) for ${teamName}`);
-                        } else {
-                            // Use original player's Sleeper ID
-                            playerId = this.findPlayerInRoster(originalPlayer, roster);
+                        // Find temporary bye replacement first (highest priority)
+                        activeSub = activeSubstitutions.find(sub => sub.isTemporaryByeReplacement === true);
+
+                        // If no temporary bye replacement, find other temporary subs
+                        if (!activeSub) {
+                            activeSub = activeSubstitutions.find(sub => sub.endWeek !== null && !sub.isTemporaryByeReplacement);
                         }
 
-                        if (playerId && weekScores[playerId] !== undefined) {
-                            scores[awardType][teamName][week][index] = weekScores[playerId];
-                            if (activeSub) {
-                                console.log(`Substitute score: ${activeSub.substituteName} = ${weekScores[playerId]} points`);
-                            }
-                        } else {
-                            // Manual override for DeVaughn Vele's historical scores
-                            if (teamName === 'Kenyatta93' && awardType === 'nextup' &&
-                                originalPlayer.name === 'DeVaughn Vele') {
-                                if (week === 1) {
-                                    scores[awardType][teamName][week][index] = 2.3;
-                                    console.log(`Manual override: DeVaughn Vele Week 1 = 2.3 points`);
-                                } else if (week === 2) {
-                                    scores[awardType][teamName][week][index] = 7.3;
-                                    console.log(`Manual override: DeVaughn Vele Week 2 = 7.3 points`);
-                                } else {
-                                    scores[awardType][teamName][week][index] = 0;
-                                }
-                            } else {
-                                scores[awardType][teamName][week][index] = 0;
-                                if (activeSub) {
-                                    console.log(`No score found for substitute ${activeSub.substituteName} (${playerId})`);
-                                }
+                        // If no temporary subs, use permanent sub
+                        if (!activeSub) {
+                            activeSub = activeSubstitutions.find(sub => sub.endWeek === null);
+                        }
+
+                        // PRIORITY 1: Active substitution (trade or injury)
+                        if (activeSub) {
+                            playerId = activeSub.substitutePlayerId;
+                            console.log(`Week ${week}: Using substitute ${activeSub.substituteName} (${playerId}) for ${teamName}`);
+                        }
+                        // PRIORITY 2: Pre-trade weeks - use original player's historical points
+                        else if (tradeInfo && week < tradeInfo.changeWeek) {
+                            playerId = this.findPlayerInRoster(originalPlayer, roster, true); // Allow traded players
+                            if (playerId) {
+                                console.log(`Week ${week}: Using pre-trade ${originalPlayer.name} (${playerId}) for ${teamName}`);
                             }
                         }
-                    });
+                        // PRIORITY 3: Normal active roster
+                        else {
+                            if (!roster) {
+                                // No roster available (inactive team) - fall back to previously
+                                // recorded scores for this frozen historical week
+                                const awardScores = existingScores[awardType];
+                                scores[awardType][teamName][week][index] = awardScores?.[teamName]?.[week]?.[index] || 0;
+                                playerIds[awardType][teamName][week][index] = null;
+                                wasBye[awardType][teamName][week][index] = false;
+                                continue;
+                            }
+                            playerId = this.findPlayerInRoster(originalPlayer, roster);
+                        }
+                        }
+
+                        playerIds[awardType][teamName][week][index] = playerId || null;
+
+                        if (playerId && weekScores[playerId] !== undefined) {
+                            // Check if this player is on bye this week
+                            const onBye = await this.isPlayerOnBye(playerId, week);
+                            wasBye[awardType][teamName][week][index] = onBye;
+                            if (onBye) {
+                                scores[awardType][teamName][week][index] = 0;
+                                const playerName = activeSub ? activeSub.substituteName : originalPlayer.name;
+                                console.log(`${playerName} on bye week ${week} - 0 points`);
+                            } else {
+                                scores[awardType][teamName][week][index] = weekScores[playerId];
+                                if (activeSub) {
+                                    console.log(`Substitute score: ${activeSub.substituteName} = ${weekScores[playerId]} points`);
+                                }
+                            }
+                        } else {
+                            // No live score data yet - could mean genuinely on bye, or just
+                            // too early in the week for this game's data to have posted.
+                            // These are different things; check for real rather than assume.
+                            wasBye[awardType][teamName][week][index] = playerId ? await this.isPlayerOnBye(playerId, week) : false;
+                            scores[awardType][teamName][week][index] = 0;
+                            if (activeSub) {
+                                console.log(`No score found for substitute ${activeSub.substituteName} (${playerId})`);
+                            }
+                        }
+                    }
 
                     // Validate Next Up Award combinations after scores are set
                     if (awardType === 'nextup') {
-                        // Get both players' experience levels for this week
-                        const player1Experience = this.getPlayerExperienceForWeek(teamName, 0, week, existingSubstitutions);
-                        const player2Experience = this.getPlayerExperienceForWeek(teamName, 1, week, existingSubstitutions);
+                        // Get both players' current { years, position } for this week
+                        const player1Experience = this.getPlayerExperienceForWeek(teamName, 0, week, existingSubstitutions, currentWeek);
+                        const player2Experience = this.getPlayerExperienceForWeek(teamName, 1, week, existingSubstitutions, currentWeek);
 
-                        // Check if combination violates rookie+sophomore rule
-                        if ((player1Experience === 'rookie' && player2Experience === 'rookie') ||
-                            (player1Experience === 'sophomore' && player2Experience === 'sophomore')) {
+                        // Valid combo (2026 rule): both players individually eligible (0-3 yrs
+                        // experience) AND they differ in both years of experience and position.
+                        // Two rookies, two players at the same experience year, two players at
+                        // the same position, or anyone 4+ years, are all invalid. A null result
+                        // means one/both couldn't be resolved at all - not flagged, since there's
+                        // no live data to judge against yet (distinct from a resolved-but-invalid combo).
+                        const combo = this.isValidNextUpCombo(player1Experience, player2Experience);
 
-                            console.log(`Invalid Next Up combination for ${teamName} Week ${week}: ${player1Experience} + ${player2Experience}`);
+                        if (combo === false) {
+
+                            console.log(`Invalid Next Up combination for ${teamName} Week ${week}: ${JSON.stringify(player1Experience)} + ${JSON.stringify(player2Experience)}`);
 
                             // Only zero the substitute's score, not the original player's score
                             const player1Sub = existingSubstitutions.find(sub =>
@@ -932,12 +2317,27 @@ class BrownBellAutomator {
             }
         }
 
-        return scores;
+        return { scores, playerIds, wasBye };
     }
 
-    getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions) {
+    getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions, currentWeek) {
         const originalDuo = this.knownDuos.nextup[teamName];
-        if (!originalDuo) return 'unknown';
+        if (!originalDuo) return null;
+
+        if (week === currentWeek) {
+            // Current week: duos is live and unambiguous - read directly rather
+            // than reconstructing via the substitutions log. Same principle as
+            // the main scoring resolution above, and the same reason: multiple
+            // "active" (end_week: null) entries can exist for one slot, and
+            // which one .find() returns first isn't guaranteed to be the most
+            // recent pick.
+            const sleeperId = originalDuo[playerIndex]?.sleeperId;
+            const player = sleeperId ? this.playersData?.[sleeperId] : null;
+            if (!player) return null;
+            const resolved = { years: player.years_exp || 0, position: player.position };
+            console.log(`Week ${week} (current): ${originalDuo[playerIndex].name} experience: ${resolved.years} yrs, ${resolved.position}, from live duos`);
+            return resolved;
+        }
 
         // Check for active substitution
         const activeSub = existingSubstitutions.find(sub =>
@@ -948,80 +2348,111 @@ class BrownBellAutomator {
             (!sub.endWeek || sub.endWeek >= week)
         );
 
-        if (activeSub) {
-            // Map substitute to experience level
-            const substituteExperience = this.getSubstituteExperience(activeSub.substituteName);
-            console.log(`Substitute ${activeSub.substituteName} experience: ${substituteExperience}`);
-            return substituteExperience;
-        } else {
-            // Use original player's experience
-            return originalDuo[playerIndex].experience === 'second_year' ? 'sophomore' : originalDuo[playerIndex].experience;
+        if (activeSub && activeSub.substitutePlayerId) {
+            const player = this.playersData?.[activeSub.substitutePlayerId];
+            if (!player) return null;
+            const resolved = { years: player.years_exp || 0, position: player.position };
+            console.log(`Substitute ${activeSub.substituteName} experience: ${resolved.years} yrs, ${resolved.position}`);
+            return resolved;
         }
+
+        const roster = this.leagueData?.rosters?.find(r => this.leagueData.userMap[r.owner_id] === teamName);
+        return this.resolveNextUpExperience(originalDuo[playerIndex], roster);
     }
 
-    getSubstituteExperience(playerName) {
-        // Map known substitutes to their experience levels
-        const substituteMap = {
-            'Michael Penix': 'rookie',
-            'Ollie Gordon': 'rookie',
-            // Add other substitutes as needed
+    // Next Up Award eligibility rule (2026 revision): any player with 0-3 years NFL
+    // experience is individually eligible, at QB/RB/WR/TE/K - meaning a player
+    // entering their 1st, 2nd, or 3rd season (years_exp 0, 1, or 2). A player
+    // entering their 4th season (years_exp 3, like Jordan Addison in 2026) is
+    // NOT eligible. A valid PAIR additionally needs the two players to differ
+    // in BOTH years of experience and position - two rookies, two 2nd-years,
+    // or two players at the same position (even with different experience)
+    // are all invalid. Computed live from years_exp - no per-player hardcoding.
+    isNextUpEligibleExperience(yearsExp) {
+        const exp = yearsExp || 0;
+        return exp >= 0 && exp <= 2;
+    }
+
+    // true/false when both players are resolvable, null when one/both can't be
+    // determined at all (caller should skip validation in that case, same as the
+    // old 'unknown' handling).
+    isValidNextUpCombo(a, b) {
+        if (!a || !b) return null;
+        if (!this.isNextUpEligibleExperience(a.years) || !this.isNextUpEligibleExperience(b.years)) return false;
+        if (a.years === b.years) return false;
+        if (a.position === b.position) return false;
+        return true;
+    }
+
+    // Resolves a duo slot's live { years, position }, whether it's the original
+    // drafted player or a currently active substitute in that slot. Returns null
+    // if the player can't be resolved at all (not a null "years" - see above).
+    resolveNextUpExperience(duoPlayer, roster) {
+        const playerId = duoPlayer.sleeperId || (roster ? this.findPlayerInRoster(duoPlayer, roster) : null);
+        const player = playerId ? this.playersData?.[playerId] : null;
+        if (!player) return null;
+        return { years: player.years_exp || 0, position: player.position };
+    }
+
+    async loadKnownDuos() {
+        this.knownDuos = await this.dataLayer.loadKnownDuos();
+    }
+
+    // Determine checkpoint type and whether this run should process
+    // substitution/roster-change detection. Each cron line in the workflow
+    // maps to an explicit checkpoint below via CRON_SCHEDULE
+    // (github.event.schedule, passed through by the workflow) - this avoids
+    // re-deriving "which checkpoint is this" from the runner's server-local
+    // day/hour, which is UTC on GitHub Actions and does not line up with the
+    // Arizona-time comments the cron schedule was written against. Several
+    // scheduled runs (Saturday prep, early Sunday, both Monday slots)
+    // previously fell through this check entirely and skipped substitution
+    // processing for that run without any error.
+    //
+    // Extracted into its own method specifically so this logic is directly
+    // unit-testable (see test-manual-trigger-checkpoint.js) rather than only
+    // exercisable by running the entire multi-minute generateCompleteData
+    // flow end to end.
+    determineCheckpoint(currentDay, currentHour) {
+        // Highest priority, checked before anything else - watchdog.js sets
+        // this on every internal loop iteration. The watchdog only ever
+        // runs during a real, known game window (see update-standings.yml's
+        // low-frequency watchdog-start triggers), so every iteration should
+        // behave exactly like a real LIVE_CHECK checkpoint - skip cleanly
+        // if no game is actually in progress right now, otherwise do a real
+        // update - regardless of what day/hour it technically is.
+        if (process.env.WATCHDOG_MODE === 'true') {
+            return { checkpointType: 'LIVE_CHECK', shouldRunSubstitutions: true };
+        }
+
+        const CRON_CHECKPOINTS = {
+            // Standalone checkpoints, outside any game-day window
+            '0 14 * * 2': 'TUESDAY_CHECK',                 // Tue 10am ET / 7am AZ - weekly cleanup
+            '30 14 * * 4': 'THURSDAY_CHECK',                // Thu 2:30pm AZ - pre-TNF injury checkpoint
+            '0 11 * * 6': 'SATURDAY_INTERNATIONAL_PREP',    // Sat 4am AZ - international prep
+            '0 11 * * 0': 'SUNDAY_INTERNATIONAL_CHECK',     // Sun 4am AZ - pre-international
+            '30 14 * * 1': 'MONDAY_CHECK',                  // Mon 2:30pm AZ - post-game cleanup
+
+            // 15-minute live-score windows - see the matching comment in
+            // update-standings.yml for why these windows are this wide,
+            // and why Wed/Sat were added alongside the original Thu/Sun/Mon
+            // (confirmed directly: the actual 2026 season opener, a
+            // one-off special kickoff game, landed on a Wednesday with no
+            // live-check coverage at all under the original schedule).
+            // All map to LIVE_CHECK, which gates on whether a game is
+            // actually in progress before doing any real work (see below).
+            '*/15 23 * * 3': 'LIVE_CHECK',   // Wed night window, part 1 (early-season kickoff game slot)
+            '*/15 0-4 * * 4': 'LIVE_CHECK',  // Wed night window, part 2 (wraps past UTC midnight)
+            '*/15 23 * * 4': 'LIVE_CHECK',   // Thu night window, part 1
+            '*/15 0-4 * * 5': 'LIVE_CHECK',  // Thu night window, part 2 (wraps past UTC midnight)
+            '*/15 13-23 * * 6': 'LIVE_CHECK', // Sat window, part 1 (late-season Saturday games)
+            '*/15 0-4 * * 0': 'LIVE_CHECK',   // Sat window, part 2 (wraps past UTC midnight)
+            '*/15 13-23 * * 0': 'LIVE_CHECK', // Sunday window, part 1
+            '*/15 0-4 * * 1': 'LIVE_CHECK',   // Sunday window, part 2 (wraps past UTC midnight)
+            '*/15 23 * * 1': 'LIVE_CHECK',    // Monday night window, part 1
+            '*/15 0-4 * * 2': 'LIVE_CHECK'    // Monday night window, part 2 (wraps past UTC midnight)
         };
 
-        return substituteMap[playerName] || 'unknown';
-    }
-
-    getPlayerExperienceForWeek(teamName, playerIndex, week, existingSubstitutions) {
-        const originalDuo = this.knownDuos.nextup[teamName];
-        if (!originalDuo) return 'unknown';
-
-        // Check for active substitution
-        const activeSub = existingSubstitutions.find(sub =>
-            sub.teamName === teamName &&
-            sub.playerIndex === playerIndex &&
-            sub.awardType === 'nextup' &&
-            sub.startWeek <= week &&
-            (!sub.endWeek || sub.endWeek >= week)
-        );
-
-        if (activeSub) {
-            // Map substitute to experience level
-            // Ollie Gordon = rookie, J.J. McCarthy = sophomore, etc.
-            const substituteExperience = this.getSubstituteExperience(activeSub.substituteName);
-            console.log(`Substitute ${activeSub.substituteName} experience: ${substituteExperience}`);
-            return substituteExperience;
-        } else {
-            // Use original player's experience
-            return originalDuo[playerIndex].experience;
-        }
-    }
-
-    getSubstituteExperience(playerName) {
-        // Map known substitutes to their experience levels
-        const substituteMap = {
-            'Michael Penix': 'rookie',
-            'Ollie Gordon': 'rookie',
-            // Add other substitutes as needed
-        };
-
-        return substituteMap[playerName] || 'unknown';
-    }
-
-    // Add this helper method
-    getActiveSubstitutionsForWeek(teamName, week, awardType) {
-        // This would use the existing substitutions from your data
-        // For now, return empty array since substitutions are handled elsewhere
-        // You'll need to load existing substitutions here
-        return [];
-    }
-
-    async generateCompleteData() {
-        await this.initializeLeagueData();
-
-        const currentWeek = await this.getCurrentWeek();
-        const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday
-        const currentHour = new Date().getHours();
-
-        // Determine checkpoint type - REPLACE THIS ENTIRE SECTION
         let checkpointType = null;
         let shouldRunSubstitutions = false;
 
@@ -1034,137 +2465,371 @@ class BrownBellAutomator {
         } else if (process.env.PREGAME_CHECK === 'true') {
             checkpointType = 'PREGAME_CHECK';
             shouldRunSubstitutions = true;
-        } else if (currentDay === 2) { // Tuesday
-            checkpointType = 'TUESDAY_CHECK';
+        } else if (process.env.CRON_SCHEDULE && CRON_CHECKPOINTS[process.env.CRON_SCHEDULE]) {
+            checkpointType = CRON_CHECKPOINTS[process.env.CRON_SCHEDULE];
             shouldRunSubstitutions = true;
-        } else if (currentDay === 4) { // Thursday
-            checkpointType = 'THURSDAY_CHECK';
-            shouldRunSubstitutions = true;
-        } else if (currentDay === 6 && currentHour >= 7) { // Saturday 7 AM - International prep
-            checkpointType = 'SATURDAY_INTERNATIONAL_PREP';
-            shouldRunSubstitutions = true;
-        } else if (currentDay === 0 && currentHour >= 7 && currentHour < 11) { // Sunday 7-11 AM - International games
-            checkpointType = 'SUNDAY_INTERNATIONAL_CHECK';
-            shouldRunSubstitutions = true;
-        } else if (currentDay === 0 && currentHour >= 11) { // Sunday after 11 AM - Regular games
-            checkpointType = 'SUNDAY_PREGAME_CHECK';
+        } else if (process.env.CRON_SCHEDULE) {
+            // A scheduled run fired with a cron string we don't recognize (e.g. the
+            // workflow's cron list changed but this map wasn't updated) - fail loudly
+            // instead of silently skipping substitution processing for the run.
+            console.warn(`\u26a0\ufe0f Unrecognized CRON_SCHEDULE "${process.env.CRON_SCHEDULE}" - falling back to day/hour heuristic`);
+        }
+
+        // A deliberate manual trigger of the real GitHub Actions workflow
+        // (the "Run workflow" button, no checkbox inputs set) always runs
+        // substitution/roster-change processing, regardless of what day it
+        // happens to be. Detected via GITHUB_ACTIONS, which the runner sets
+        // for every workflow run - scheduled or manual - while CRON_SCHEDULE
+        // is only ever populated for an actual `schedule` trigger. Without
+        // this, a manual run fell through to the day/hour fallback below,
+        // which has NO coverage at all for Wednesday or Friday - a manual
+        // "run it now to check" click on either of those days would
+        // silently skip roster-change detection entirely while still
+        // updating scores/schedule normally, giving no indication anything
+        // was skipped.
+        if (!checkpointType && process.env.GITHUB_ACTIONS === 'true') {
+            checkpointType = 'MANUAL_TRIGGER';
             shouldRunSubstitutions = true;
         }
+
+        // Fallback for genuine local/dev runs with no CRON_SCHEDULE set (e.g.
+        // `node update-standings.js` on your own machine, GITHUB_ACTIONS
+        // unset). Arizona does not observe DST, so AZ = UTC-7 year-round;
+        // this mirrors the same slots as CRON_CHECKPOINTS above, corrected
+        // to actually cover every day.
+        if (!checkpointType) {
+            if (currentDay === 2) {
+                checkpointType = 'TUESDAY_CHECK';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 4) {
+                checkpointType = 'THURSDAY_CHECK';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 1) {
+                checkpointType = 'MONDAY_CHECK';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 6) {
+                checkpointType = 'SATURDAY_INTERNATIONAL_PREP';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 0 && currentHour < 16) { // roughly before ~9am AZ
+                checkpointType = 'SUNDAY_INTERNATIONAL_CHECK';
+                shouldRunSubstitutions = true;
+            } else if (currentDay === 0) {
+                checkpointType = 'SUNDAY_PREGAME_CHECK';
+                shouldRunSubstitutions = true;
+            }
+        }
+
+        return { checkpointType, shouldRunSubstitutions };
+    }
+
+    async generateCompleteData() {
+        await this.initializeLeagueData();
+
+        // Independent of season/week - RotoWire's feed is just timestamped
+        // real-world NFL news, not scoped to this league's fantasy season.
+        // Best-effort: fetchAndSavePlayerNews already logs its own errors
+        // rather than throwing, so a hiccup here never blocks the actual
+        // scoring run below.
+        await this.fetchAndSavePlayerNews();
+
+        const seasonYear = Number(process.env.NFL_SEASON_YEAR || '2026');
+        const { currentWeek: storedWeek } = await this.dataLayer.loadSeason(seasonYear, this.leagueId);
+        await this.loadKnownDuos();
+
+        // Discovers RotoWire URLs directly from team depth chart pages
+        // (offense only - see fetchAndSaveDepthChartLinks) rather than
+        // waiting on the shared feed's tiny rolling window to randomly
+        // surface each player. Best effort per team.
+        await this.fetchAndSaveDepthChartLinks();
+
+        // Deeper, per-player news history for whichever of this league's
+        // current duo players we've already learned a RotoWire URL for
+        // (via the depth chart discovery above, or the shared feed in
+        // fetchAndSavePlayerNews) - the shared feed alone only ever shows
+        // a tiny rolling window across the whole NFL, but a player's own
+        // profile page keeps a much fuller history. Best effort per
+        // player - one player's page failing to parse never blocks the
+        // others or the actual scoring run below.
+        await this.fetchAndSaveProfileNews();
+
+        // Per-player Google News search - covers ALL positions (including
+        // defense/IDP, the one gap the two RotoWire paths above can't
+        // close) at the cost of headline + source only, no factual
+        // snippet. See fetchAndSaveGoogleNews for the full reasoning.
+        await this.fetchAndSaveGoogleNews();
+
+        // Cleans up any already-saved item that no longer passes the
+        // current filter rules above - see pruneDisqualifiedNews for why
+        // this is necessary rather than optional.
+        await this.pruneDisqualifiedNews();
+
+        const currentWeek = await this.getCurrentWeek();
+        const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday
+        const currentHour = new Date().getHours();
+
+        const { checkpointType, shouldRunSubstitutions } = this.determineCheckpoint(currentDay, currentHour);
 
         console.log(`Current week: ${currentWeek}, Checkpoint: ${checkpointType || 'ROUTINE_UPDATE'}`);
 
-        // Load existing data - KEEP THIS SECTION AS IS
-        let existingData = {
-            teams: [],
-            nextUpTeams: [],
-            scores: {},
-            nextUpScores: {},
-            substitutions: []
-        };
-
-        try {
-            if (require('fs').existsSync('brown-bell-data.json')) {
-                existingData = JSON.parse(require('fs').readFileSync('brown-bell-data.json', 'utf8'));
+        // LIVE_CHECK fires every 15 min across a wide, generous window (see
+        // update-standings.yml) - wide enough to safely cover any kickoff
+        // time across the season, which means it also wakes up during real
+        // dead gaps (an early international game has ended, the noon games
+        // haven't started yet). Rather than trying to make the cron schedule
+        // itself precise to the minute, the job checks LIVE schedule data
+        // here and skips all the real work - Sleeper API calls, Supabase
+        // reads/writes - the instant it's clear nothing is actually being
+        // played right now. This reuses fetchNFLSchedule's cache, so nothing
+        // extra gets fetched if a game IS live and the run proceeds normally.
+        if (checkpointType === 'LIVE_CHECK') {
+            const liveSchedule = await this.fetchNFLSchedule(currentWeek);
+            const anyGameInProgress = !!liveSchedule && Object.values(liveSchedule).some(game => game.status === 'in');
+            if (!anyGameInProgress) {
+                console.log('LIVE_CHECK: no games currently in progress - skipping this run');
+                return {
+                    version: '3.0',
+                    timestamp: new Date().toISOString(),
+                    currentWeek,
+                    sleeperLeagueId: this.leagueId,
+                    lastCheckpointType: 'LIVE_CHECK_SKIPPED',
+                    automationStats: { scoresUpdated: 0, duoSlotChanges: 0, scheduleChangesThisWeek: 0 }
+                };
             }
-        } catch (error) {
-            console.log('No existing data found, creating fresh dataset');
+            console.log('LIVE_CHECK: at least one game is in progress - proceeding with a real update');
         }
 
-        // Clean up existing substitutions - KEEP THIS SECTION AS IS
-        const cleanedSubstitutions = this.cleanupSubstitutions(existingData.substitutions, currentWeek);
+        // Load existing state from Supabase (replaces the old file-based JSON read)
+        const cleanedSubstitutionsRaw = await this.dataLayer.loadSubstitutions();
+        const cleanedSubstitutions = this.cleanupSubstitutions(cleanedSubstitutionsRaw, currentWeek);
+        const rosterChanges = await this.dataLayer.loadRosterChanges();
+        this.managerChanges = await this.dataLayer.loadManagerChanges();
 
-        // Update scores (always do this) - KEEP THIS SECTION AS IS
-        const allScores = await this.updateAllScores();
+        // Weekly schedule-change check: compares this week's live schedule against the
+        // baseline captured at the first checkpoint of the week, flagging any game whose
+        // kickoff time moved since (flex scheduling, weather reschedule, etc). This is purely
+        // informational - hasPlayerGameStarted() already fetches live schedule data on every
+        // checkpoint regardless, so locking behavior doesn't depend on this. It just surfaces
+        // the change here instead of you having to notice it in the Action logs.
+        const priorSnapshotRecord = await this.dataLayer.loadScheduleSnapshot(currentWeek);
+        const priorSnapshotForWeek = priorSnapshotRecord ? priorSnapshotRecord.teams : null;
+        const scheduleCheck = await this.checkForScheduleChanges(currentWeek, priorSnapshotForWeek);
+        const scheduleSnapshotTeams = priorSnapshotForWeek || scheduleCheck.snapshot;
+        const scheduleSnapshotCapturedAt = priorSnapshotRecord ? priorSnapshotRecord.capturedAt : new Date().toISOString();
 
-        // Generate new substitutions - REPLACE THIS SECTION
-        let newSubstitutions = [];
+        const existingWeekChanges = await this.dataLayer.loadScheduleChanges(currentWeek);
+        const changeKey = c => `${c.team}|${c.type}|${c.newTime || ''}`;
+        const existingChangeKeys = new Set(existingWeekChanges.map(changeKey));
+        const newlyDetectedChanges = scheduleCheck.changes.filter(c => !existingChangeKeys.has(changeKey(c)));
+
+        // Update scores
+        const existingScoresForFallback = { main: {}, nextup: {}, boom: {} }; // inactive-team historical fallback; see updateAllScores
+        const { scores: allScores, playerIds: allPlayerIds, wasBye: allWasBye } = await this.updateAllScores(cleanedSubstitutions, rosterChanges, existingScoresForFallback);
+
+        // Process every duo slot: pre-lock slots are skipped entirely (fully
+        // owner-editable), locked slots get the full healthy/temporary/permanent
+        // decision tree. This runs the same way regardless of checkpoint type -
+        // the old checkpoint-specific dispatch (deep vs light check) belonged to
+        // the previous substitutions-layered model and no longer applies now
+        // that duos is the single source of truth.
+        let slotEvents = [];
         if (shouldRunSubstitutions) {
-            if (checkpointType === 'INTERNATIONAL_CHECK' || checkpointType === 'SATURDAY_INTERNATIONAL_PREP' || checkpointType === 'SUNDAY_INTERNATIONAL_CHECK') {
-                // Use the international game check
-                newSubstitutions = await this.checkInternationalGameInjuries();
-            } else if (checkpointType === 'PREGAME_CHECK' || checkpointType === 'SUNDAY_PREGAME_CHECK') {
-                // Use the enhanced pre-game check
-                newSubstitutions = await this.checkGameTimeInjuries();
-            } else {
-                // Use regular weekly substitution logic
-                newSubstitutions = await this.generateWeeklySubstitutions(currentWeek, cleanedSubstitutions);
-            }
-            console.log(`${checkpointType}: Generated ${newSubstitutions.length} new substitutions`);
+            slotEvents = await this.processDuoSlots(currentWeek);
+            console.log(`${checkpointType}: ${slotEvents.length} duo slot change(s) this run`);
         }
 
-        // Build teams data structure - KEEP THE REST OF THE METHOD AS IS
-        const teams = [];
-        const nextUpTeams = [];
+        // Brown Bell weekly bonus matchups - a separate round-robin schedule,
+        // scored off this week's Main Award totals (already computed above).
+        // Recomputed every run so bonus standings update live through the week,
+        // same as everything else - not locked until some explicit finalization step.
+        //
+        // GATE: only compute/save results once Sleeper actually has real stat
+        // data for this week. Before that (pre-season, or just before that
+        // week's games start), every team's total is genuinely 0 - not
+        // because they tied, but because nothing has been played yet. Without
+        // this check, every matchup gets saved as a real "0-0 tie" with
+        // real bonus points awarded, which is wrong and (if it already
+        // happened on an earlier run before this check existed) needs
+        // cleaning up, not just avoiding going forward.
+        const weekScoresCheck = await this.getWeeklyScores(currentWeek);
+        // Check for genuinely non-zero activity, not just key presence -
+        // Sleeper's matchups endpoint can pre-populate every rostered
+        // player's entry at 0 points before any games start, rather than
+        // returning an empty structure. Checking for keys alone would have
+        // treated that pre-populated placeholder data as "the week has
+        // started" - it hasn't, every value is a real, uniform zero.
+        const weekHasRealData = Object.values(weekScoresCheck).some(points => points > 0);
 
+        if (weekHasRealData) {
+            const brownBellWeekTotals = {};
+            for (const [teamName, byWeek] of Object.entries(allScores.main || {})) {
+                const byIndex = byWeek[currentWeek] || {};
+                brownBellWeekTotals[teamName] = Object.values(byIndex).reduce((sum, p) => sum + (p || 0), 0);
+            }
+            const brownBellMatchups = this.getBrownBellMatchupsForWeek(currentWeek);
+            const brownBellBonuses = this.computeBrownBellBonuses(brownBellMatchups, brownBellWeekTotals);
 
-        Object.entries(this.knownDuos.main).forEach(([teamName, duo]) => {
-            const roster = this.leagueData.rosters.find(r =>
-                this.leagueData.userMap[r.owner_id] === teamName
-            );
+            // Per-matchup finality: a matchup only needs its OWN 4 players
+            // (both teams' Main Award duos) to have finished their games -
+            // it doesn't need to wait for unrelated games elsewhere in the
+            // week (e.g. Monday Night Football) if everyone involved
+            // already played Thursday or Sunday. Matches standard fantasy
+            // convention at the level that actually matters here: the
+            // specific matchup's own record, not the whole week as one unit.
+            const weekSchedule = this.cachedSchedule?.[currentWeek] || {};
+            const isPlayerDone = (sleeperId) => {
+                const player = sleeperId ? this.playersData[sleeperId] : null;
+                if (!player || !player.team) return false; // can't resolve - be conservative, don't declare final
+                const status = weekSchedule[player.team]?.status;
+                return status === 'post' || status === 'bye';
+            };
 
-            teams.push({
-                name: teamName,
-                players: duo.map(player => ({
-                    ...player,
-                    sleeperId: this.findPlayerInRoster(player, roster)
-                })),
-                sleeper_roster_id: roster ? roster.roster_id : null
-            });
-        });
+            const matchupIsFinal = {};
+            for (const [teamA, teamB] of brownBellMatchups) {
+                const playersInvolved = [
+                    ...(this.knownDuos.main?.[teamA] || []),
+                    ...(this.knownDuos.main?.[teamB] || [])
+                ].filter(Boolean);
 
-        Object.entries(this.knownDuos.nextup).forEach(([teamName, duo]) => {
-            const roster = this.leagueData.rosters.find(r =>
-                this.leagueData.userMap[r.owner_id] === teamName
-            );
+                // Zero players set on either side means there's no real
+                // matchup to speak of yet - don't vacuously call that final.
+                const allDone = playersInvolved.length > 0 &&
+                    playersInvolved.every(duoPlayer => isPlayerDone(duoPlayer.sleeperId));
 
-            nextUpTeams.push({
-                mainTeamName: teamName,
-                name: `${teamName} (Next Up)`,
-                players: duo.map(player => ({
-                    ...player,
-                    sleeperId: this.findPlayerInRoster(player, roster)
-                })),
-                sleeper_roster_id: roster ? roster.roster_id : null
-            });
-        });
+                matchupIsFinal[teamA] = allDone;
+                matchupIsFinal[teamB] = allDone;
+            }
 
-        const updatedData = {
-            version: '2.0',
+            // A matchup's OWN win/loss is genuinely decided as soon as its own
+            // 4 players are done (matchupIsFinal above) - that part doesn't
+            // depend on anything else. But the TIER and bonus AMOUNT come from
+            // ranking all 6 matchups' winning scores against each other in one
+            // shared sort (see computeBrownBellBonuses) - so a team's tier can
+            // still shift if a DIFFERENT, still-pending matchup elsewhere in
+            // the week later posts a score that reshuffles the ranking. The
+            // bonus amount isn't genuinely final until every matchup that
+            // week is done, even if this specific one already is.
+            const weekBonusIsStable = brownBellMatchups.length > 0 &&
+                brownBellMatchups.every(([teamA, teamB]) => matchupIsFinal[teamA] && matchupIsFinal[teamB]);
+
+            const isFinalByTeamName = {};
+            for (const teamName of Object.keys(matchupIsFinal)) {
+                isFinalByTeamName[teamName] = matchupIsFinal[teamName] && weekBonusIsStable;
+            }
+
+            await this.dataLayer.saveBonusResults(currentWeek, brownBellBonuses, isFinalByTeamName);
+        } else {
+            console.log(`No real score data yet for week ${currentWeek} - skipping bonus computation and clearing any stale results`);
+            await this.dataLayer.clearBonusResultsForWeek(currentWeek);
+        }
+
+        // Persist everything to Supabase - this replaces the single JSON file write.
+        // Substitutions and scores are the actual core of the automation and should
+        // always be saved. The schedule-change check is informational on top of that -
+        // if the schedule fetch failed entirely (network blip, external API hiccup),
+        // that should never take down the whole run, so it's skipped gracefully here
+        // rather than trying to save a null snapshot (which the DB correctly rejects).
+        //
+        // Note: processDuoSlots() above already wrote any new substitution log
+        // entries directly via dataLayer.logSubstitution() as they happened - this
+        // call only persists cleanupSubstitutions()'s in-memory fixups (e.g. an
+        // invalid date range correction) to the existing rows, nothing new.
+        await this.dataLayer.saveSubstitutions(cleanedSubstitutions);
+        await this.dataLayer.saveWeeklyScores(allScores, allPlayerIds, this.playersData, allWasBye);
+        if (scheduleSnapshotTeams) {
+            await this.dataLayer.saveScheduleSnapshot(currentWeek, scheduleSnapshotTeams, scheduleSnapshotCapturedAt);
+            await this.dataLayer.saveScheduleChanges(currentWeek, newlyDetectedChanges);
+        } else {
+            console.warn('⚠️ Skipping schedule snapshot/change save - schedule fetch returned no data this run');
+        }
+        if (currentWeek !== storedWeek) {
+            await this.dataLayer.setCurrentWeek(currentWeek);
+        }
+
+        const summary = {
+            version: '3.0',
             timestamp: new Date().toISOString(),
             currentWeek,
-            currentAward: 'main',
-            teams,
-            nextUpTeams,
-            scores: allScores.main,
-            nextUpScores: allScores.nextup,
-            substitutions: [...cleanedSubstitutions, ...newSubstitutions],
             sleeperLeagueId: this.leagueId,
-            lastAutomationRun: new Date().toISOString(),
             lastCheckpointType: checkpointType || 'ROUTINE_UPDATE',
             automationStats: {
                 scoresUpdated: Object.keys(allScores.main).length + Object.keys(allScores.nextup).length,
-                newSubstitutions: newSubstitutions.length,
-                totalSubstitutions: cleanedSubstitutions.length + newSubstitutions.length,
-                cleanedSubstitutions: existingData.substitutions.length - cleanedSubstitutions.length
+                duoSlotChanges: slotEvents.length,
+                scheduleChangesThisWeek: existingWeekChanges.length + newlyDetectedChanges.length
             }
         };
 
-        return updatedData;
+        return summary;
+    }
+
+    async testScheduleFetch(week) {
+        console.log('\n🧪 TESTING NFL SCHEDULE FETCH\n');
+
+        await this.initializeLeagueData();
+
+        const schedule = await this.fetchNFLSchedule(week);
+
+        if (!schedule) {
+            console.log('❌ Failed to fetch schedule');
+            return;
+        }
+
+        console.log(`\n📋 Week ${week} Schedule Summary:`);
+        console.log(`Total teams: ${Object.keys(schedule).length}`);
+
+        // Group by game time
+        const games = {};
+        Object.entries(schedule).forEach(([team, info]) => {
+            if (info.date === null) {
+                console.log(`🏖️ ${team}: BYE WEEK`);
+            } else {
+                const dateKey = info.date.toISOString();
+                if (!games[dateKey]) games[dateKey] = [];
+                games[dateKey].push(team);
+            }
+        });
+
+        // Show games in chronological order
+        const sortedTimes = Object.keys(games).sort();
+        sortedTimes.forEach(time => {
+            const date = new Date(time);
+            const teams = games[time];
+            console.log(`\n⏰ ${date.toLocaleString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                timeZone: 'America/New_York'
+            })} ET`);
+            console.log(`   Teams: ${teams.join(', ')}`);
+        });
+
+        // Test game started logic for a few teams
+        console.log('\n🔍 Testing Game Started Logic:');
+        const testTeams = ['PIT', 'CIN', 'BAL', 'BUF'];
+        for (const team of testTeams) {
+            // Find a player from this team
+            const player = Object.values(this.playersData).find(p => p.team === team);
+            if (player) {
+                const hasStarted = await this.hasPlayerGameStarted(player.player_id, week);
+                const status = schedule[team];
+                console.log(`${team} (${player.first_name} ${player.last_name}): Game started = ${hasStarted}, Status = ${status?.date ? 'Playing' : 'BYE'}`);
+            }
+        }
     }
 
     async run() {
         try {
             console.log('🏈 Starting Brown Bell automation...');
 
+            // generateCompleteData() persists everything to Supabase itself - there is
+            // no file to write here anymore, just the run summary for the Action log.
             const data = await this.generateCompleteData();
-
-            // Write to file
-            fs.writeFileSync('brown-bell-data.json', JSON.stringify(data, null, 2));
 
             console.log('✅ Automation complete!');
             console.log(`📊 Updated ${data.automationStats.scoresUpdated} team scores`);
-            console.log(`🔄 Generated ${data.automationStats.newSubstitutions} new substitutions`);
-            console.log(`🧹 Cleaned up ${data.automationStats.cleanedSubstitutions} invalid substitutions`);
+            console.log(`🔄 ${data.automationStats.duoSlotChanges} duo slot change(s) this run`);
+            console.log(`📅 Schedule changes flagged this week: ${data.automationStats.scheduleChangesThisWeek}`);
             console.log(`📅 Current week: ${data.currentWeek}`);
 
             return data;
@@ -1176,19 +2841,29 @@ class BrownBellAutomator {
     }
 }
 
-
-
 // Run automation
-const leagueId = process.env.SLEEPER_LEAGUE_ID || '1126351965879164928';
+const leagueId = process.env.SLEEPER_LEAGUE_ID || '1313661584425385984'; // 2026 season
 const automator = new BrownBellAutomator(leagueId);
 
 if (require.main === module) {
-    automator.run()
-        .then(() => process.exit(0))
-        .catch(error => {
-            console.error(error);
-            process.exit(1);
-        });
+    // TEST MODE: Set environment variable to test schedule fetch
+    if (process.env.TEST_SCHEDULE === 'true') {
+        const testWeek = parseInt(process.env.TEST_WEEK || '7');
+        automator.testScheduleFetch(testWeek)
+            .then(() => process.exit(0))
+            .catch(error => {
+                console.error(error);
+                process.exit(1);
+            });
+    } else {
+        // Normal automation
+        automator.run()
+            .then(() => process.exit(0))
+            .catch(error => {
+                console.error(error);
+                process.exit(1);
+            });
+    }
 }
 
 module.exports = BrownBellAutomator;
