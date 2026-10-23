@@ -462,16 +462,17 @@ class SupabaseDataLayer {
     // table was simply invisible to it. Pages through in batches of 1000
     // until a page comes back short (the real end of the table), rather
     // than relying on any single request to return everything.
-    async loadAllPlayerNewsForPruning() {
+    async loadAllPlayerNewsForPruning(sinceIso = null) {
         const PAGE_SIZE = 1000;
         const allRows = [];
         let from = 0;
 
         while (true) {
-            const { data, error } = await this.supabase
+            let query = this.supabase
                 .from('player_news')
-                .select('id, rotowire_guid, headline, source_name, sleeper_player_id, player_name')
-                .range(from, from + PAGE_SIZE - 1);
+                .select('id, rotowire_guid, headline, source_name, sleeper_player_id, player_name');
+            if (sinceIso) query = query.gte('fetched_at', sinceIso);
+            const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
 
             if (error) {
                 console.error('Failed to load player_news for pruning:', error.message);

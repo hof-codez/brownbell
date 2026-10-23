@@ -395,7 +395,13 @@ class BrownBellAutomator {
     // with no resolvable player/last name is left alone rather than
     // guessed at).
     async pruneDisqualifiedNews() {
-        const rows = await this.dataLayer.loadAllPlayerNewsForPruning();
+        // Recent window by default. Items are filtered before they are
+        // saved, so older rows already passed the current rules. The
+        // full table is re-checked once a week (Tuesday checkpoint) to
+        // catch a filter change made after items were saved.
+        const fullPass = process.env.CRON_SCHEDULE === '0 14 * * 2';
+        const sinceIso = fullPass ? null : new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+        const rows = await this.dataLayer.loadAllPlayerNewsForPruning(sinceIso);
         if (rows.length === 0) return;
 
         const disqualifiedIds = [];
@@ -3398,7 +3404,13 @@ class BrownBellAutomator {
         // Best-effort: fetchAndSavePlayerNews already logs its own errors
         // rather than throwing, so a hiccup here never blocks the actual
         // scoring run below.
-        await this.fetchAndSavePlayerNews();
+        // News is skipped on watchdog loop iterations (every 15 minutes
+        // through game windows). Each one re-fetched every news source
+        // and pruning re-read the whole player_news table, which is
+        // Supabase egress. Standalone checkpoints and manual runs still
+        // do all of it.
+        const skipNewsThisRun = true; // player news switched off (egress)
+        if (!skipNewsThisRun) await this.fetchAndSavePlayerNews();
 
         const seasonYear = Number(process.env.NFL_SEASON_YEAR || '2026');
         const { currentWeek: storedWeek } = await this.dataLayer.loadSeason(seasonYear, this.leagueId);
@@ -3408,7 +3420,7 @@ class BrownBellAutomator {
         // (offense only - see fetchAndSaveDepthChartLinks) rather than
         // waiting on the shared feed's tiny rolling window to randomly
         // surface each player. Best effort per team.
-        await this.fetchAndSaveDepthChartLinks();
+        if (!skipNewsThisRun) await this.fetchAndSaveDepthChartLinks();
 
         // Deeper, per-player news history for whichever of this league's
         // current duo players we've already learned a RotoWire URL for
@@ -3418,18 +3430,18 @@ class BrownBellAutomator {
         // profile page keeps a much fuller history. Best effort per
         // player - one player's page failing to parse never blocks the
         // others or the actual scoring run below.
-        await this.fetchAndSaveProfileNews();
+        if (!skipNewsThisRun) await this.fetchAndSaveProfileNews();
 
         // Per-player Google News search - covers ALL positions (including
         // defense/IDP, the one gap the two RotoWire paths above can't
         // close) at the cost of headline + source only, no factual
         // snippet. See fetchAndSaveGoogleNews for the full reasoning.
-        await this.fetchAndSaveGoogleNews();
+        if (!skipNewsThisRun) await this.fetchAndSaveGoogleNews();
 
         // Cleans up any already-saved item that no longer passes the
         // current filter rules above - see pruneDisqualifiedNews for why
         // this is necessary rather than optional.
-        await this.pruneDisqualifiedNews();
+        if (!skipNewsThisRun) await this.pruneDisqualifiedNews();
 
         const currentWeek = await this.getCurrentWeek();
         const currentDay = new Date().getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 4=Thursday
