@@ -202,7 +202,7 @@ begin
         where rostered and id not in (select x->>'id' from jsonb_array_elements(p_assets) x);
     get diagnostics dropped = row_count;
 
-    delete from tc_holdings;
+    delete from tc_holdings where true;
     insert into tc_holdings (asset_id, team_id)
     select x->>'asset_id', (x->>'team_id')::uuid
     from jsonb_array_elements(p_holdings) x
