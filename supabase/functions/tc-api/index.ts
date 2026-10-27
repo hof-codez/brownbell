@@ -32,7 +32,7 @@ async function authTeam(deviceToken: unknown): Promise<{ id: string; name: strin
   const { data: claim } = await db
     .from('team_claims')
     .select('team_id')
-    .contains('device_tokens', [{ token: deviceToken }])
+    .filter('device_tokens', 'cs', JSON.stringify([{ token: deviceToken }]))
     .maybeSingle();
   if (!claim) return null;
   const { data: team } = await db
