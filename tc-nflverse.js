@@ -61,3 +61,32 @@ async function loadSeasonRows(year, log) {
 
 
 module.exports = { parseCsv, loadSeasonRows };
+
+// nflverse players table: draft round and pick, draft year, birth date, keyed by gsis id.
+async function loadPlayers(log) {
+    const urls = [`${BASE}/players/players.csv`];
+    for (const url of urls) {
+        try {
+            const res = await fetch(url, { redirect: 'follow' });
+            if (!res.ok) { log.push(`players: ${res.status}`); continue; }
+            const [head, ...body] = parseCsv(await res.text());
+            const ix = Object.fromEntries(head.map((h, i) => [h, i]));
+            if (ix.gsis_id === undefined) { log.push(`players: no gsis_id, columns ${head.slice(0, 30).join('|')}`); continue; }
+            const out = new Map();
+            for (const r of body) {
+                const gsis = r[ix.gsis_id];
+                if (!gsis) continue;
+                const num = (k) => (ix[k] === undefined || r[ix[k]] === '' || r[ix[k]] === 'NA' ? null : Number(r[ix[k]]));
+                out.set(gsis, {
+                    draftYear: num('draft_year'), draftRound: num('draft_round'), draftPick: num('draft_pick'),
+                    birth: ix.birth_date !== undefined ? r[ix.birth_date] : null,
+                });
+            }
+            log.push(`players: ${out.size} rows, columns ${head.filter((h) => /draft|birth|rookie/.test(h)).join('|')}`);
+            return out;
+        } catch (e) { log.push(`players: ${e.message}`); }
+    }
+    return null;
+}
+
+module.exports.loadPlayers = loadPlayers;
