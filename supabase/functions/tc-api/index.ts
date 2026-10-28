@@ -193,6 +193,9 @@ Deno.serve(async (req) => {
         roster.set(h.team_id, list);
       }
 
+      const { data: status } = await db.from('tc_team_status').select('team_id, wins, losses, ties, rank, size');
+      const record = new Map((status ?? []).map((r: any) => [r.team_id, { w: r.wins, l: r.losses, t: r.ties, rank: r.rank, size: r.size }]));
+
       const cutoff = arizonaDayStart().toISOString();
       const { data: stats, error: statsErr } = await db.rpc('tc_vote_traits', { p_cutoff: cutoff });
       if (statsErr) throw statsErr;
@@ -205,6 +208,7 @@ Deno.serve(async (req) => {
             teamId: t.id,
             name: t.display_name,
             roster: roster.get(t.id) ?? [],
+            record: record.get(t.id) ?? null,
             confidence: profile.confidence,
             traits: profile.traits,
             lean: profile.lean,

@@ -15,7 +15,7 @@ const { parseTrades } = require('./tc-trades');
 
 const { loadSeasonRows } = require('./tc-nflverse');
 const { predictUsage } = require('./tc-usage');
-const { buildTeamPicks } = require('./tc-picks');
+const { buildTeamPicks, projectedSlots } = require('./tc-picks');
 const { rosterBefore, ppgThrough, pickBasis, txTime } = require('./tc-snapshots');
 const SLEEPER = 'https://api.sleeper.app/v1';
 const POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
@@ -122,6 +122,22 @@ async function main() {
         tradedPicks,
     });
     console.log(`${teamPicks.assets.length} team picks, ${tradedPicks.length} traded`);
+    // Record and rank per team, for the calculator's contender or builder guess. Best effort.
+    try {
+        const standings = rosters.map((r) => ({
+            rosterId: r.roster_id, wins: r.settings?.wins || 0, losses: r.settings?.losses || 0, ties: r.settings?.ties || 0,
+            pointsFor: (r.settings?.fpts || 0) + (r.settings?.fpts_decimal || 0) / 100,
+        }));
+        const { slots, size } = projectedSlots(standings);
+        const rowsTs = standings.map((s) => {
+            const t = teams.find((x) => String(x.sleeper_roster_id) === String(s.rosterId));
+            return t ? { team_id: t.id, wins: s.wins, losses: s.losses, ties: s.ties, points_for: s.pointsFor, rank: size - slots.get(String(s.rosterId)) + 1, size, updated_at: new Date().toISOString() } : null;
+        }).filter(Boolean);
+        const { error: tsErr } = await db.from('tc_team_status').upsert(rowsTs, { onConflict: 'team_id' });
+        if (tsErr) throw tsErr;
+    } catch (e) {
+        console.log('Team status skipped:', e.message || e);
+    }
     const assets = [
         ...valued.map((p) => ({
             id: `p:${p.id}`, kind: 'player', name: p.name, position: p.position,
