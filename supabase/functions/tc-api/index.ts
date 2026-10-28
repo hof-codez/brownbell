@@ -390,12 +390,17 @@ Deno.serve(async (req) => {
       const [{ data: s }, { data: season }, { data: rows, error }] = await Promise.all([
         db.from('tc_settings').select('lineup_slots, last_regular_week').eq('id', 1).single(),
         db.from('seasons').select('current_week').eq('is_active', true).order('year', { ascending: false }).limit(1).maybeSingle(),
-        db.from('tc_player_status').select('asset_id, ppg, games, injury_status, bye_week'),
+        db.from('tc_player_status').select('asset_id, ppg, games, injury_status, bye_week, proj_ppg, usage_gap, usage_games'),
       ]);
       if (error) throw error;
-      const players: Record<string, { ppg: number | null; games: number; inj: string | null; bye: number | null }> = {};
+      const players: Record<string, { ppg: number | null; games: number; inj: string | null; bye: number | null; proj: number | null; gap: number | null; ug: number | null }> = {};
       for (const r of rows ?? []) {
-        players[r.asset_id] = { ppg: r.ppg === null ? null : Number(r.ppg), games: r.games, inj: r.injury_status, bye: r.bye_week };
+        players[r.asset_id] = {
+          ppg: r.ppg === null ? null : Number(r.ppg), games: r.games, inj: r.injury_status, bye: r.bye_week,
+          proj: r.proj_ppg === null ? null : Number(r.proj_ppg),
+          gap: r.usage_gap === null ? null : Number(r.usage_gap),
+          ug: r.usage_games,
+        };
       }
       return json({
         slots: s?.lineup_slots ?? [],

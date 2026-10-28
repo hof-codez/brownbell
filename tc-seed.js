@@ -13,6 +13,8 @@ const { createClient } = require('@supabase/supabase-js');
 const { CONFIG, valuePlayers } = require('./tc-valuation');
 const { parseTrades } = require('./tc-trades');
 
+const { loadSeasonRows } = require('./tc-nflverse');
+const { predictUsage } = require('./tc-usage');
 const { buildTeamPicks } = require('./tc-picks');
 const { rosterBefore, ppgThrough, pickBasis, txTime } = require('./tc-snapshots');
 const SLEEPER = 'https://api.sleeper.app/v1';
@@ -218,10 +220,44 @@ async function syncLineupData(db, leagueId, season, valued, allPlayers, statsNow
     const byes = await byeWeeks(season.year);
     console.log(`Lineup slots: ${slots.join(',') || '(none found)'}; bye weeks found for ${Object.keys(byes).length} teams`);
 
+    // Usage signals: what each player's touches say he should score, from nflverse and the fitted model.
+    // Best effort. Without them the app falls back to plain points per game.
+    const usage = new Map();
+    try {
+        const { data: cfg } = await db.from('tc_settings').select('usage_model').eq('id', 1).single();
+        const models = cfg?.usage_model?.models;
+        if (models) {
+            const log = [];
+            const nfl = await loadSeasonRows(season.year, log);
+            console.log(`nflverse ${log.join('; ')}`);
+            const byGsis = new Map();
+            for (const [pid, raw] of Object.entries(allPlayers)) if (raw.gsis_id) byGsis.set(raw.gsis_id, pid);
+            for (const r of nfl || []) {
+                const pid = byGsis.get(r.pid);
+                const m = models[r.pos];
+                if (!pid || !m) continue;
+                const u = predictUsage(m, r);
+                usage.set(pid, { u, gap: r.ppg - u, games: r.games, targets: r.targets, carries: r.carries, cur: r.ppg });
+            }
+            console.log(`Usage signals for ${usage.size} players`);
+        }
+    } catch (e) {
+        console.log('Usage signals skipped:', e.message || e);
+    }
+
     const rows = valued.map((p) => {
       const raw = allPlayers[p.id] || {};
       const st = statsNow[p.id];
+      const us = usage.get(p.id);
+      const ppgNow = st && st.games > 0 ? st.points / st.games : null;
+      const r2 = (v) => (v === null || v === undefined ? null : Math.round(v * 100) / 100);
       return {
+        usage_ppg: us ? r2(us.u) : null,
+        usage_gap: us ? r2(us.gap) : null,
+        usage_games: us ? us.games : null,
+        targets_pg: us ? r2(us.targets) : null,
+        carries_pg: us ? r2(us.carries) : null,
+        proj_ppg: us ? r2(ppgNow === null ? us.u : (ppgNow + us.u) / 2) : null,
         asset_id: `p:${p.id}`,
         ppg: st && st.games > 0 ? Math.round((st.points / st.games) * 100) / 100 : null,
         games: st ? st.games : 0,
