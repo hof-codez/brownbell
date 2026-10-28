@@ -43,3 +43,20 @@ test('arizona day starts at 07:00 UTC', () => {
   assert.equal(arizonaDayStart(new Date('2026-10-27T20:00:00Z')).toISOString(), '2026-10-27T07:00:00.000Z');
   assert.equal(arizonaDayStart(new Date('2026-10-27T03:00:00Z')).toISOString(), '2026-10-26T07:00:00.000Z');
 });
+
+test('trade votes count toward the early read', () => {
+  const p = buildProfile([row('_all', 12, 0), row('consolidate', 8, 6)]);
+  assert.equal(p.confidence, 'early');
+  assert.ok(p.traits.some((x) => x.key === 'consolidator'));
+});
+
+test('depth builder when spreading is the stronger lean', () => {
+  const p = buildProfile([row('_all', 12, 0), row('consolidate', 6, -2), row('spread', 8, 6)]);
+  assert.ok(p.traits.some((x) => x.key === 'depth-builder'));
+  assert.ok(!p.traits.some((x) => x.key === 'consolidator'));
+});
+
+test('consensus label needs at least 8 ballots', () => {
+  const p = buildProfile([row('_all', 12, 0), row('_votes', 5, 5)]);
+  assert.ok(!p.traits.some((x) => x.key === 'consensus'));
+});

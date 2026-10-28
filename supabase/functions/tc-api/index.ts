@@ -1,5 +1,5 @@
 // tc-api: the one Edge Function behind the league trade calculator app.
-// Actions: teams, me, values, ballot, vote, league.
+// Actions: teams, me, values, ballot, vote, league, desk, desk_vote.
 // Auth reuses Brown Bell team claims: the app claims a team through the existing
 // claim-team function, then sends the deviceToken it gets back with every call.
 //
@@ -7,6 +7,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0';
 import { pickBallot } from './ballot.ts';
+import { buildOffer, signOffer, verifyOffer } from './offer.ts';
 import { MIN_EARLY, MIN_SOLID, arizonaDayStart, buildProfile, groupRowsByTeam } from './profile.ts';
 
 const CORS = {
@@ -67,16 +68,41 @@ async function selfPreview(teamId: string) {
   if (error) throw error;
   const rows = groupRowsByTeam(data ?? []).get(teamId) ?? [];
   const profile = buildProfile(rows);
-  const total = rows.find((r) => r.grp === '_votes')?.n ?? 0;
+  const total = rows.find((r) => r.grp === '_all')?.n ?? 0;
   return { totalVotes: total, confidence: profile.confidence, traits: profile.traits, lean: profile.lean };
 }
 
-let settingsCache: { at: number; full: number } | null = null;
-async function fullWeightVotes(): Promise<number> {
-  if (settingsCache && Date.now() - settingsCache.at < 60_000) return settingsCache.full;
-  const { data } = await db.from('tc_settings').select('full_weight_votes').eq('id', 1).single();
-  settingsCache = { at: Date.now(), full: data?.full_weight_votes ?? 5 };
-  return settingsCache.full;
+let settingsCache: { at: number; full: number; star: number } | null = null;
+async function loadSettings() {
+  if (settingsCache && Date.now() - settingsCache.at < 60_000) return settingsCache;
+  const { data } = await db.from('tc_settings').select('full_weight_votes, star_premium').eq('id', 1).single();
+  settingsCache = {
+    at: Date.now(),
+    full: data?.full_weight_votes ?? 5,
+    star: Number(data?.star_premium ?? 0.3),
+  };
+  return settingsCache;
+}
+const fullWeightVotes = async () => (await loadSettings()).full;
+
+const SIGNING_SECRET = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+// One message per vote at most. Profile unlocks come first, then the weight note.
+function milestoneFor(result: { votesLeft: number; dayVotes: number; totalVotes: number }, fullN: number) {
+  if (result.totalVotes === MIN_EARLY) return 'early';
+  if (result.totalVotes === MIN_SOLID) return 'solid';
+  if (result.dayVotes === fullN && result.votesLeft > 0) return 'weight';
+  return null;
+}
+
+function voteError(error: { message?: string }) {
+  const msg = error.message ?? '';
+  if (msg.includes('daily_limit')) return json({ error: 'daily_limit', votesLeft: 0 }, 429);
+  if (msg.includes('own_asset')) return json({ error: 'own_asset' }, 400);
+  if (msg.includes('bad_assets')) return json({ error: 'bad_assets' }, 400);
+  if (msg.includes('already_voted')) return json({ error: 'already_voted' }, 409);
+  if (msg.includes('bad_request')) return json({ error: 'bad_request' }, 400);
+  return null;
 }
 
 function publicAsset(a: any) {
@@ -248,27 +274,111 @@ Deno.serve(async (req) => {
         p_cut: cut,
       });
       if (error) {
-        const msg = error.message ?? '';
-        if (msg.includes('daily_limit')) return json({ error: 'daily_limit', votesLeft: 0 }, 429);
-        if (msg.includes('own_asset')) return json({ error: 'own_asset' }, 400);
-        if (msg.includes('bad_assets')) return json({ error: 'bad_assets' }, 400);
+        const known = voteError(error);
+        if (known) return known;
         throw error;
       }
       poolCache = null;
       const result = data as { votesLeft: number; dayVotes: number; weight: number; totalVotes: number };
-      const fullN = await fullWeightVotes();
-      // one message per vote at most. Profile unlocks come first, then the weight note.
-      let milestone: 'early' | 'solid' | 'weight' | null = null;
-      if (result.totalVotes === MIN_EARLY) milestone = 'early';
-      else if (result.totalVotes === MIN_SOLID) milestone = 'solid';
-      else if (result.dayVotes === fullN && result.votesLeft > 0) milestone = 'weight';
       return json({
         ok: true,
         votesLeft: result.votesLeft,
         dayVotes: result.dayVotes,
         weight: result.weight,
-        milestone,
+        milestone: milestoneFor(result, await fullWeightVotes()),
         preview: await selfPreview(team.id),
+      });
+    }
+
+    // ---- desk: the next thing to judge. Mostly made-up offers, sometimes a real trade ----
+    if (action === 'desk') {
+      const { data: left } = await db.rpc('tc_votes_left', { p_team: team.id });
+      if ((left ?? 0) <= 0) return json({ error: 'daily_limit', votesLeft: 0 }, 429);
+
+      const pool = await loadPool();
+      const byId = new Map(pool.map((a: any) => [a.id, a]));
+      const shape = (ids: string[]) => ids.map((id) => byId.get(id)).filter(Boolean).map(publicAsset);
+
+      if (Math.random() < 0.25) {
+        const { data: real } = await db.rpc('tc_next_real_trade', { p_team: team.id });
+        const t = Array.isArray(real) ? real[0] : real;
+        if (t) {
+          return json({
+            kind: 'real',
+            id: t.id,
+            year: new Date(t.happened_at).getUTCFullYear(),
+            aGave: shape(t.side_a),
+            bGave: shape(t.side_b),
+            votesLeft: left,
+          });
+        }
+      }
+
+      const { data: held } = await db.from('tc_holdings').select('asset_id').eq('team_id', team.id);
+      const mine = new Set((held ?? []).map((h: any) => h.asset_id));
+      const { star } = await loadSettings();
+      const offer = buildOffer(pool.filter((a: any) => !mine.has(a.id)), star);
+      if (!offer) return json({ error: 'not_enough_assets' }, 409);
+      const { exp, sig } = await signOffer(SIGNING_SECRET, team.id, offer);
+      return json({
+        kind: 'offer',
+        receive: shape(offer.receive),
+        give: shape(offer.give),
+        exp,
+        sig,
+        votesLeft: left,
+      });
+    }
+
+    if (action === 'desk_vote') {
+      const kind = body.kind;
+      let x: string[];
+      let y: string[];
+      let outcome: number;
+      let realId: string | null = null;
+
+      if (kind === 'offer') {
+        const receive = body.receive, give = body.give;
+        if (![receive, give].every((l) => Array.isArray(l) && l.every((v: unknown) => typeof v === 'string'))) {
+          return json({ error: 'bad_request' }, 400);
+        }
+        if (!(await verifyOffer(SIGNING_SECRET, team.id, { receive, give }, Number(body.exp), body.sig))) {
+          return json({ error: 'offer_expired' }, 400);
+        }
+        outcome = ({ accept: 1, even: 0, decline: -1 } as Record<string, number>)[body.outcome];
+        x = receive;
+        y = give;
+      } else if (kind === 'real') {
+        if (typeof body.id !== 'string') return json({ error: 'bad_request' }, 400);
+        const { data: t } = await db.from('tc_real_trades').select('side_a, side_b').eq('id', body.id).maybeSingle();
+        if (!t) return json({ error: 'bad_assets' }, 400);
+        outcome = ({ a: 1, even: 0, b: -1 } as Record<string, number>)[body.outcome];
+        x = t.side_b; // what Team A received
+        y = t.side_a; // what Team A gave
+        realId = body.id;
+      } else {
+        return json({ error: 'bad_request' }, 400);
+      }
+      if (outcome === undefined) return json({ error: 'bad_request' }, 400);
+
+      const { data, error } = await db.rpc('tc_cast_trade_vote', {
+        p_team: team.id, p_kind: kind, p_x: x, p_y: y, p_outcome: outcome, p_real_id: realId,
+      });
+      if (error) {
+        const known = voteError(error);
+        if (known) return known;
+        throw error;
+      }
+      poolCache = null;
+      const result = data as { votesLeft: number; dayVotes: number; weight: number; totalVotes: number; split: unknown };
+      return json({
+        ok: true,
+        votesLeft: result.votesLeft,
+        dayVotes: result.dayVotes,
+        weight: result.weight,
+        milestone: milestoneFor(result, await fullWeightVotes()),
+        preview: await selfPreview(team.id),
+        split: result.split ?? null,
       });
     }
 

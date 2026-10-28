@@ -33,15 +33,17 @@ const POSITIONS = ['QB', 'RB', 'WR', 'TE'];
 const clamp = (x: number) => Math.max(-1, Math.min(1, x));
 
 export function buildProfile(rows: TraitRow[]): VotingProfile {
+  // '_all' counts every vote of any kind. '_votes' is ballots only and carries how often
+  // the owner ranked three assets exactly like the league did.
   const votesRow = rows.find((r) => r.grp === '_votes');
-  const votes = votesRow?.n ?? 0;
+  const votes = rows.find((r) => r.grp === '_all')?.n ?? votesRow?.n ?? 0;
   if (votes < MIN_EARLY) return { confidence: 'none', traits: [], lean: {} };
   const confidence: Confidence = votes >= MIN_SOLID ? 'solid' : 'early';
 
   const lean: Record<string, number> = {};
   const count: Record<string, number> = {};
   for (const r of rows) {
-    if (r.grp === '_votes') continue;
+    if (r.grp === '_votes' || r.grp === '_all') continue;
     count[r.grp] = r.n;
     // a group's gap is at most 2 per appearance, so /2 keeps the bar inside -1..1
     lean[r.grp] = clamp(r.resid / (r.n + SHRINK) / 2);
@@ -73,8 +75,17 @@ export function buildProfile(rows: TraitRow[]): VotingProfile {
     else if (v <= -0.12) traits.push({ key: `fades-${p}`, label: `Fades ${p}s`, detail: `Ranks ${p}s below where the league does.` });
   }
 
-  // consensus
-  if (votesRow) {
+  // how they judge many-for-one and one-for-many trades
+  const consolidate = has('consolidate', 5) ? lean.consolidate : 0;
+  const spread = has('spread', 5) ? lean.spread : 0;
+  if (consolidate >= 0.1 && consolidate >= spread) {
+    traits.push({ key: 'consolidator', label: 'Consolidator', detail: 'Likes turning several good players into one star.' });
+  } else if (spread >= 0.1) {
+    traits.push({ key: 'depth-builder', label: 'Depth builder', detail: 'Likes getting several players for one star.' });
+  }
+
+  // consensus (ballots only, needs enough of them to mean something)
+  if (votesRow && votesRow.n >= 8) {
     const rate = votesRow.resid / votesRow.n; // share of ballots ranked exactly like the league
     if (rate >= 0.4) traits.push({ key: 'consensus', label: 'Follows the league', detail: 'Usually ranks assets the way the league does.' });
     else if (rate <= 0.08) traits.push({ key: 'contrarian', label: 'Contrarian', detail: 'Rarely ranks assets the way the league does.' });

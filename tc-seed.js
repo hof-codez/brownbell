@@ -11,6 +11,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { CONFIG, valuePlayers, buildPicks } = require('./tc-valuation');
+const { parseTrades } = require('./tc-trades');
 
 const SLEEPER = 'https://api.sleeper.app/v1';
 const POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
@@ -59,7 +60,7 @@ async function main() {
         .order('year', { ascending: false }).limit(1).single();
     if (sErr) throw sErr;
     const { data: teams, error: tErr } = await db
-        .from('teams').select('id, sleeper_roster_id').eq('season_id', season.id);
+        .from('teams').select('id, sleeper_roster_id, sleeper_owner_id').eq('season_id', season.id);
     if (tErr) throw tErr;
     const teamByRoster = new Map(teams.map((t) => [String(t.sleeper_roster_id), t.id]));
 
@@ -112,6 +113,51 @@ async function main() {
     const { data, error } = await db.rpc('tc_sync_assets', { p_assets: assets, p_holdings: holdings });
     if (error) throw error;
     console.log('Synced:', JSON.stringify(data));
+
+    // Real trades from this league and the seasons before it, for the Offer Desk.
+    // A failure here must not undo the asset sync above, so it only logs.
+    try {
+        const ownerToTeam = new Map(teams.map((t) => [String(t.sleeper_owner_id), t.id]));
+        const validAssets = new Set(assets.map((a) => a.id));
+        const trades = await collectTrades(SLEEPER_LEAGUE_ID, ownerToTeam, validAssets);
+        const { data: n, error: tErr } = await db.rpc('tc_sync_real_trades', { p_trades: trades });
+        if (tErr) throw tErr;
+        console.log(`Real trades usable for voting: ${trades.length} (rows written: ${n})`);
+    } catch (e) {
+        console.log('Real trade sync skipped:', e.message || e);
+    }
+}
+
+// Walks back through previous seasons (up to 3 extra) and parses every trade.
+async function collectTrades(leagueId, ownerToTeam, validAssets) {
+    const all = [];
+    let id = leagueId;
+    for (let seasonsBack = 0; id && seasonsBack < 4; seasonsBack++) {
+        let league;
+        let rosters;
+        try {
+            [league, rosters] = await Promise.all([
+                getJson(`${SLEEPER}/league/${id}`),
+                getJson(`${SLEEPER}/league/${id}/rosters`),
+            ]);
+        } catch (e) {
+            console.log(`  league ${id} not readable (${e.message})`);
+            break;
+        }
+        const rosterOwner = new Map(rosters.map((r) => [r.roster_id, String(r.owner_id)]));
+        const txs = [];
+        for (let round = 0; round <= 18; round++) {
+            try {
+                const list = await getJson(`${SLEEPER}/league/${id}/transactions/${round}`);
+                for (const t of list || []) if (t.type === 'trade') txs.push(t);
+            } catch { /* some rounds are empty or missing */ }
+        }
+        const parsed = parseTrades(txs, { rosterOwner, ownerToTeam, validAssets });
+        console.log(`  league ${id} (${league.season}): ${txs.length} trades, ${parsed.length} usable`);
+        all.push(...parsed);
+        id = league.previous_league_id && league.previous_league_id !== '0' ? league.previous_league_id : null;
+    }
+    return all;
 }
 
 main().catch((e) => { console.error('tc-seed failed:', e.message || e); process.exit(1); });
