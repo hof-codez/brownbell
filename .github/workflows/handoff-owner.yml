@@ -1,0 +1,43 @@
+name: Hand Team To New Owner
+
+on:
+  workflow_dispatch:
+    inputs:
+      roster_id:
+        description: 'Sleeper roster number (MikeLarry25 is 10)'
+        required: true
+      new_username:
+        description: 'New owner Sleeper username'
+        required: true
+      change_week:
+        description: 'First week the new owner is in charge'
+        required: true
+      reason:
+        description: 'Note for the manager change log'
+        required: false
+        default: 'Team taken over by a new owner'
+      dry_run:
+        description: 'Only print the plan, change nothing'
+        type: boolean
+        default: true
+
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save @supabase/supabase-js@^2.45.0
+      - name: Hand off team
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SLEEPER_LEAGUE_ID: ${{ secrets.SLEEPER_LEAGUE_ID }}
+          ROSTER_ID: ${{ inputs.roster_id }}
+          NEW_USERNAME: ${{ inputs.new_username }}
+          CHANGE_WEEK: ${{ inputs.change_week }}
+          REASON: ${{ inputs.reason }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node handoff-owner.js
