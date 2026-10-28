@@ -7,7 +7,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0';
 import { pickBallot } from './ballot.ts';
-import { arizonaDayStart, buildProfile, groupRowsByTeam } from './profile.ts';
+import { MIN_EARLY, MIN_SOLID, arizonaDayStart, buildProfile, groupRowsByTeam } from './profile.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -56,6 +56,27 @@ async function loadPool() {
   if (error) throw error;
   poolCache = { at: Date.now(), rows: data ?? [] };
   return poolCache.rows;
+}
+
+// The voter's own read, including votes cast today. Only ever returned to that voter.
+async function selfPreview(teamId: string) {
+  const { data, error } = await db.rpc('tc_vote_traits', {
+    p_cutoff: new Date(Date.now() + 60_000).toISOString(),
+    p_team: teamId,
+  });
+  if (error) throw error;
+  const rows = groupRowsByTeam(data ?? []).get(teamId) ?? [];
+  const profile = buildProfile(rows);
+  const total = rows.find((r) => r.grp === '_votes')?.n ?? 0;
+  return { totalVotes: total, confidence: profile.confidence, traits: profile.traits, lean: profile.lean };
+}
+
+let settingsCache: { at: number; full: number } | null = null;
+async function fullWeightVotes(): Promise<number> {
+  if (settingsCache && Date.now() - settingsCache.at < 60_000) return settingsCache.full;
+  const { data } = await db.from('tc_settings').select('full_weight_votes').eq('id', 1).single();
+  settingsCache = { at: Date.now(), full: data?.full_weight_votes ?? 5 };
+  return settingsCache.full;
 }
 
 function publicAsset(a: any) {
@@ -116,7 +137,12 @@ Deno.serve(async (req) => {
 
     if (action === 'me') {
       const { data: left } = await db.rpc('tc_votes_left', { p_team: team.id });
-      return json({ teamId: team.id, name: team.name, votesLeft: Math.max(0, left ?? 0) });
+      return json({
+        teamId: team.id,
+        name: team.name,
+        votesLeft: Math.max(0, left ?? 0),
+        preview: await selfPreview(team.id),
+      });
     }
 
     // ---- league: every roster plus each owner's voting profile ---------------
@@ -175,6 +201,7 @@ Deno.serve(async (req) => {
         publishedAt: s.published_at,
         starPremium: Number(s.star_premium),
         maxVotesPerDay: s.max_votes_per_day,
+        fullWeightVotes: s.full_weight_votes,
         votesLeft: Math.max(0, left ?? 0),
       };
       if (body.since === s.version) return json({ ...base, unchanged: true });
@@ -228,7 +255,21 @@ Deno.serve(async (req) => {
         throw error;
       }
       poolCache = null;
-      return json({ ok: true, votesLeft: data });
+      const result = data as { votesLeft: number; dayVotes: number; weight: number; totalVotes: number };
+      const fullN = await fullWeightVotes();
+      // one message per vote at most. Profile unlocks come first, then the weight note.
+      let milestone: 'early' | 'solid' | 'weight' | null = null;
+      if (result.totalVotes === MIN_EARLY) milestone = 'early';
+      else if (result.totalVotes === MIN_SOLID) milestone = 'solid';
+      else if (result.dayVotes === fullN && result.votesLeft > 0) milestone = 'weight';
+      return json({
+        ok: true,
+        votesLeft: result.votesLeft,
+        dayVotes: result.dayVotes,
+        weight: result.weight,
+        milestone,
+        preview: await selfPreview(team.id),
+      });
     }
 
     return json({ error: 'unknown_action' }, 400);
