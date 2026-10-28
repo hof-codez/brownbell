@@ -6,7 +6,7 @@
 // - Refreshes who owns which player so voters are not shown their own guys
 //
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SLEEPER_LEAGUE_ID
-// Optional: TC_SCORING_KEY (default pts_ppr), TC_SUPERFLEX (default true)
+// Optional: TC_SCORING_KEY (default pts_ppr), TC_SUPERFLEX (default false, set true for superflex)
 // Run: node tc-seed.js
 
 const { createClient } = require('@supabase/supabase-js');
@@ -16,7 +16,7 @@ const { parseTrades } = require('./tc-trades');
 const SLEEPER = 'https://api.sleeper.app/v1';
 const POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
 const SCORING_KEY = process.env.TC_SCORING_KEY || 'pts_ppr';
-if (process.env.TC_SUPERFLEX === 'false') CONFIG.superflex = false;
+if (process.env.TC_SUPERFLEX === 'true') CONFIG.superflex = true;
 
 async function getJson(url) {
     const res = await fetch(url);

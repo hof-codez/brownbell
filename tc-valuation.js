@@ -4,7 +4,7 @@
 // Scale: 0 to 10000, the best asset sits near 10000.
 
 const CONFIG = {
-    superflex: true,            // false shrinks QB value
+    superflex: false,           // this league: 1 QB, no superflex. true raises QB value
     qbWeightNonSuperflex: 0.7,
     curve: 1.6,                 // steepness: higher makes stars worth far more than depth
     priorSeasonWeight: 0.6,     // last season counts this much per game vs this season
