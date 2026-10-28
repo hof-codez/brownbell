@@ -18,7 +18,7 @@ const handIndex = (pos, age) => {
     const v = HAND[pos];
     return v[Math.max(0, Math.min(v.length - 1, Math.floor(age) - FROM))];
 };
-const bandOf = (age) => BANDS.find(([, lo, hi]) => age >= lo && age <= hi)[0];
+const bandOf = (age) => { const b = BANDS.find(([, lo, hi]) => Math.floor(age) >= lo && Math.floor(age) <= hi); return b ? b[0] : 'vet'; };
 
 const pct = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(q * (sorted.length - 1))))];
 
@@ -33,7 +33,7 @@ function spreadModel(seasons) {
             if (!now || !later) continue;
             const nextBy = new Map(later.map((r) => [r.pid, r]));
             for (const r of now) {
-                if (!RELEVANT_PPG[r.pos] || r.games < MIN_GAMES || r.ppg < RELEVANT_PPG[r.pos] || r.age < 21) continue;
+                if (!RELEVANT_PPG[r.pos] || r.games < MIN_GAMES || r.ppg < RELEVANT_PPG[r.pos] || r.age < 21 || r.age > 45) continue;
                 const n = nextBy.get(r.pid);
                 pairs.push({ pos: r.pos, band: bandOf(r.age), age: r.age, cur: r.ppg, next: n && n.games >= MIN_NEXT_GAMES ? n.ppg : REPLACEMENT });
             }
