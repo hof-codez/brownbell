@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useActivityLog } from '../hooks/useActivityLog';
+import { TradeFeedSection } from './TradeFeedSection';
+import { loadCachedClaim } from '../lib/deviceStorage';
 import type { ActivityBadge } from '../hooks/useActivityLog';
 import { useStatCorrections } from '../hooks/useStatCorrections';
 import type { Team } from '../types';
@@ -146,6 +148,8 @@ export function HistoryTab({ teams, teamFilter, onClearFilter }: HistoryTabProps
             )}
 
             <StatCorrectionsSection teams={teams} selectedWeek={selectedWeek} teamFilter={teamFilter} />
+
+            {loadCachedClaim() && <TradeFeedSection />}
 
             {loading ? (
                 <p className="font-body text-sm text-chalk-dim">Loading activity log&hellip;</p>

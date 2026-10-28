@@ -1,5 +1,5 @@
 // tc-api: the one Edge Function behind the league trade calculator app.
-// Actions: teams, me, values, ballot, vote, league, desk, desk_vote.
+// Actions: teams, me, values, ballot, vote, league, desk, desk_vote, trade_feed.
 // Auth reuses Brown Bell team claims: the app claims a team through the existing
 // claim-team function, then sends the deviceToken it gets back with every call.
 //
@@ -379,6 +379,64 @@ Deno.serve(async (req) => {
         milestone: milestoneFor(result, await fullWeightVotes()),
         preview: await selfPreview(team.id),
         split: result.split ?? null,
+      });
+    }
+
+    // ---- trade_feed: recent real league trades with a fairness read (used by Brown Bell) ----
+    // Uses published values only, so it never leaks live (unpublished) ratings.
+    if (action === 'trade_feed') {
+      const { data: trades, error: tErr } = await db
+        .from('tc_real_trades')
+        .select('id, happened_at, side_a, side_b, team_a, team_b')
+        .order('happened_at', { ascending: false })
+        .limit(20);
+      if (tErr) throw tErr;
+      const list = trades ?? [];
+
+      const assetIds = [...new Set(list.flatMap((t: any) => [...t.side_a, ...t.side_b]))];
+      const teamIds = [...new Set(list.flatMap((t: any) => [t.team_a, t.team_b]).filter(Boolean))];
+      const { data: assets } = assetIds.length
+        ? await db.from('tc_assets').select('id, kind, name, position, pick_year, pick_round, published_rating').in('id', assetIds)
+        : { data: [] as any[] };
+      const { data: teamRows } = teamIds.length
+        ? await db.from('teams').select('id, display_name').in('id', teamIds)
+        : { data: [] as any[] };
+      const aById = new Map((assets ?? []).map((a: any) => [a.id, a]));
+      const tName = new Map((teamRows ?? []).map((t: any) => [t.id, t.display_name]));
+      const { star } = await loadSettings();
+      const adj = (v: number) => 10000 * Math.pow(Math.max(0, v) / 10000, 1 + star);
+
+      const side = (ids: string[]) => {
+        const items = ids.map((id) => aById.get(id)).filter(Boolean) as any[];
+        return {
+          items: items.map((a) => ({
+            id: a.id,
+            name: a.name,
+            position: a.position,
+            pickYear: a.pick_year,
+            pickRound: a.pick_round,
+            value: Math.round(a.published_rating),
+          })),
+          total: items.reduce((s, a) => s + adj(a.published_rating), 0),
+        };
+      };
+
+      return json({
+        trades: list.map((t: any) => {
+          const gaveA = side(t.side_a); // team A sent these, team B received them
+          const gaveB = side(t.side_b);
+          const hi = Math.max(gaveA.total, gaveB.total);
+          // positive gap = team A came out ahead (received more value than it sent)
+          const gap = hi > 0 ? (gaveB.total - gaveA.total) / hi : 0;
+          return {
+            id: t.id,
+            happenedAt: t.happened_at,
+            teamA: { id: t.team_a, name: tName.get(t.team_a) ?? 'Unknown team', gave: gaveA.items },
+            teamB: { id: t.team_b, name: tName.get(t.team_b) ?? 'Unknown team', gave: gaveB.items },
+            winner: Math.abs(gap) < 0.1 ? 'even' : gap > 0 ? 'a' : 'b',
+            gapPct: Math.round(Math.abs(gap) * 100),
+          };
+        }),
       });
     }
 

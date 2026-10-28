@@ -1,5 +1,7 @@
 import type { Season } from '../types';
 import { getCurrentWeek } from '../lib/displayWeek';
+import { calculatorHref } from '../lib/calculatorLink';
+import { loadCachedClaim } from '../lib/deviceStorage';
 
 export function Header({ season }: { season: Season | null }) {
   return (
@@ -13,6 +15,14 @@ export function Header({ season }: { season: Season | null }) {
           <p className="mt-2 font-body text-sm text-chalk-dim">
             {season.year} season &middot; Week {getCurrentWeek(season.current_week)}
           </p>
+        )}
+        {loadCachedClaim() && (
+          <a
+            href={calculatorHref()}
+            className="mt-3 inline-block rounded border border-bell/60 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-bell"
+          >
+            Trade values &rarr;
+          </a>
         )}
       </div>
     </header>
