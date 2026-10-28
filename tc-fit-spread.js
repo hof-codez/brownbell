@@ -33,4 +33,11 @@ async function main() {
     console.log(JSON.stringify(model));
 }
 
-main().catch((e) => { console.error('tc-fit-spread failed:', e.message || e); process.exit(1); });
+main().catch(async (e) => {
+    console.error('tc-fit-spread failed:', e.message || e);
+    try {
+        const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+        await db.from('tc_settings').update({ spread_model: { error: String(e.stack || e.message || e).slice(0, 1500) } }).eq('id', 1);
+    } catch { /* ignore */ }
+    process.exit(1);
+});
