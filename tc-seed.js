@@ -232,15 +232,22 @@ async function syncLineupData(db, leagueId, season, valued, allPlayers, statsNow
             console.log(`nflverse ${log.join('; ')}`);
             const byGsis = new Map();
             for (const [pid, raw] of Object.entries(allPlayers)) if (raw.gsis_id) byGsis.set(raw.gsis_id, pid);
+            // fallback when Sleeper has no gsis id for a player: unique name and position match
+            const norm = (n) => String(n || '').toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, '').replace(/[^a-z]/g, '');
+            const byName = new Map();
+            for (const p of valued) {
+                const k = `${norm(allPlayers[p.id]?.full_name || p.name)}|${p.position}`;
+                byName.set(k, byName.has(k) ? null : p.id);
+            }
             for (const r of nfl || []) {
-                const pid = byGsis.get(r.pid);
+                const pid = byGsis.get(r.pid) || byName.get(`${norm(r.name)}|${r.pos}`);
                 const m = models[r.pos];
                 if (!pid || !m) continue;
                 const u = predictUsage(m, r);
                 usage.set(pid, { u, gap: r.ppg - u, games: r.games, targets: r.targets, carries: r.carries, cur: r.ppg });
             }
             console.log(`Usage signals for ${usage.size} players`);
-            const missed = (nfl || []).filter((r) => !byGsis.has(r.pid) && r.games >= 3).slice(0, 12).map((r) => `${r.name} ${r.pos} ${r.pid}`);
+            const missed = (nfl || []).filter((r) => !byGsis.has(r.pid) && !byName.get(`${norm(r.name)}|${r.pos}`) && r.games >= 3).slice(0, 12).map((r) => `${r.name} ${r.pos} ${r.pid}`);
             const diag = { at: new Date().toISOString(), nflRows: (nfl || []).length, matched: usage.size, unmatchedSample: missed, log };
             await db.from('tc_settings').update({ usage_model: { ...cfg.usage_model, lastSync: diag } }).eq('id', 1);
         }
