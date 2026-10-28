@@ -149,13 +149,15 @@ async function main() {
     try {
         const ownerToTeam = new Map(teams.map((t) => [String(t.sleeper_owner_id), t.id]));
         const validAssets = new Set(assets.map((a) => a.id));
-        const { data: have } = await db.from('tc_trade_snapshots').select('trade_id');
+        const { data: have } = await db.from('tc_trade_snapshots').select('trade_id').gte('snap_v', 2);
         const { data: stat } = await db.from('tc_player_status').select('asset_id, injury_status');
         const snap = {
             allPlayers,
             existing: new Set((have || []).map((r) => r.trade_id)),
             injNow: new Map((stat || []).map((r) => [r.asset_id, r.injury_status])),
             rows: [],
+            year: season.year,
+            byes: await byeWeeks(season.year).catch(() => ({})),
         };
         const trades = await collectTrades(SLEEPER_LEAGUE_ID, ownerToTeam, validAssets, snap);
         const { data: n, error: tErr } = await db.rpc('tc_sync_real_trades', { p_trades: trades });
@@ -275,10 +277,12 @@ async function snapshotRows(tx, league, rosters, allTxs, snap) {
             pos: p.position,
             age: p.age || null,
             ppg, games,
+            bye: Number(league.season) === snap.year ? (snap.byes[p.team] ?? null) : null,
             inj: recent ? (snap.injNow.get(`p:${pid}`) || null) : null,
         };
     }).filter(Boolean).sort((a, b) => (b.ppg ?? -1) - (a.ppg ?? -1));
     return {
+        snap_v: 2,
         trade_id: String(tx.transaction_id),
         season: Number(league.season),
         week: Math.max(1, Math.min(18, Number(tx.leg) || 1)),
