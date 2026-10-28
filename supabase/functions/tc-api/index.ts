@@ -1,5 +1,5 @@
 // tc-api: the one Edge Function behind the league trade calculator app.
-// Actions: teams, me, values, ballot, vote, league, desk, desk_vote, history, fit_data.
+// Actions: teams, me, values, ballot, vote, league, desk, desk_vote, history, history_detail, fit_data.
 // Auth reuses Brown Bell team claims: the app claims a team through the existing
 // claim-team function, then sends the deviceToken it gets back with every call.
 //
@@ -466,6 +466,42 @@ Deno.serve(async (req) => {
             canVote: tracked && !involved && !mineIn && !myVote.has(t.id),
           };
         }),
+      });
+    }
+
+    // ---- history_detail: both rosters just before one trade, for the "why" read --------
+    if (action === 'history_detail') {
+      if (typeof body.id !== 'string') return json({ error: 'bad_request' }, 400);
+      const [{ data: snap }, { data: trade }, { data: s }] = await Promise.all([
+        db.from('tc_trade_snapshots').select('*').eq('trade_id', body.id).maybeSingle(),
+        db.from('tc_real_trades').select('side_a, side_b').eq('id', body.id).maybeSingle(),
+        db.from('tc_settings').select('lineup_slots, star_premium').eq('id', 1).single(),
+      ]);
+      if (!trade) return json({ error: 'bad_assets' }, 400);
+      const ids = [...new Set([
+        ...trade.side_a, ...trade.side_b,
+        ...(snap ? [...snap.roster_a, ...snap.roster_b].map((p: any) => `p:${p.id}`) : []),
+      ])];
+      const { data: rows } = await db
+        .from('tc_assets')
+        .select('id, kind, name, position, age, pick_year, pick_round, published_rating')
+        .in('id', ids);
+      const values: Record<string, number> = {};
+      const assets: Record<string, unknown> = {};
+      for (const a of rows ?? []) {
+        values[a.id] = Math.round(a.published_rating);
+        assets[a.id] = { id: a.id, kind: a.kind, name: a.name, position: a.position, age: a.age, pickYear: a.pick_year, pickRound: a.pick_round };
+      }
+      return json({
+        snapshot: snap
+          ? {
+              season: snap.season, week: snap.week, basis: snap.basis, injuriesKnown: snap.injuries_known,
+              rosterA: snap.roster_a, rosterB: snap.roster_b,
+            }
+          : null,
+        sideA: trade.side_a, sideB: trade.side_b,
+        slots: s?.lineup_slots ?? [], starPremium: Number(s?.star_premium ?? 0.3),
+        values, assets,
       });
     }
 
