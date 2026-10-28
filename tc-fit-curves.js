@@ -68,6 +68,7 @@ async function main() {
         seasons: Object.keys(seasons).map(Number),
         from: 21,
         curves: Object.fromEntries(Object.entries(fitted).map(([k, v]) => [k, v.v])),
+        sharedDrop: Object.fromEntries(Object.entries(fitted).map(([k, v]) => [k, v.sharedDrop])),
         samples: Object.fromEntries(Object.entries(fitted).map(([k, v]) => [k, v.samples])),
         yearOverYear: Object.fromEntries(Object.entries(fitted).map(([k, v]) => [k, v.ratios])),
         backtest: test.report,

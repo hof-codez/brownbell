@@ -13,6 +13,11 @@ const REPLACEMENT = 4;
 const RELEVANT_PPG = { QB: 12, RB: 8, WR: 8, TE: 6 };
 const MIN_SAMPLE = 15;
 const FROM = 21;
+// Players picked for having a good season tend to score less the next year whatever their age.
+// Values here are relative to the league, so that shared drop is not aging. Each position's
+// year-over-year ratios are scaled so ages in its prime window show no change, and aging is
+// read as the difference from there. The windows are an assumption, not something the data proves.
+const PRIME_WINDOW = { QB: [26, 29], WR: [24, 27], TE: [25, 28], RB: [22, 24] };
 const TO = 37;
 
 // The curves currently in src/future.ts (index by age, starting at 21)
@@ -71,11 +76,21 @@ function fitCurve(pos, onePairs) {
         }
         return 1;
     });
-    const smooth = filled.map((_, i) => {
+    // remove the shared drop: scale so the prime window averages out to no change
+    const [lo, hi] = PRIME_WINDOW[pos] || [24, 27];
+    const win = [];
+    for (let age = lo; age <= hi; age++) {
+        const r = ratios[age - FROM];
+        if (r !== null && r !== undefined) win.push({ r, w: samples[age - FROM] });
+    }
+    const wsum = win.reduce((a, b) => a + b.w, 0);
+    const shared = wsum ? Math.exp(win.reduce((a, b) => a + Math.log(b.r) * b.w, 0) / wsum) : 1;
+    const adj = filled.map((r) => r / shared);
+    const smooth = adj.map((_, i) => {
         const w = [0.25, 0.5, 0.25];
         let s = 0, t = 0;
         [-1, 0, 1].forEach((d, j) => {
-            const v = filled[i + d];
+            const v = adj[i + d];
             if (v === undefined) return;
             s += Math.log(v) * w[j]; t += w[j];
         });
@@ -84,14 +99,22 @@ function fitCurve(pos, onePairs) {
     const idx = [1];
     for (let i = 0; i < smooth.length; i++) idx.push(idx[i] * smooth[i]);
     const peak = Math.max(...idx);
-    return { v: idx.map((x) => Math.round((x / peak) * 100) / 100), samples, ratios: ratios.map((r) => (r === null ? null : Math.round(r * 100) / 100)) };
+    return { v: idx.map((x) => Math.round((x / peak) * 100) / 100), sharedDrop: Math.round((1 - shared) * 1000) / 10, samples, ratios: ratios.map((r) => (r === null ? null : Math.round(r * 100) / 100)) };
 }
 
+// Compares predictions with what happened. Every model is scaled by the same pooled ratio per
+// position, so the score reflects the age shape and not the shared drop described above.
 function mae(testPairs, k, indexFn) {
     if (!testPairs.length) return null;
+    const pooled = {};
+    for (const p of testPairs) {
+        const t = (pooled[p.pos] ||= { cur: 0, next: 0 });
+        t.cur += p.cur; t.next += p.next;
+    }
     let s = 0;
     for (const p of testPairs) {
-        const pred = p.cur * (indexFn(p.pos, p.age + k) / indexFn(p.pos, p.age));
+        const m = pooled[p.pos].next / pooled[p.pos].cur;
+        const pred = p.cur * m * (indexFn(p.pos, p.age + k) / indexFn(p.pos, p.age));
         s += Math.abs(pred - p.next);
     }
     return Math.round((s / testPairs.length) * 100) / 100;
