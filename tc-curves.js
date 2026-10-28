@@ -129,6 +129,8 @@ function fitAndTest(seasons) {
     const fitted = {};
     const trainOne = pairs(seasons, 1, trainYears);
     for (const pos of Object.keys(HAND)) fitted[pos] = fitCurve(pos, trainOne);
+    const blended = Object.fromEntries(Object.keys(HAND).map((p) => [p, blend(p, fitted[p])]));
+    const bfn = (pos, age) => blended[pos][Math.max(0, Math.min(blended[pos].length - 1, Math.floor(age) - FROM))];
     const fn = (pos, age) => fitted[pos].v[Math.max(0, Math.min(fitted[pos].v.length - 1, Math.floor(age) - FROM))];
 
     const report = {};
@@ -138,6 +140,7 @@ function fitAndTest(seasons) {
             n: test.length,
             hand: mae(test, k, handIndex),
             fitted: mae(test, k, fn),
+            blended: mae(test, k, bfn),
             noChange: mae(test, k, () => 1),
         };
     }
@@ -153,4 +156,20 @@ function fitAll(seasons) {
     return out;
 }
 
-module.exports = { pairs, fitCurve, fitAndTest, fitAll, mae, HAND, FROM, TO };
+// Blend of the hand-made curve and the fitted one. Where the data is thin the hand curve wins,
+// and quarterbacks keep the hand curve because there are too few of them per age to trust.
+const BLEND_CAP = { QB: 0, RB: 0.6, WR: 0.6, TE: 0.35 };
+function blend(pos, fitted) {
+    const hand = HAND[pos];
+    const out = [];
+    for (let i = 0; i <= TO - FROM; i++) {
+        const h = hand[Math.min(hand.length - 1, i)];
+        const f = fitted.v[i];
+        const n = fitted.samples[Math.min(i, fitted.samples.length - 1)] || 0;
+        const w = Math.min(BLEND_CAP[pos] ?? 0, n / 80);
+        out.push(Math.round((h * (1 - w) + f * w) * 100) / 100);
+    }
+    return out;
+}
+
+module.exports = { blend, pairs, fitCurve, fitAndTest, fitAll, mae, HAND, FROM, TO };

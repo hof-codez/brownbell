@@ -3,7 +3,7 @@
 // to tc_settings.age_curves. Run from the "Fit Age Curves" workflow. Not part of the daily seed.
 
 const { createClient } = require('@supabase/supabase-js');
-const { fitAndTest, fitAll } = require('./tc-curves');
+const { fitAndTest, fitAll, blend } = require('./tc-curves');
 
 const SLEEPER = 'https://api.sleeper.app/v1';
 const SCORING_KEY = process.env.TC_SCORING_KEY || 'pts_ppr';
@@ -68,6 +68,7 @@ async function main() {
         seasons: Object.keys(seasons).map(Number),
         from: 21,
         curves: Object.fromEntries(Object.entries(fitted).map(([k, v]) => [k, v.v])),
+        blended: Object.fromEntries(Object.entries(fitted).map(([k, v]) => [k, blend(k, v)])),
         sharedDrop: Object.fromEntries(Object.entries(fitted).map(([k, v]) => [k, v.sharedDrop])),
         samples: Object.fromEntries(Object.entries(fitted).map(([k, v]) => [k, v.samples])),
         yearOverYear: Object.fromEntries(Object.entries(fitted).map(([k, v]) => [k, v.ratios])),
