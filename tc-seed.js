@@ -10,9 +10,10 @@
 // Run: node tc-seed.js
 
 const { createClient } = require('@supabase/supabase-js');
-const { CONFIG, valuePlayers, buildPicks } = require('./tc-valuation');
+const { CONFIG, valuePlayers } = require('./tc-valuation');
 const { parseTrades } = require('./tc-trades');
 
+const { buildTeamPicks } = require('./tc-picks');
 const { rosterBefore, ppgThrough, pickBasis, txTime } = require('./tc-snapshots');
 const SLEEPER = 'https://api.sleeper.app/v1';
 const POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
@@ -61,7 +62,7 @@ async function main() {
         .order('year', { ascending: false }).limit(1).single();
     if (sErr) throw sErr;
     const { data: teams, error: tErr } = await db
-        .from('teams').select('id, sleeper_roster_id, sleeper_owner_id').eq('season_id', season.id);
+        .from('teams').select('id, display_name, sleeper_roster_id, sleeper_owner_id').eq('season_id', season.id);
     if (tErr) throw tErr;
     const teamByRoster = new Map(teams.map((t) => [String(t.sleeper_roster_id), t.id]));
 
@@ -69,9 +70,10 @@ async function main() {
     const discount = Number(settings?.pick_year_discount ?? 0.92);
 
     console.log(`Season ${season.year}, week ${season.current_week}`);
-    const [rosters, allPlayers] = await Promise.all([
+    const [rosters, allPlayers, tradedPicks] = await Promise.all([
         getJson(`${SLEEPER}/league/${SLEEPER_LEAGUE_ID}/rosters`),
         getJson(`${SLEEPER}/players/nfl`),
+        getJson(`${SLEEPER}/league/${SLEEPER_LEAGUE_ID}/traded_picks`).catch(() => []),
     ]);
 
     const owner = new Map(); // sleeper player id -> team uuid
@@ -102,14 +104,33 @@ async function main() {
     ]);
 
     const valued = valuePlayers(players, statsNow, statsPrev);
+    // One pick per original team, owned by whoever holds it, valued by the original team's standing
+    const teamRows = teams.filter((t) => rosters.some((r) => String(r.roster_id) === String(t.sleeper_roster_id)));
+    const teamPicks = buildTeamPicks({
+        currentSeason: season.year,
+        discount,
+        teams: teamRows.map((t) => ({ rosterId: t.sleeper_roster_id, name: t.display_name, teamId: t.id })),
+        standings: rosters.map((r) => ({
+            rosterId: r.roster_id,
+            wins: r.settings?.wins || 0,
+            losses: r.settings?.losses || 0,
+            ties: r.settings?.ties || 0,
+            pointsFor: (r.settings?.fpts || 0) + (r.settings?.fpts_decimal || 0) / 100,
+        })),
+        tradedPicks,
+    });
+    console.log(`${teamPicks.assets.length} team picks, ${tradedPicks.length} traded`);
     const assets = [
         ...valued.map((p) => ({
             id: `p:${p.id}`, kind: 'player', name: p.name, position: p.position,
             nfl_team: p.team, age: p.age, seed_value: p.seed_value,
         })),
-        ...buildPicks(season.year, discount),
+        ...teamPicks.assets,
     ];
-    const holdings = valued.map((p) => ({ asset_id: `p:${p.id}`, team_id: owner.get(p.id) }));
+    const holdings = [
+        ...valued.map((p) => ({ asset_id: `p:${p.id}`, team_id: owner.get(p.id) })),
+        ...teamPicks.holdings,
+    ];
 
     const { data, error } = await db.rpc('tc_sync_assets', { p_assets: assets, p_holdings: holdings });
     if (error) throw error;

@@ -52,10 +52,11 @@ async function loadPool() {
   if (poolCache && Date.now() - poolCache.at < 60_000) return poolCache.rows;
   const { data, error } = await db
     .from('tc_assets')
-    .select('id, kind, name, position, nfl_team, age, pick_year, pick_round, rating, votes')
+    .select('id, kind, name, position, nfl_team, age, pick_year, pick_round, published_rating, votes')
     .eq('rostered', true);
   if (error) throw error;
-  poolCache = { at: Date.now(), rows: data ?? [] };
+  // offers and ballots are balanced on what the league sees, which includes pick slot value
+  poolCache = { at: Date.now(), rows: (data ?? []).map((a: any) => ({ ...a, rating: Number(a.published_rating) })) };
   return poolCache.rows;
 }
 

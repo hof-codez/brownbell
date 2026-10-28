@@ -5,7 +5,7 @@ const { parseTrades } = require('./tc-trades');
 const ctx = {
     rosterOwner: new Map([[1, 'ownerA'], [2, 'ownerB'], [3, 'ownerC']]),
     ownerToTeam: new Map([['ownerA', 'team-a-uuid'], ['ownerB', 'team-b-uuid']]),
-    validAssets: new Set(['p:100', 'p:200', 'p:300', 'pick:2027:1', 'pick:2028:2']),
+    validAssets: new Set(['p:100', 'p:200', 'p:300', 'pick:2027:1:2', 'pick:2028:2:1']),
 };
 const base = { type: 'trade', status: 'complete', status_updated: 1788000000000, waiver_budget: [], draft_picks: [] };
 
@@ -18,7 +18,7 @@ const good = {
 let r = parseTrades([good], ctx);
 assert.equal(r.length, 1);
 assert.deepEqual(r[0].side_a.sort(), ['p:100']);                       // what roster 1 gave
-assert.deepEqual(r[0].side_b.sort(), ['p:200', 'pick:2027:1']);        // what roster 2 gave
+assert.deepEqual(r[0].side_b.sort(), ['p:200', 'pick:2027:1:2']);        // what roster 2 gave
 assert.equal(r[0].team_a, 'team-a-uuid');
 assert.equal(r[0].team_b, 'team-b-uuid');
 assert.equal(r[0].id, 'tx-good');
@@ -45,6 +45,6 @@ const pickTrade = {
     draft_picks: [{ season: '2028', round: 2, roster_id: 1, previous_owner_id: 1, owner_id: 2 }],
 };
 r = parseTrades([pickTrade], ctx);
-assert.deepEqual(r[0].side_a, ['pick:2028:2']);   // roster 1 gave the pick
+assert.deepEqual(r[0].side_a, ['pick:2028:2:1']);   // roster 1 gave the pick
 assert.deepEqual(r[0].side_b, ['p:300']);         // roster 2 gave the player
 console.log('tc-trades tests passed');

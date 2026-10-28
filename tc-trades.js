@@ -29,7 +29,7 @@ function parseTrades(transactions, ctx) {
         for (const p of tx.draft_picks || []) {
             const giver = p.previous_owner_id;
             if (!(giver in sent) || p.owner_id === giver) { ok = false; break; }
-            sent[giver].push(`pick:${p.season}:${p.round}`);
+            sent[giver].push(`pick:${p.season}:${p.round}:${p.roster_id}`);
         }
         if (!ok) continue;
 
