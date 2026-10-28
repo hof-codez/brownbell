@@ -1,5 +1,5 @@
 // tc-api: the one Edge Function behind the league trade calculator app.
-// Actions: teams, me, values, ballot, vote, league, desk, desk_vote, trade_feed.
+// Actions: teams, me, values, ballot, vote, league, desk, desk_vote, trade_feed, fit_data.
 // Auth reuses Brown Bell team claims: the app claims a team through the existing
 // claim-team function, then sends the deviceToken it gets back with every call.
 //
@@ -379,6 +379,28 @@ Deno.serve(async (req) => {
         milestone: milestoneFor(result, await fullWeightVotes()),
         preview: await selfPreview(team.id),
         split: result.split ?? null,
+      });
+    }
+
+    // ---- fit_data: what the calculator needs to estimate lineup fit ----------
+    // Slots, week range, and per-player points per game, injury and bye. Small (one row per
+    // tracked player), and only changes when the daily seed runs.
+    if (action === 'fit_data') {
+      const [{ data: s }, { data: season }, { data: rows, error }] = await Promise.all([
+        db.from('tc_settings').select('lineup_slots, last_regular_week').eq('id', 1).single(),
+        db.from('seasons').select('current_week').eq('is_active', true).order('year', { ascending: false }).limit(1).maybeSingle(),
+        db.from('tc_player_status').select('asset_id, ppg, games, injury_status, bye_week'),
+      ]);
+      if (error) throw error;
+      const players: Record<string, { ppg: number | null; games: number; inj: string | null; bye: number | null }> = {};
+      for (const r of rows ?? []) {
+        players[r.asset_id] = { ppg: r.ppg === null ? null : Number(r.ppg), games: r.games, inj: r.injury_status, bye: r.bye_week };
+      }
+      return json({
+        slots: s?.lineup_slots ?? [],
+        lastWeek: s?.last_regular_week ?? 14,
+        currentWeek: season?.current_week ?? 1,
+        players,
       });
     }
 

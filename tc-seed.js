@@ -114,6 +114,14 @@ async function main() {
     if (error) throw error;
     console.log('Synced:', JSON.stringify(data));
 
+    // Lineup fit data: points per game, injuries, bye weeks and the league's lineup slots.
+    // Also best effort: a failure only logs and leaves yesterday's data in place.
+    try {
+        await syncLineupData(db, SLEEPER_LEAGUE_ID, season, valued, allPlayers, statsNow);
+    } catch (e) {
+        console.log('Lineup data sync skipped:', e.message || e);
+    }
+
     // Real trades from this league and the seasons before it, for the Offer Desk.
     // A failure here must not undo the asset sync above, so it only logs.
     try {
@@ -126,6 +134,70 @@ async function main() {
     } catch (e) {
         console.log('Real trade sync skipped:', e.message || e);
     }
+}
+
+const SLOT_KEEP = new Set(['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX', 'REC_FLEX', 'WRRB_FLEX']);
+const ESPN_FIX = { WSH: 'WAS' };
+const ALL_TEAMS = ['ARI','ATL','BAL','BUF','CAR','CHI','CIN','CLE','DAL','DEN','DET','GB','HOU','IND','JAX','KC','LV','LAC','LAR','MIA','MIN','NE','NO','NYG','NYJ','PHI','PIT','SF','SEA','TB','TEN','WAS'];
+
+// NFL bye week per team from ESPN's public scoreboard: a team with no game that week is on bye.
+async function byeWeeks(year) {
+    const byes = {};
+    for (let week = 1; week <= 18; week++) {
+        let data;
+        try {
+            data = await getJson(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2&year=${year}`);
+        } catch { continue; }
+        const events = data?.events || [];
+        if (events.length < 8) continue; // week not published, do not guess
+        const playing = new Set();
+        for (const ev of events) {
+            for (const c of ev.competitions?.[0]?.competitors || []) {
+                const abbr = c.team?.abbreviation;
+                if (abbr) playing.add(ESPN_FIX[abbr] || abbr);
+            }
+        }
+        for (const t of ALL_TEAMS) if (!playing.has(t) && byes[t] === undefined) byes[t] = week;
+    }
+    return byes;
+}
+
+function normalizeInjury(p) {
+    const raw = String(p.injury_status || '').toUpperCase();
+    if (['OUT', 'IR', 'PUP', 'SUS', 'DOUBTFUL', 'QUESTIONABLE'].includes(raw)) return raw;
+    if (String(p.status || '').toLowerCase().includes('injured reserve')) return 'IR';
+    return null;
+}
+
+async function syncLineupData(db, leagueId, season, valued, allPlayers, statsNow) {
+    const league = await getJson(`${SLEEPER}/league/${leagueId}`);
+    const slots = (league.roster_positions || []).filter((p) => SLOT_KEEP.has(p));
+    const playoffStart = Number(league.settings?.playoff_week_start) || 15;
+    if (slots.length) {
+        const { error } = await db.from('tc_settings')
+            .update({ lineup_slots: slots, last_regular_week: Math.max(1, playoffStart - 1) }).eq('id', 1);
+        if (error) throw error;
+    }
+    const byes = await byeWeeks(season.year);
+    console.log(`Lineup slots: ${slots.join(',') || '(none found)'}; bye weeks found for ${Object.keys(byes).length} teams`);
+
+    const rows = valued.map((p) => {
+      const raw = allPlayers[p.id] || {};
+      const st = statsNow[p.id];
+      return {
+        asset_id: `p:${p.id}`,
+        ppg: st && st.games > 0 ? Math.round((st.points / st.games) * 100) / 100 : null,
+        games: st ? st.games : 0,
+        injury_status: normalizeInjury(raw),
+        bye_week: byes[raw.team] ?? null,
+        updated_at: new Date().toISOString(),
+      };
+    });
+    for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await db.from('tc_player_status').upsert(rows.slice(i, i + 200), { onConflict: 'asset_id' });
+        if (error) throw error;
+    }
+    console.log(`Player status rows written: ${rows.length}`);
 }
 
 // Walks back through previous seasons (up to 3 extra) and parses every trade.
