@@ -4,7 +4,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { loadSeasonRows, loadPlayers } = require('./tc-nflverse');
-const { youngPairs, fitDraft, backtest } = require('./tc-draft');
+const { youngPairs, fitDraft, backtest, prospectPairs, fitProspects, backtestProspects } = require('./tc-draft');
 
 const FIRST = Number(process.env.TC_DRAFT_FIRST || 2010);
 
@@ -27,6 +27,10 @@ async function main() {
         const last = years[years.length - 1];
         // train on transitions that end before the test years, test on the newest transitions
         result.backtest = backtest(seasons, players, years.filter((y) => y <= last - 4), [last - 3, last - 2, last - 1].filter((y) => seasons[y + 1]));
+        const train = years.filter((y) => y <= last - 4);
+        const testY = [last - 3, last - 2, last - 1].filter((y) => seasons[y + 1]);
+        result.prospectBacktest = backtestProspects(seasons, players, train, testY);
+        result.prospectModel = fitProspects(prospectPairs(seasons, players, years));
         const model = fitDraft(youngPairs(seasons, players, years));
         result.model = model;
         result.coverage = {

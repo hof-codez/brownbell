@@ -88,4 +88,51 @@ function backtest(seasons, players, trainYears, testYears) {
     };
 }
 
-module.exports = { bucket, youngPairs, fitDraft, backtest, BUCKETS, MAX_EXP };
+// ---- Prospects: young players who have not produced yet -------------------------------------
+// For these, last season's points say little, so check whether draft capital says more.
+function prospectPairs(seasons, players, years) {
+    const out = [];
+    for (const y of years) {
+        const now = seasons[y], later = seasons[y + 1];
+        if (!now || !later) continue;
+        const nextBy = new Map(later.map((r) => [r.pid, r]));
+        for (const r of now) {
+            const p = players.get(r.pid);
+            if (!p || !RELEVANT_PPG[r.pos]) continue;
+            if (r.games >= MIN_GAMES && r.ppg >= RELEVANT_PPG[r.pos]) continue; // already produced: handled above
+            const exp = p.draftYear ? y - p.draftYear : null;
+            if (exp === null || exp < 0 || exp > 2) continue;
+            const n = nextBy.get(r.pid);
+            out.push({ pos: r.pos, exp, bucket: bucket(p), cur: r.ppg, next: n && n.games >= MIN_NEXT_GAMES ? n.ppg : 0 });
+        }
+    }
+    return out;
+}
+
+function fitProspects(pairs) {
+    const cells = {};
+    const add = (k, p) => { const c = (cells[k] ||= { n: 0, next: 0 }); c.n += 1; c.next += p.next; };
+    for (const p of pairs) { add(`${p.pos}|exp${p.exp}`, p); add(`${p.pos}|exp${p.exp}|${p.bucket}`, p); }
+    const out = {};
+    for (const [k, c] of Object.entries(cells)) out[k] = { n: c.n, mean: Math.round((c.next / c.n) * 100) / 100 };
+    return out;
+}
+
+function backtestProspects(seasons, players, trainYears, testYears) {
+    const model = fitProspects(prospectPairs(seasons, players, trainYears));
+    const test = prospectPairs(seasons, players, testYears);
+    const get = (k, fb) => model[k]?.mean ?? fb;
+    const err = (fn) => (test.length ? Math.round((test.reduce((s, p) => s + Math.abs(fn(p) - p.next), 0) / test.length) * 100) / 100 : null);
+    return {
+        n: test.length,
+        sameAsThisYear: err((p) => p.cur),
+        averageForExperience: err((p) => get(`${p.pos}|exp${p.exp}`, p.cur)),
+        withDraftCapital: err((p) => {
+            const base = get(`${p.pos}|exp${p.exp}`, p.cur);
+            const c = model[`${p.pos}|exp${p.exp}|${p.bucket}`];
+            return c ? base + (c.mean - base) * (c.n / (c.n + SHRINK)) : base;
+        }),
+    };
+}
+
+module.exports = { prospectPairs, fitProspects, backtestProspects, bucket, youngPairs, fitDraft, backtest, BUCKETS, MAX_EXP };
