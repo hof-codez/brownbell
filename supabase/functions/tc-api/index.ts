@@ -1,5 +1,5 @@
 // tc-api: the one Edge Function behind the league trade calculator app.
-// Actions: teams, me, values, ballot, vote.
+// Actions: teams, me, values, ballot, vote, league.
 // Auth reuses Brown Bell team claims: the app claims a team through the existing
 // claim-team function, then sends the deviceToken it gets back with every call.
 //
@@ -7,6 +7,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0';
 import { pickBallot } from './ballot.ts';
+import { arizonaDayStart, buildProfile, groupRowsByTeam } from './profile.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -44,6 +45,7 @@ async function authTeam(deviceToken: unknown): Promise<{ id: string; name: strin
 }
 
 // Small in-memory cache so a burst of ballots does not re-read the whole table.
+let leagueCache: { at: number; body: unknown } | null = null;
 let poolCache: { at: number; rows: any[] } | null = null;
 async function loadPool() {
   if (poolCache && Date.now() - poolCache.at < 60_000) return poolCache.rows;
@@ -115,6 +117,49 @@ Deno.serve(async (req) => {
     if (action === 'me') {
       const { data: left } = await db.rpc('tc_votes_left', { p_team: team.id });
       return json({ teamId: team.id, name: team.name, votesLeft: Math.max(0, left ?? 0) });
+    }
+
+    // ---- league: every roster plus each owner's voting profile ---------------
+    // Traits only. Raw votes never leave the database, and profiles use votes from
+    // before today (Arizona time), so they move once a day.
+    if (action === 'league') {
+      if (leagueCache && Date.now() - leagueCache.at < 5 * 60_000) return json(leagueCache.body);
+
+      const { data: season } = await db
+        .from('seasons').select('id').eq('is_active', true)
+        .order('year', { ascending: false }).limit(1).maybeSingle();
+      if (!season) return json({ teams: [] });
+      const { data: teams } = await db
+        .from('teams').select('id, display_name').eq('season_id', season.id).order('display_name');
+      const ids = (teams ?? []).map((t: any) => t.id);
+      const { data: held } = await db.from('tc_holdings').select('asset_id, team_id').in('team_id', ids);
+      const roster = new Map<string, string[]>();
+      for (const h of held ?? []) {
+        const list = roster.get(h.team_id) ?? [];
+        list.push(h.asset_id);
+        roster.set(h.team_id, list);
+      }
+
+      const cutoff = arizonaDayStart().toISOString();
+      const { data: stats, error: statsErr } = await db.rpc('tc_vote_traits', { p_cutoff: cutoff });
+      if (statsErr) throw statsErr;
+      const byTeam = groupRowsByTeam(stats ?? []);
+
+      const out = {
+        teams: (teams ?? []).map((t: any) => {
+          const profile = buildProfile(byTeam.get(t.id) ?? []);
+          return {
+            teamId: t.id,
+            name: t.display_name,
+            roster: roster.get(t.id) ?? [],
+            confidence: profile.confidence,
+            traits: profile.traits,
+            lean: profile.lean,
+          };
+        }),
+      };
+      leagueCache = { at: Date.now(), body: out };
+      return json(out);
     }
 
     // ---- values: published ratings only ------------------------------------
