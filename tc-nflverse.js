@@ -43,13 +43,13 @@ async function loadSeasonRows(year, log) {
                 if (!FEATURES[pos]) continue;
                 const touches = num(r, 'attempts') + num(r, 'carries') + num(r, 'targets');
                 if (touches <= 0) continue;
-                const t = per.get(r[ix.player_id]) || { pos, games: 0, pts: 0, targets: 0, carries: 0, attempts: 0 };
+                const t = per.get(r[ix.player_id]) || { name: r[ix.player_display_name] || r[ix.player_name] || '', pos, games: 0, pts: 0, targets: 0, carries: 0, attempts: 0 };
                 t.games += 1; t.pts += num(r, 'fantasy_points_ppr');
                 t.targets += num(r, 'targets'); t.carries += num(r, 'carries'); t.attempts += num(r, 'attempts');
                 per.set(r[ix.player_id], t);
             }
             const out = [...per].map(([pid, t]) => ({
-                pid, pos: t.pos, games: t.games, ppg: t.pts / t.games,
+                pid, name: t.name, pos: t.pos, games: t.games, ppg: t.pts / t.games,
                 targets: t.targets / t.games, carries: t.carries / t.games, attempts: t.attempts / t.games,
             }));
             log.push(`${year}: ${out.length} player seasons`);

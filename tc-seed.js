@@ -240,6 +240,9 @@ async function syncLineupData(db, leagueId, season, valued, allPlayers, statsNow
                 usage.set(pid, { u, gap: r.ppg - u, games: r.games, targets: r.targets, carries: r.carries, cur: r.ppg });
             }
             console.log(`Usage signals for ${usage.size} players`);
+            const missed = (nfl || []).filter((r) => !byGsis.has(r.pid) && r.games >= 3).slice(0, 12).map((r) => `${r.name} ${r.pos} ${r.pid}`);
+            const diag = { at: new Date().toISOString(), nflRows: (nfl || []).length, matched: usage.size, unmatchedSample: missed, log };
+            await db.from('tc_settings').update({ usage_model: { ...cfg.usage_model, lastSync: diag } }).eq('id', 1);
         }
     } catch (e) {
         console.log('Usage signals skipped:', e.message || e);
