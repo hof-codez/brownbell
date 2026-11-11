@@ -1,0 +1,13 @@
+-- 055-fast-vote-traits.sql
+-- tc_vote_traits took 10 seconds once trade votes passed ~750 and hit the statement timeout,
+-- which made the league action (owners list) fail. The star-premium math ran in exact decimals
+-- once per vote and per side. It now computes each asset's adjusted value once, in floating point.
+-- Same results, about 50x faster (10.4s to 0.2s).
+--
+-- The function body is the one applied to production as migration "fast_vote_traits".
+-- Changes against the 047-era version:
+--   star: star_premium::float8
+--   new CTE av: one row per asset with adj = 10000 * (published_rating / 10000) ^ (1 + star), as float8
+--   tvs: sums av.adj for x_ids and y_ids instead of recomputing power() per vote
+--   tvr: power(10::float8, (sy - sx) / 3000.0)
+-- Re-apply from the production definition (pg_get_functiondef) if this file is ever replayed.
