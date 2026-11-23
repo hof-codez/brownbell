@@ -1027,6 +1027,9 @@ class BrownBellAutomator {
     }
 
     findPlayerInRoster(originalPlayer, roster, allowTradedPlayers = false) {
+        // A vacant duo slot (player dropped, replacement not picked yet) has no name or id.
+        // Nothing to look up, and the fuzzy matching below would throw on the missing name.
+        if (!originalPlayer || (!originalPlayer.sleeperId && !originalPlayer.name)) return null;
         // Prefer the reliable Sleeper ID directly over fuzzy name matching,
         // whenever the duo entry actually has one - true for any pick made
         // through the picker. The fuzzy matching below (including the
@@ -3150,8 +3153,16 @@ class BrownBellAutomator {
                     // Validate Next Up Award combinations after scores are set
                     if (awardType === 'nextup') {
                         // Get both players' current { years, position } for this week
-                        const player1Experience = this.getPlayerExperienceForWeek(teamName, 0, week, existingSubstitutions, currentWeek);
-                        const player2Experience = this.getPlayerExperienceForWeek(teamName, 1, week, existingSubstitutions, currentWeek);
+                        // A problem resolving experience for one team/week must never stop the whole
+                        // update (it used to abort every run when a duo slot was vacant).
+                        let player1Experience = null;
+                        let player2Experience = null;
+                        try {
+                            player1Experience = this.getPlayerExperienceForWeek(teamName, 0, week, existingSubstitutions, currentWeek);
+                            player2Experience = this.getPlayerExperienceForWeek(teamName, 1, week, existingSubstitutions, currentWeek);
+                        } catch (e) {
+                            console.warn(`Next Up experience check skipped for ${teamName} week ${week}: ${e.message}`);
+                        }
 
                         // Valid combo (2026 rule): both players individually eligible (0-3 yrs
                         // experience) AND they differ in both years of experience and position.
@@ -3261,6 +3272,7 @@ class BrownBellAutomator {
     // drafted player or a currently active substitute in that slot. Returns null
     // if the player can't be resolved at all (not a null "years" - see above).
     resolveNextUpExperience(duoPlayer, roster) {
+        if (!duoPlayer) return null;
         const playerId = duoPlayer.sleeperId || (roster ? this.findPlayerInRoster(duoPlayer, roster) : null);
         const player = playerId ? this.playersData?.[playerId] : null;
         if (!player) return null;
