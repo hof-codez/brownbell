@@ -8,6 +8,9 @@
 const { createClient } = require('@supabase/supabase-js');
 const { isRealSubstitutionReason } = require('./substitution-reasons');
 
+// Keep in sync with swap_limit in use_permanent_swap() (056-two-permanent-swaps.sql)
+const PERMANENT_SWAPS_PER_AWARD = 2;
+
 class SupabaseDataLayer {
     constructor() {
         const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
@@ -67,22 +70,18 @@ class SupabaseDataLayer {
         return { permanentSwapUsed: state ? state[awardType] : false };
     }
 
-    async updateTeamSwapState(teamName, awardType, permanentSwapUsed) {
+    // Spends one of this award's 2 permanent swaps (atomic in the database; the
+    // exhausted flag flips only when the limit is reached). The second argument is kept
+    // for the old call sites and is always true: swaps are only ever spent, never refunded.
+    async updateTeamSwapState(teamName, awardType, _spent = true) {
         const teamId = this.teamIdByName[teamName];
         if (!teamId) throw new Error(`Unknown team: ${teamName}`);
 
-        const column = awardType === 'nextup' ? 'nextup_permanent_swap_used'
-            : awardType === 'boom' ? 'boom_permanent_swap_used'
-            : 'main_permanent_swap_used';
-
-        const { error } = await this.supabase
-            .from('teams')
-            .update({ [column]: permanentSwapUsed })
-            .eq('id', teamId);
+        const { data: newCount, error } = await this.supabase.rpc('use_permanent_swap', { p_team_id: teamId, p_award: awardType });
 
         if (error) throw new Error(`Failed to update ${awardType} swap state for ${teamName}: ${error.message}`);
         if (!this.teamSwapStateByName[teamName]) this.teamSwapStateByName[teamName] = { main: false, nextup: false, boom: false };
-        this.teamSwapStateByName[teamName][awardType] = permanentSwapUsed;
+        this.teamSwapStateByName[teamName][awardType] = newCount >= PERMANENT_SWAPS_PER_AWARD;
     }
 
     async setCurrentWeek(week) {

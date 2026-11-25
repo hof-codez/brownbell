@@ -16,6 +16,10 @@ export interface Team {
   main_permanent_swap_used: boolean;
   nextup_permanent_swap_used: boolean;
   boom_permanent_swap_used: boolean;
+  /** Permanent swaps spent per award (limit 2; the *_used flags mean exhausted). */
+  main_swaps_count?: number;
+  nextup_swaps_count?: number;
+  boom_swaps_count?: number;
   background_image_url: string | null;
   background_opacity: number;
   accent_color: string | null;

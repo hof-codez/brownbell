@@ -38,5 +38,7 @@ delete from duo_names;
 delete from duos;
 
 update teams set main_permanent_swap_used = false, nextup_permanent_swap_used = false, boom_permanent_swap_used = false;
+-- 056: also reset the swap counters (run 056 first if it is not applied yet)
+-- update teams set main_swaps_count = 0, nextup_swaps_count = 0, boom_swaps_count = 0;
 
 commit;

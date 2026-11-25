@@ -89,7 +89,7 @@ export function DuoPickerModal({ awardType, playerIndex, fetchEligible, setDuo, 
 
                 {!loading && data && data.candidates.length > 0 && data.situation === 'permanent' && (
                     <p className="mt-1 font-body text-xs italic text-chalk-dim">
-                        Permanent swap - no auto-revert, and this uses this award&rsquo;s one permanent swap for the season.
+                        Permanent swap - no auto-revert, and this uses one of this award&rsquo;s 2 permanent swaps for the season.
                     </p>
                 )}
 

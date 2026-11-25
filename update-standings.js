@@ -2823,7 +2823,7 @@ class BrownBellAutomator {
                     // award now (originally Season of Boom-only).
                     const event = await this.resolveVacancy(
                         row.teamName, row.awardType, row.playerIndex, excludeIds, otherSlotInfo, row.sleeperPlayerId, row.playerName, row.playerPosition,
-                        'Permanent departure - cleared (this award\'s one permanent swap of the season) - pick a replacement or auto-sub kicks in near kickoff',
+                        'Permanent departure - cleared (one of this award\'s permanent swaps for the season) - pick a replacement or auto-sub kicks in near kickoff',
                         'Permanent departure - auto-subbed (kickoff approaching, no owner pick made) - this award\'s permanent swap for the season',
                         'Permanent departure - no eligible replacement currently available - still waiting (this award\'s permanent swap of the season)',
                         'permanent-cleared-for-owner', 'permanent-auto-fill', week, existingSubstitutions, injuryUpdateEntry

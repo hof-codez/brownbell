@@ -58,7 +58,7 @@ export interface SwapPermission {
 
 // permanentSwapUsed is THIS AWARD's own flag (main/nextup/boom each track
 // their own) - not a team-wide value. Given the current situation and
-// whether this specific award has already used its one permanent swap,
+// whether this specific award has already used all its permanent swaps (2 per season),
 // decides whether a manual pick should be offered right now. The actual
 // flag update happens in set-duo on a successful write, not here.
 export function checkSwapPermission(

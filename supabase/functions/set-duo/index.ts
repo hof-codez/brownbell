@@ -235,15 +235,10 @@ Deno.serve(async (req: Request) => {
         }
 
         if (isPermanentSwap) {
-            const swapColumn = awardType === 'nextup' ? 'nextup_permanent_swap_used'
-                : awardType === 'boom' ? 'boom_permanent_swap_used'
-                : 'main_permanent_swap_used';
-            const { error: teamUpdateError } = await supabase
-                .from('teams')
-                .update({ [swapColumn]: true })
-                .eq('id', teamId);
+            // Spends one of the award's 2 permanent swaps (atomic, sets the exhausted flag at the limit)
+            const { error: teamUpdateError } = await supabase.rpc('use_permanent_swap', { p_team_id: teamId, p_award: awardType });
             if (teamUpdateError) {
-                console.error(`Failed to set ${swapColumn}:`, teamUpdateError);
+                console.error('Failed to spend permanent swap:', teamUpdateError);
             }
         }
 

@@ -141,7 +141,7 @@ export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, standbyByKey,
         return !!slot?.sleeper_player_id && !!byePlayerIds?.has(slot.sleeper_player_id);
     }
 
-    function renderAwardHeader(awardType: AwardType, Icon: typeof BellIcon, label: string, slots: TeamWithDuos['main'], permanentSwapUsed: boolean) {
+    function renderAwardHeader(awardType: AwardType, Icon: typeof BellIcon, label: string, slots: TeamWithDuos['main'], permanentSwapUsed: boolean, swapsSpent = 0) {
         const name = duoNames?.get(duoNameKey(team.id, awardType));
         const bothSet = !!slots[0] && !!slots[1];
         return (
@@ -161,8 +161,8 @@ export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, standbyByKey,
                 {expanded && (
                     <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-chalk-dim">
                         {permanentSwapUsed
-                            ? <span className="text-brick">Permanent swap used &middot; auto-fill only from here</span>
-                            : '1 permanent swap available this season'}
+                            ? <span className="text-brick">Permanent swaps used up &middot; auto-fill only from here</span>
+                            : `${Math.max(0, 2 - swapsSpent)} permanent swap${2 - swapsSpent === 1 ? '' : 's'} left this season`}
                     </p>
                 )}
             </div>
@@ -237,26 +237,26 @@ export function TeamCard({ teamWithDuos, onEditSlot, onSetStandby, standbyByKey,
                 {expanded ? (
                     <div className="mt-4 space-y-4">
                         <section aria-labelledby={`main-${team.id}`}>
-                            {renderAwardHeader('main', BellIcon, 'Brown Bell', main, team.main_permanent_swap_used)}
+                            {renderAwardHeader('main', BellIcon, 'Brown Bell', main, team.main_permanent_swap_used, team.main_swaps_count ?? 0)}
                             <div className="space-y-1.5">
-                                <DuoSlotDisplay slot={main[0]} onEdit={getEditHandler('main', 0, main[0], getGameInfo?.(main[0]?.player_team ?? null), team.main_permanent_swap_used)} isTemporarySituation={isTemporarySituation(main[0])} onSetStandby={getStandbyHandler('main', 0, main[0], getGameInfo?.(main[0]?.player_team ?? null))} currentStandby={getCurrentStandby('main', 0)} isBye={isBye(main[0])} gameInfo={getGameInfo?.(main[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
-                                <DuoSlotDisplay slot={main[1]} onEdit={getEditHandler('main', 1, main[1], getGameInfo?.(main[1]?.player_team ?? null), team.main_permanent_swap_used)} isTemporarySituation={isTemporarySituation(main[1])} onSetStandby={getStandbyHandler('main', 1, main[1], getGameInfo?.(main[1]?.player_team ?? null))} currentStandby={getCurrentStandby('main', 1)} isBye={isBye(main[1])} gameInfo={getGameInfo?.(main[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={main[0]} onEdit={getEditHandler('main', 0, main[0], getGameInfo?.(main[0]?.player_team ?? null), team.main_permanent_swap_used, team.main_swaps_count ?? 0)} isTemporarySituation={isTemporarySituation(main[0])} onSetStandby={getStandbyHandler('main', 0, main[0], getGameInfo?.(main[0]?.player_team ?? null))} currentStandby={getCurrentStandby('main', 0)} isBye={isBye(main[0])} gameInfo={getGameInfo?.(main[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={main[1]} onEdit={getEditHandler('main', 1, main[1], getGameInfo?.(main[1]?.player_team ?? null), team.main_permanent_swap_used, team.main_swaps_count ?? 0)} isTemporarySituation={isTemporarySituation(main[1])} onSetStandby={getStandbyHandler('main', 1, main[1], getGameInfo?.(main[1]?.player_team ?? null))} currentStandby={getCurrentStandby('main', 1)} isBye={isBye(main[1])} gameInfo={getGameInfo?.(main[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
                             </div>
                         </section>
 
                         <section aria-labelledby={`nextup-${team.id}`}>
-                            {renderAwardHeader('nextup', SproutIcon, 'Next Up Award', nextup, team.nextup_permanent_swap_used)}
+                            {renderAwardHeader('nextup', SproutIcon, 'Next Up Award', nextup, team.nextup_permanent_swap_used, team.nextup_swaps_count ?? 0)}
                             <div className="space-y-1.5">
-                                <DuoSlotDisplay slot={nextup[0]} onEdit={getEditHandler('nextup', 0, nextup[0], getGameInfo?.(nextup[0]?.player_team ?? null), team.nextup_permanent_swap_used)} isTemporarySituation={isTemporarySituation(nextup[0])} onSetStandby={getStandbyHandler('nextup', 0, nextup[0], getGameInfo?.(nextup[0]?.player_team ?? null))} currentStandby={getCurrentStandby('nextup', 0)} isBye={isBye(nextup[0])} gameInfo={getGameInfo?.(nextup[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
-                                <DuoSlotDisplay slot={nextup[1]} onEdit={getEditHandler('nextup', 1, nextup[1], getGameInfo?.(nextup[1]?.player_team ?? null), team.nextup_permanent_swap_used)} isTemporarySituation={isTemporarySituation(nextup[1])} onSetStandby={getStandbyHandler('nextup', 1, nextup[1], getGameInfo?.(nextup[1]?.player_team ?? null))} currentStandby={getCurrentStandby('nextup', 1)} isBye={isBye(nextup[1])} gameInfo={getGameInfo?.(nextup[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={nextup[0]} onEdit={getEditHandler('nextup', 0, nextup[0], getGameInfo?.(nextup[0]?.player_team ?? null), team.nextup_permanent_swap_used, team.nextup_swaps_count ?? 0)} isTemporarySituation={isTemporarySituation(nextup[0])} onSetStandby={getStandbyHandler('nextup', 0, nextup[0], getGameInfo?.(nextup[0]?.player_team ?? null))} currentStandby={getCurrentStandby('nextup', 0)} isBye={isBye(nextup[0])} gameInfo={getGameInfo?.(nextup[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={nextup[1]} onEdit={getEditHandler('nextup', 1, nextup[1], getGameInfo?.(nextup[1]?.player_team ?? null), team.nextup_permanent_swap_used, team.nextup_swaps_count ?? 0)} isTemporarySituation={isTemporarySituation(nextup[1])} onSetStandby={getStandbyHandler('nextup', 1, nextup[1], getGameInfo?.(nextup[1]?.player_team ?? null))} currentStandby={getCurrentStandby('nextup', 1)} isBye={isBye(nextup[1])} gameInfo={getGameInfo?.(nextup[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
                             </div>
                         </section>
 
                         <section aria-labelledby={`boom-${team.id}`}>
-                            {renderAwardHeader('boom', BoltIcon, 'Season of Boom', boom, team.boom_permanent_swap_used)}
+                            {renderAwardHeader('boom', BoltIcon, 'Season of Boom', boom, team.boom_permanent_swap_used, team.boom_swaps_count ?? 0)}
                             <div className="space-y-1.5">
-                                <DuoSlotDisplay slot={boom[0]} onEdit={getEditHandler('boom', 0, boom[0], getGameInfo?.(boom[0]?.player_team ?? null), team.boom_permanent_swap_used)} isTemporarySituation={isTemporarySituation(boom[0])} onSetStandby={getStandbyHandler('boom', 0, boom[0], getGameInfo?.(boom[0]?.player_team ?? null))} currentStandby={getCurrentStandby('boom', 0)} isBye={isBye(boom[0])} gameInfo={getGameInfo?.(boom[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
-                                <DuoSlotDisplay slot={boom[1]} onEdit={getEditHandler('boom', 1, boom[1], getGameInfo?.(boom[1]?.player_team ?? null), team.boom_permanent_swap_used)} isTemporarySituation={isTemporarySituation(boom[1])} onSetStandby={getStandbyHandler('boom', 1, boom[1], getGameInfo?.(boom[1]?.player_team ?? null))} currentStandby={getCurrentStandby('boom', 1)} isBye={isBye(boom[1])} gameInfo={getGameInfo?.(boom[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={boom[0]} onEdit={getEditHandler('boom', 0, boom[0], getGameInfo?.(boom[0]?.player_team ?? null), team.boom_permanent_swap_used, team.boom_swaps_count ?? 0)} isTemporarySituation={isTemporarySituation(boom[0])} onSetStandby={getStandbyHandler('boom', 0, boom[0], getGameInfo?.(boom[0]?.player_team ?? null))} currentStandby={getCurrentStandby('boom', 0)} isBye={isBye(boom[0])} gameInfo={getGameInfo?.(boom[0]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
+                                <DuoSlotDisplay slot={boom[1]} onEdit={getEditHandler('boom', 1, boom[1], getGameInfo?.(boom[1]?.player_team ?? null), team.boom_permanent_swap_used, team.boom_swaps_count ?? 0)} isTemporarySituation={isTemporarySituation(boom[1])} onSetStandby={getStandbyHandler('boom', 1, boom[1], getGameInfo?.(boom[1]?.player_team ?? null))} currentStandby={getCurrentStandby('boom', 1)} isBye={isBye(boom[1])} gameInfo={getGameInfo?.(boom[1]?.player_team ?? null)} onViewPlayerNews={onViewPlayerNews} />
                             </div>
                         </section>
                     </div>

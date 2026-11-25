@@ -133,16 +133,15 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                     mid-week return, so there&rsquo;s no chance of them surprising everyone by playing. The slot is
                     covered the same way at first &mdash; your standby if one is set and usable, otherwise
                     auto-sub &mdash; but here you can also use <span className="text-chalk">Change</span> to pick
-                    the replacement yourself, as long as that award&rsquo;s permanent swap hasn&rsquo;t been used
-                    yet.
+                    the replacement yourself, as long as that award still has a permanent swap left.
                 </p>
                 <p className="mt-2">
                     There&rsquo;s a limit to how long this stays temporary. Once a replacement has held the slot
                     for <span className="text-chalk">4 consecutive weeks</span> while your original player is
                     still on IR or PUP, it becomes permanent: that replacement is your new pick for the rest of
-                    the season, and that award&rsquo;s permanent swap is used up. The slot shows a
+                    the season, and one of that award&rsquo;s permanent swaps is used up. The slot shows a
                     &ldquo;Becomes permanent in&hellip;&rdquo; countdown while this is ticking. If that
-                    award&rsquo;s swap is already used, there&rsquo;s no countdown &mdash; the replacement simply
+                    award&rsquo;s swaps are already used up, there&rsquo;s no countdown &mdash; the replacement simply
                     covers until your player returns.
                 </p>
                 <p className="mt-2">
@@ -186,8 +185,9 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                     If your locked player is traded away or released &mdash; no longer on your roster at all
                     &mdash; that&rsquo;s permanent. There&rsquo;s no auto-revert, because there&rsquo;s no original
                     player left to come back. Each award &mdash; Brown Bell, Next Up, and Season of Boom &mdash;
-                    gets its <span className="text-chalk">own, independent</span> permanent swap: what happens in
-                    one has no effect on the other two.
+                    gets its <span className="text-chalk">own, independent</span> budget of{' '}
+                    <span className="text-chalk">2 permanent swaps per season</span>: what happens in one has no
+                    effect on the other two.
                 </p>
                 <p className="mt-2">
                     Unlike an injury, a permanent departure doesn&rsquo;t auto-fill right away.{' '}
@@ -212,15 +212,15 @@ export function RulesPage({ scrollToId }: RulesPageProps) {
                     based on stats that have already happened or are already live.
                 </p>
                 <ul className="ml-4 mt-2 list-disc space-y-1">
-                    <li><span className="text-chalk">That award&rsquo;s 1st permanent departure:</span> the slot clears and waits for your pick, auto-filling only as kickoff nears</li>
+                    <li><span className="text-chalk">That award&rsquo;s 1st and 2nd permanent departures:</span> the slot clears and waits for your pick, auto-filling only as kickoff nears</li>
                     <li>
-                        <span className="text-chalk">Any further permanent departure in that same award:</span> auto-sub
+                        <span className="text-chalk">Any further permanent departure in that same award (3rd and on):</span> auto-sub
                         fills it immediately, no window at all
                     </li>
                 </ul>
                 <p className="mt-2">
-                    An award&rsquo;s permanent swap gets used either by a trade or release, or by an IR/PUP
-                    countdown running out (see above). Once it&rsquo;s used, Change is gone for the rest of the
+                    Each trade or release, and each IR/PUP countdown that runs out (see above), uses one of that
+                    award&rsquo;s 2 permanent swaps. Once both are used, Change is gone for the rest of the
                     season for <span className="text-chalk">that award specifically</span> &mdash; not just for
                     future trades, but during IR/PUP too. Standbys still work. Your other two awards are
                     completely unaffected and keep their own manual control until each independently uses its own
