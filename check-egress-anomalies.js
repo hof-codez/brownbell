@@ -91,7 +91,7 @@ async function run() {
         console.error('\nThis pattern (one endpoint far outpacing everything else) is exactly what a stale');
         console.error('React dependency or a refetch loop looks like - check for a useEffect whose');
         console.error('dependency array holds an array/object that gets recreated on every render.');
-        process.exit(1);
+        process.exit(2); // 2 = anomaly (the workflow opens an issue); 1 = the check itself failed
     }
 
     console.log('\n✅ No anomalous request volume detected.');

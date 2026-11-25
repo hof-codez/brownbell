@@ -18,19 +18,36 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The alert step below opens a GitHub Issue. Without this the default token
+    # is read-only and the issue call fails with "Resource not accessible".
+    permissions:
+      issues: write
+      contents: read
     steps:
+      # Without this the runner has no repo files and node cannot find the script.
+      - uses: actions/checkout@v4
+
       - name: Run anomaly check
+        id: check
         env:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: node check-egress-anomalies.js
+        run: |
+          set +e
+          node check-egress-anomalies.js
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # Exit 2 = real anomaly: handled by the alert step, job stays green.
+          # Any other failure (bad token, API error) fails the job so it is not mistaken for an anomaly.
+          if [ "$code" -eq 2 ]; then exit 0; fi
+          exit $code
 
       # Same pattern as update-standings.yml's own failure alert - a highly
       # visible GitHub Issue rather than relying on email notifications.
       # Repeat detections comment on the same open issue rather than
       # spamming a new one each day.
       - name: Alert on anomaly detected
-        if: failure()
+        if: steps.check.outputs.code == '2'
         uses: actions/github-script@v7
         with:
           script: |
