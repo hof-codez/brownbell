@@ -30,3 +30,6 @@ verify_jwt = false
 
 [functions.set-standby]
 verify_jwt = false
+
+[functions.roster-departures]
+verify_jwt = false

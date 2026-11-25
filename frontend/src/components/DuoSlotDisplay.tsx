@@ -124,7 +124,7 @@ export function DuoSlotDisplay({ slot, onEdit, isTemporarySituation, isBye, game
                     )}
                 </div>
             </div>
-            {slot.player_departed ? (
+            {slot.player_departed && !(gameInfo?.kickoff_time && new Date(gameInfo.kickoff_time) <= new Date()) ? (
                 <p className="mt-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-brick">
                     No longer on this roster &mdash; pick a replacement
                 </p>

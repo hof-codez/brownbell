@@ -120,6 +120,26 @@ export function useSeasonData(): UseSeasonDataResult {
       if (!cancelled) {
         setState({ loading: false, error: null, season, teams: teamsWithDuos });
       }
+
+      // Live roster check. The automation only flags traded-away players at its
+      // checkpoints, so owners saw players who were already gone. This asks Sleeper
+      // right now and marks them. Display hint only: set-duo and get-eligible-roster
+      // still enforce every real rule. Any failure is ignored.
+      try {
+        const { data: live, error: liveErr } = await supabase.functions.invoke('roster-departures', { body: {} });
+        if (liveErr || !live?.departed?.length || cancelled) return;
+        const gone = new Set<string>(live.departed.map((d: { teamId: string; awardType: string; playerIndex: number }) => `${d.teamId}|${d.awardType}|${d.playerIndex}`));
+        setState(prev => ({
+          ...prev,
+          teams: prev.teams.map(t => {
+            const mark = (award: string, slots: typeof t.main) =>
+              slots.map((sl, i) => (sl && gone.has(`${t.team.id}|${award}|${i}`) ? { ...sl, player_departed: true } : sl)) as typeof t.main;
+            return { ...t, main: mark('main', t.main), nextup: mark('nextup', t.nextup), boom: mark('boom', t.boom) };
+          })
+        }));
+      } catch (e) {
+        console.error('roster-departures check failed (non-fatal):', e);
+      }
     }
 
     load();
