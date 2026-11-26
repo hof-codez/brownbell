@@ -6,7 +6,8 @@
 //   2. renames the team to the new owner and updates the Sleeper owner id
 //   3. logs the old owner in manager_changes
 //   4. clears the team's claim (old PIN and devices stop working)
-//   5. archives the old owner's calculator votes (they keep counting in league values
+//   5. resets the team's permanent swap budget (2 per award) so the new owner starts fresh
+//   6. archives the old owner's calculator votes (they keep counting in league values
 //      and trade splits, but the new owner starts with a clean profile and daily cap)
 //
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SLEEPER_LEAGUE_ID
@@ -90,6 +91,13 @@ async function main() {
 
     r = await db.from('team_claims').delete().eq('team_id', team.id);
     if (r.error) throw new Error(`team_claims: ${r.error.message}`);
+
+    // New owner starts with the full permanent swap budget for every award.
+    r = await db.from('teams').update({
+        main_swaps_count: 0, nextup_swaps_count: 0, boom_swaps_count: 0,
+        main_permanent_swap_used: false, nextup_permanent_swap_used: false, boom_permanent_swap_used: false,
+    }).eq('id', team.id);
+    if (r.error) throw new Error(`teams swap reset: ${r.error.message} (is migration 056 applied?)`);
 
     for (const table of ['tc_votes', 'tc_trade_votes']) {
         r = await db.from(table).update({ archived: true }).eq('team_id', team.id).eq('archived', false);
